@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, UUID, ForeignKey
-from sqlalchemy.dialects.postgresql import  relationship
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class InAppNotificationModel(BaseModel):
     __tablename__ = "in_app_notifications"

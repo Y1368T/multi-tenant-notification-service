@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
-from ...value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.notification_request import NotificationRequest
 class IChannelHandler(ABC):
     """Interface for channel handler operations."""
     

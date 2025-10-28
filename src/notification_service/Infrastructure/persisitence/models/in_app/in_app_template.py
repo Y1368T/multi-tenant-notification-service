@@ -1,5 +1,5 @@
 from sqlalchemy import UUID, Column, String, UniqueConstraint,Integer, Boolean
-from sqlalchemy.dialects.postgresql import  relationship
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class InAppTemplateModel(BaseModel):
     __tablename__ = "in_app_templates"

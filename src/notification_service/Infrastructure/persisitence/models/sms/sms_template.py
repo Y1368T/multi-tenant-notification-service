@@ -1,5 +1,6 @@
 from sqlalchemy import UUID, Column, String, Boolean,Integer, ForeignKey, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, relationship
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class SMSTemplateModel(BaseModel):
     __tablename__ = "sms_templates"

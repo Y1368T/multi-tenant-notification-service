@@ -1,5 +1,6 @@
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, UUID, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB, relationship
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 
 class EmailOutboxModel(BaseModel):

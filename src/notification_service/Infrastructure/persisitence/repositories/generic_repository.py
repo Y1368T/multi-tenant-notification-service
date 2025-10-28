@@ -1,6 +1,7 @@
 
 from select import select
-from notification_service.domain.interfaces import IGenericRepository, T
+from notification_service.domain.interfaces import IGenericRepository
+from notification_service.domain.interfaces.igeneric_repository import T
 class GenericRepository(IGenericRepository[T]):
     async def __init__(self, session):
         self.session = session

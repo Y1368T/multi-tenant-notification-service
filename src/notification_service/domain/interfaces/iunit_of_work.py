@@ -5,15 +5,7 @@ Manages atomic transactions across multiple repositories.
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from app.domain.interfaces.repository_interfaces import (
-    INotificationRepository,
-    ITenantRepository,
-    ITemplateRepository,
-    ITenantChannelConfigRepository,
-    IOutboxRepository,
-    IDeliveryAttemptRepository
-)
-
+from notification_service.domain.interfaces import *
 
 class IUnitOfWork(ABC):
     """

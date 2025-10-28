@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String,UUID, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB, relationship
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class EmailNotificationModel(BaseModel):
     __tablename__ = "email_notifications"

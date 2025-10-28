@@ -1,5 +1,6 @@
 from sqlalchemy import UUID, Column, Integer, DateTime, String, Boolean, ForeignKey, UniqueConstraint,ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB, relationship
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 
 from ..base import BaseModel
 class TenantEmailConfigurationModel(BaseModel):
@@ -15,5 +16,5 @@ class TenantEmailConfigurationModel(BaseModel):
     rate_limit_per_day = Column(Integer, default=8000)
     tenant = relationship("TenantModel", back_populates="email_configurations")
     __table_args__ = (
-        UniqueConstraint('tenant_id', 'provider_name', name='uix_tenant_email_provider')
+        UniqueConstraint('tenant_id', 'provider_name', name='uix_tenant_email_provider'),
     )

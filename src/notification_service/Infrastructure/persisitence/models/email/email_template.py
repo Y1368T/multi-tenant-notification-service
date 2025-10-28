@@ -1,5 +1,5 @@
 from sqlalchemy import UUID, Column, Integer, String, Boolean, UniqueConstraint
-from sqlalchemy.dialects.postgresql import  relationship
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class EmailTemplateModel(BaseModel):
     __tablename__ = "email_templates"

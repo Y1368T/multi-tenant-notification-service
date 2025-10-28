@@ -1,5 +1,6 @@
-from sqlalchemy import UUID, UUID, Column, Integer, String
-from sqlalchemy.dialects.postgresql import JSONB, ForeignKey, relationship
+from sqlalchemy import UUID, Column, Integer, String, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class SMSNotificationModel(BaseModel):
     __tablename__ = "sms_notifications"

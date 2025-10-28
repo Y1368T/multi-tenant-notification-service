@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Boolean,Integer
-from sqlalchemy.dialects.postgresql import relationship
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 
 class TenantModel(BaseModel):
@@ -7,7 +7,7 @@ class TenantModel(BaseModel):
 
     name = Column(String, unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True)
-    prefix = Column(String, unique=True, index=True, nullable=False, length=10)
+    prefix = Column(String(10), unique=True, index=True, nullable=False)
     rate_limit_per_minute = Column(Integer, default=60)
     rate_limit_per_hour = Column(Integer, default=1000)
     rate_limit_per_day = Column(Integer, default=10000)

@@ -1,5 +1,5 @@
-from sqlalchemy import Column, DateTime, Integer, String, Boolean
-from sqlalchemy.dialects.postgresql import UUID, ForeignKey, relationship
+from sqlalchemy import Column, DateTime, Integer, String, Boolean, UUID, ForeignKey
+from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class SMSOutboxModel(BaseModel):
     __tablename__ = "sms_outbox"
