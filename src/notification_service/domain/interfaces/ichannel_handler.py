@@ -5,6 +5,15 @@ class IChannelHandler(ABC):
     """Interface for channel handler operations."""
     
     @abstractmethod
+    async def receive_message(self, tenant: str,message: NotificationRequest) -> NotificationRequest:
+        """Receive a message from the message router.
+
+        Returns:
+            NotificationRequest: The received notification request.
+        """
+        pass
+
+    @abstractmethod
     async def load_tenant_config(self, tenant_id: str) -> dict:
         """Load the channel configuration for a given tenant.
         

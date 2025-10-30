@@ -1,16 +1,17 @@
 
+from enum import Enum
 
-class SMSProvider:
-    ETHIOTELECOM = "ethiotelecom",
-    AFROMESSAGE = "afromessage",
+class SMSProvider(Enum):
+    ETHIOTELECOM = "ethiotelecom"
+    AFROMESSAGE = "afromessage"
     KIFIYA = "kifiya"
 
-class EmailProvider:
-    SENDGRID = "sendgrid",
-    MAILGUN = "mailgun",
-    AMAZON_SES = "amazon_ses",
+class EmailProvider(Enum):
+    SENDGRID = "sendgrid"
+    MAILGUN = "mailgun"
+    AMAZON_SES = "amazon_ses"
     SMTP = "smtp"
-    
-class PushProvider:
-    FIREBASE = "firebase",
+
+class PushProvider(Enum):
+    FIREBASE = "firebase"
     ONESIGNAL = "onesignal"

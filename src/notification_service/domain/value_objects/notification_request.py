@@ -25,7 +25,7 @@ class NotificationRequest:
     
     JSON structure:
     {
-        "serviceName": "qena-bank",
+        "serviceName": "payment-service",
         "recipients": [
             {"address": "+251912345678"},
             {"address": "+251923456789"}
@@ -36,7 +36,7 @@ class NotificationRequest:
         
     }
     """
-    service_name: str  # Tenant identifier (e.g., "qena-bank")
+    service_name: str  # service identifier (e.g., "payment-service")
     recipients: List[Recipient]
     template_name: str
     payload: Dict[str, Any]  # Template variables
