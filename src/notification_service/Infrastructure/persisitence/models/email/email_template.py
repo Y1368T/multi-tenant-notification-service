@@ -1,4 +1,4 @@
-from sqlalchemy import UUID, Column, Integer, String, Boolean, UniqueConstraint
+from sqlalchemy import UUID, Column, Integer, String, Boolean, UniqueConstraint ,ForeignKey
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class EmailTemplateModel(BaseModel):
@@ -12,7 +12,7 @@ class EmailTemplateModel(BaseModel):
     is_active = Column(Boolean, default=True)
     version = Column(Integer, nullable=False, default=1)
     service_name = Column(String, nullable=False)
-    tenant_id = Column(UUID, nullable=False)
+    tenant_id = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     tenant = relationship("TenantModel", back_populates="email_templates")
     email_notifications = relationship("EmailNotificationModel", back_populates="template")
     email_outboxes = relationship("EmailOutboxModel", back_populates="template")

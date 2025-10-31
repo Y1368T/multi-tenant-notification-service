@@ -14,6 +14,6 @@ class TenantModel(BaseModel):
     
     email_configurations = relationship("TenantEmailConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
     sms_configurations = relationship("TenantSMSConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
-    sms_templates = relationship("SMSTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
+    sms_templates = relationship("SmsTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
     email_templates = relationship("EmailTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
     in_app_templates = relationship("InAppTemplateModel", back_populates="tenant", cascade="all, delete-orphan")

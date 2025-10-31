@@ -1,9 +1,13 @@
-from .notification_request import NotificationRequest, Recipient , SMSProvider,EMailProvider,PushProvider
+from .notification_request import NotificationRequest, Recipient 
+from .notification_types  import NotificationChannel
+from .providers import SMSProvider, PushProvider, EmailProvider
+
 
 __all__ = [
     "NotificationRequest",
     "Recipient",
     "SMSProvider",
     "PushProvider",
-    "EMailProvider"
+    "EmailProvider",
+    "NotificationChannel"
 ]

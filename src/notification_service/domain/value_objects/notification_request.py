@@ -54,3 +54,24 @@ class NotificationRequest:
             raise ValueError("payload cannot be empty")
         if not self.idempotency_key:
             raise ValueError("idempotencyKey is required")
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "NotificationRequest":
+        """Create NotificationRequest from dictionary."""
+        recipients = [Recipient(**rec) for rec in data.get("recipients", [])]
+        return cls(
+            service_name=data["serviceName"],
+            recipients=recipients,
+            template_name=data["templateName"],
+            payload=data["payload"],
+            idempotency_key=data.get("idempotencyKey", str(uuid.uuid4()))
+        )
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert NotificationRequest to dictionary."""
+        return {
+            "serviceName": self.service_name,
+            "recipients": [vars(recipient) for recipient in self.recipients],
+            "templateName": self.template_name,
+            "payload": self.payload,
+            "idempotencyKey": self.idempotency_key
+        }

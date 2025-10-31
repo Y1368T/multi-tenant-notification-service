@@ -13,10 +13,10 @@ class TenantSMSConfiguration:
     provider_name: str
     api_key: str
     sender_id: str
-    config: Dict[str, Any] = field(default_factory=dict)
     is_active: bool = True
     rate_limit_per_minute: int = 30
     rate_limit_per_hour: int = 500
     rate_limit_per_day: int = 5000
+    config: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)

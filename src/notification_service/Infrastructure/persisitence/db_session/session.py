@@ -7,6 +7,7 @@ from sqlalchemy import MetaData
 
 import logging 
 from typing import Optional
+from notification_service.config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,16 +18,16 @@ Base = declarative_base()
 class Database:
     """Database connection manager using SQLAlchemy AsyncSession"""
 
-    def __init__(self, database_url: str):
-        self.database_url = database_url
+    def __init__(self,settings:Settings):
+        self.database_url = settings.database_url
         self.engine = None
         self.session_maker: Optional[async_sessionmaker] = None
         
         
-    async def get_session(self) -> AsyncSession:
+    def get_session(self) -> AsyncSession:
         """Get a  database session"""
         if not self.session_maker:
-         raise RuntimeError("Database session maker is not initialized.")
+            raise RuntimeError("Database session maker is not initialized.")
          
         return self.session_maker()
 
@@ -84,14 +85,7 @@ async def get_database() -> Database:
 
 async def get_db_session() -> AsyncSession:
     """Dependency to get a database session"""
-    db = await get_database()
-    async with db.get_session() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    async with get_database().get_session() as session:
+        yield session
+    
         

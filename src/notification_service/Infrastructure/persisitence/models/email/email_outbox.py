@@ -18,5 +18,4 @@ class EmailOutboxModel(BaseModel):
     is_sent = Column(Boolean, default=False)
     sent_at = Column(DateTime, nullable=True)
     status = Column(String, nullable=False, default="pending")
-
-    template = relationship("EmailTemplateModel", back_populates="outbox_entries")
+    template = relationship("EmailTemplateModel", back_populates="email_outboxes")

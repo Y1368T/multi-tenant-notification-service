@@ -1,8 +1,8 @@
 from .sms_notification import SMSNotificationModel
-from .sms_template import SMSTemplateModel
-from .sms_outbox import SMSOutboxModel
+from .sms_template import SmsTemplateModel
+from .sms_outbox import SmsOutboxModel
 __all__ = [
-    "SMSTemplateModel",
+    "SmsTemplateModel",
     "SMSNotificationModel",
-    "SMSOutboxModel"
+    "SmsOutboxModel"
 ]

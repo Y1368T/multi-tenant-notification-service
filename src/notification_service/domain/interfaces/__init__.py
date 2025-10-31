@@ -5,7 +5,7 @@ from .igeneric_repository import IGenericRepository
 from .imessage_handler import IMessageHandler
 from .imessage_consumer import IMessageConsumer
 from .iprovider_service import IProviderService
-from .custom_repositories import itenant_repository
+from .custom_repositories import *
 
 __all__ = [
     "ICachedRepository",
@@ -17,5 +17,5 @@ __all__ = [
     "IProviderService",
     "ITenantRepository"
 ]
-__all__ += itenant_repository.__all__
+__all__.extend(custom_repositories.__all__)
     

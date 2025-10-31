@@ -5,7 +5,7 @@ Manages atomic transactions across multiple repositories.
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from notification_service.domain.interfaces import *
+from notification_service.domain.interfaces.igeneric_repository import IGenericRepository
 from notification_service.domain.interfaces.custom_repositories.itenant_repository import ITenantRepository
 
 class IUnitOfWork(ABC):

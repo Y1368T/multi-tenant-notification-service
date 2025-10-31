@@ -2,7 +2,7 @@ from typing import Any, Dict
 from notification_service.domain.interfaces.iprovider_service import IProviderService
 import uuid
 from datetime import datetime
-
+from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 class EthioTelecomShortcodeSMSProvider(IProviderService):
     async def construct_message(
         self,
@@ -86,7 +86,7 @@ class EthioTelecomShortcodeSMSProvider(IProviderService):
             "delivered_at": provider_callback.get("delivered_at"),
             "error_message": provider_callback.get("error_message")
         }
-
+    
     async def save_to_outbox(
         self,
         notification_id: str,
@@ -100,3 +100,12 @@ class EthioTelecomShortcodeSMSProvider(IProviderService):
         # TODO: Implement actual outbox persistence
         # This would typically save to a database table
         pass
+    async def circuit_breaker_check(
+        self,
+        config: TenantSMSConfiguration
+    ) -> bool:
+        """
+        Perform circuit breaker check for EthioTelecom shortcode SMS provider.
+        """
+        # Implement circuit breaker logic here
+        return True

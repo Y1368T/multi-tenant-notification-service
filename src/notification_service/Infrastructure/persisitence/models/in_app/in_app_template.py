@@ -1,4 +1,4 @@
-from sqlalchemy import UUID, Column, String, UniqueConstraint,Integer, Boolean
+from sqlalchemy import UUID, Column, String, UniqueConstraint,Integer, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class InAppTemplateModel(BaseModel):
@@ -9,7 +9,7 @@ class InAppTemplateModel(BaseModel):
     is_active = Column(Boolean, default=True)
     version = Column(Integer, nullable=False, default=1)
     service_name = Column(String, nullable=False)
-    tenant_id = Column(UUID, nullable=False)
+    tenant_id = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     tenant = relationship("TenantModel", back_populates="in_app_templates")
     in_app_notifications = relationship("InAppNotificationModel", back_populates="template")
     __table_args__ = (
