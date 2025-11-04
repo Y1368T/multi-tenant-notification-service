@@ -1,11 +1,12 @@
 from sqlalchemy import UUID, Column, String, UniqueConstraint,Integer, Boolean, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class InAppTemplateModel(BaseModel):
     __tablename__ = "in_app_templates"
 
     template_name = Column(String, unique=True, index=True, nullable=False)
-    body = Column(String, nullable=False)
+    body = Column(JSONB, nullable=False,default=dict)
     is_active = Column(Boolean, default=True)
     version = Column(Integer, nullable=False, default=1)
     service_name = Column(String, nullable=False)

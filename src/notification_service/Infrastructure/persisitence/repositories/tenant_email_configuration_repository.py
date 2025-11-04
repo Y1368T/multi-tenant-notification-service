@@ -9,4 +9,4 @@ from notification_service.Infrastructure.persisitence.mappers.tenant_email_confi
 class TenantEmailConfigurationRepository(GenericRepository[TenantEmailConfigurationModel, TenantEmailConfiguration]):
     """Repository for tenant email configurations."""
     def __init__(self, session: AsyncSession):
-        super().__init__(session, TenantEmailConfigurationModel, TenantEmailConfigurationMapper)
+        super().__init__(session, TenantEmailConfigurationModel, TenantEmailConfigurationMapper())

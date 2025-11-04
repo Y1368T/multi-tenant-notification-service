@@ -9,4 +9,5 @@ from notification_service.Infrastructure.persisitence.mappers.email_template_map
 class EmailTemplateRepository(GenericRepository[EmailTemplateModel, EmailTemplate]):
     """Repository for email templates."""
     def __init__(self, session: AsyncSession):
-        super().__init__(session, EmailTemplateModel, EmailTemplateMapper)
+        super().__init__(session, EmailTemplateModel, EmailTemplateMapper())
+        self.session = session

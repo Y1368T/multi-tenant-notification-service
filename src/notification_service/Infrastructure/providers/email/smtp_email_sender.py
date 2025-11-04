@@ -11,27 +11,7 @@ class SmtpEmailSender(IProviderService):
         self.password = password
         self.from_email = from_email
 
-    async def construct_message(
-        self,
-        template: str,
-        payload: Dict[str, Any],
-        recipient: str
-    ) -> str:
-        return template.format(**payload)
-
-    async def construct_request_object(
-        self,
-        message: str,
-        recipient: str,
-        metadata: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        subject = metadata.get('subject', 'Notification')
-        return {
-            'to': recipient,
-            'from': self.from_email,
-            'subject': subject,
-            'body': message
-        }
+    
 
     async def send(
         self,

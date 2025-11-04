@@ -9,4 +9,4 @@ from notification_service.Infrastructure.persisitence.mappers.tenant_sms_configu
 class TenantSmsConfigurationRepository(GenericRepository[TenantSMSConfigurationModel, TenantSMSConfiguration]):
     """Repository for tenant SMS configurations."""
     def __init__(self, session: AsyncSession):
-        super().__init__(session, TenantSMSConfigurationModel, TenantSmsConfigurationMapper)
+        super().__init__(session, TenantSMSConfigurationModel, TenantSmsConfigurationMapper())

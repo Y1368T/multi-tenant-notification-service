@@ -9,4 +9,4 @@ from notification_service.Infrastructure.persisitence.mappers.email_outbox_mappe
 class EmailOutboxRepository(GenericRepository[EmailOutboxModel, EmailOutbox]):
     """Repository for email outbox."""
     def __init__(self, session: AsyncSession):
-        super().__init__(session, EmailOutboxModel, EmailOutboxMapper)
+        super().__init__(session, EmailOutboxModel, EmailOutboxMapper())

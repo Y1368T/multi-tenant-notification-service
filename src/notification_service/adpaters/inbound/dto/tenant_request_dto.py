@@ -1,25 +1,19 @@
 from dataclasses import dataclass
+from pydantic import ConfigDict,BaseModel
 
 @dataclass
-class TenantRequestDTO:
-    tenant_id: str
+class TenantRequestDTO(BaseModel):
     name: str
     prefix: str
     is_active: bool
-    
+    model_config=ConfigDict(
+        from_attributes = True,
+        json_schema_extra = {
+            "example": {
+                "name": "Tenant A",
+                "prefix": "TENANTA",
+                "is_active": True
+            }
+        })
 
-    @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            tenant_id=data.get("tenant_id"),
-            name=data.get("name"),
-            prefix=data.get("prefix"),
-            is_active=data.get("is_active", True)
-        )
-    def to_dict(self) -> dict:
-        return {
-            "tenant_id": self.tenant_id,
-            "name": self.name,
-            "prefix": self.prefix,
-            "is_active": self.is_active
-        }
+   

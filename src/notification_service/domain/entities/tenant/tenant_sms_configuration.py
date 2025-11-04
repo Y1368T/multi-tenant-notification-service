@@ -11,8 +11,7 @@ class TenantSMSConfiguration:
     id: UUID
     tenant_id: UUID
     provider_name: str
-    api_key: str
-    sender_id: str
+    priroty: int=1
     is_active: bool = True
     rate_limit_per_minute: int = 30
     rate_limit_per_hour: int = 500

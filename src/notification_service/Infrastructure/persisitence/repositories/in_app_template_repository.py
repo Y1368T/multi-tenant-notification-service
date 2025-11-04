@@ -9,4 +9,4 @@ class InAppTemplateRepository(GenericRepository[InAppTemplateModel, InAppTemplat
     """Repository for in-app templates."""
     
     def __init__(self, session: AsyncSession):
-        super().__init__(session, InAppTemplateModel, InAppTemplateMapper)
+        super().__init__(session, InAppTemplateModel, InAppTemplateMapper())

@@ -7,7 +7,7 @@ class SmsTemplateModel(BaseModel):
 
     tenant_id = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     template_name = Column(String, nullable=False)
-    content = Column(String, nullable=False)
+    content = Column(JSONB, nullable=False,default=dict)
     is_active = Column(Boolean, default=True)
     version = Column(Integer, nullable=False, default=1)
     service_name = Column(String, nullable=False)

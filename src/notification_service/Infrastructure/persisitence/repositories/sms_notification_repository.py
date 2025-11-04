@@ -9,4 +9,4 @@ from notification_service.Infrastructure.persisitence.mappers.sms_notification_m
 class SmsNotificationRepository(GenericRepository[SMSNotificationModel, SMSNotification]):
     """Repository for SMS notifications."""
     def __init__(self, session: AsyncSession):
-        super().__init__(session, SMSNotificationModel, SmsNotificationMapper)
+        super().__init__(session, SMSNotificationModel, SmsNotificationMapper())

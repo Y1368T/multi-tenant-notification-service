@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 from qena_shared_lib.application import Builder
 from notification_service.Infrastructure.persisitence.db_session.session import Database
 from notification_service.Infrastructure.messaging.rabbitmq import RabbitMQConsumer
@@ -15,6 +16,18 @@ from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.adpaters.inbound.rest.routers import register_controllers
 from notification_service.config.settings import Settings
 from qena_shared_lib.dependencies.http import get_service
+from notification_service.application.services import tenant_sms_configuration_service
+from notification_service.application.services import sms_notification_service
+from notification_service.domain.interfaces.imessage_handler import IMessageHandler
+from notification_service.application.handlers.message_router import MessageRouter
+from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
+from notification_service.application.handlers.sms_channel_handler import SMSChannelHandler
+from notification_service.domain.interfaces.iprovider_service import IProviderService
+from notification_service.Infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomShortcodeSMSProvider
+from notification_service.application.services.sms_template_service import SMSTemplateService
+from notification_service.Infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
+# from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
+
 
 from fastapi import FastAPI
 
@@ -28,11 +41,28 @@ def main()->FastAPI:
     builder.with_singleton(Settings,instance=Settings())
     builder.with_singleton(Database)
     
-    builder.with_singleton(IUnitOfWork,UnitOfWork)
+    builder.with_transient(IUnitOfWork,UnitOfWork)
+    builder.with_transient(EthioTelecomShortcodeSMSProvider)
+    builder.with_transient(KifiyaSMSGateway)
+    builder.with_transient(ProcessMessageUseCase)
+    builder.with_transient(IMessageHandler,MessageRouter)
+    builder.with_transient(IChannelHandler,SMSChannelHandler)
     
-    builder.with_singleton(tenant_service.TenantService)
+    builder.with_transient(tenant_service.TenantService)
+    builder.with_transient(tenant_sms_configuration_service.TenantSMSConfigurationService)
+    builder.with_transient(sms_notification_service.SMSNotificationService)
+    builder.with_transient(SMSTemplateService)
+    
+    logging.basicConfig(
+    level=logging.INFO,  # Set to INFO to see info logs
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()  # Output to console/docker logs
+    ]
+)
     
     app=builder.build()
+   
     return app
 
 
@@ -42,8 +72,6 @@ async def lifespan(app: FastAPI):
     
     db=get_service(app,Database)
     await db.connect()
-    uow=get_service(app,IUnitOfWork)
-    uow.set_constructor()
     tenantservice=get_service(app,tenant_service.TenantService)
     active_tenants = await tenantservice.get_active_tenants()
     queu_name="notification.sms.qena"

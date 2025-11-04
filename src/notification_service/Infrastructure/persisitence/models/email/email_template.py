@@ -1,4 +1,5 @@
 from sqlalchemy import UUID, Column, Integer, String, Boolean, UniqueConstraint ,ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class EmailTemplateModel(BaseModel):
@@ -7,7 +8,7 @@ class EmailTemplateModel(BaseModel):
     template_name = Column(String, unique=True, index=True, nullable=False)
     subject = Column(String, nullable=False)
     body_type = Column(String, nullable=False, default="html")  # e.g., 'html' or 'text'
-    body = Column(String, nullable=False)
+    body = Column(JSONB, nullable=False, default=dict)
     file_urls = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     version = Column(Integer, nullable=False, default=1)

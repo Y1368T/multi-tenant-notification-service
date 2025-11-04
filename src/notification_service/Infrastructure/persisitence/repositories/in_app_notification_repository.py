@@ -9,4 +9,4 @@ from notification_service.Infrastructure.persisitence.mappers.in_app_notificatio
 class InAppNotificationRepository(GenericRepository[InAppNotificationModel, InAppNotification]):
     """Repository for in-app notifications."""
     def __init__(self, session: AsyncSession):
-        super().__init__(session, InAppNotificationModel, InAppNotificationMapper)
+        super().__init__(session, InAppNotificationModel, InAppNotificationMapper())

@@ -8,8 +8,6 @@ class TenantSMSConfigurationModel(BaseModel):
     tenant_id = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
     provider_name = Column(String, nullable=False)
     config = Column(JSONB, nullable=False, default={})
-    api_key = Column(String, nullable=False)
-    sender_id = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     rate_limit_per_minute = Column(Integer, default=30)
     rate_limit_per_hour = Column(Integer, default=500)

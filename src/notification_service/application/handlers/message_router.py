@@ -5,6 +5,9 @@ from notification_service.domain.value_objects.notification_request import Notif
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
 from notification_service.domain.value_objects.notification_types import NotificationChannel
 from notification_service.shared.exceptions.application_exceptions import MessageRoutingError
+from notification_service.domain.value_objects.notification_response import NotificationResponse
+from notification_service.domain.entities.tenant import Tenant
+from uuid import UUID
 logger = logging.getLogger(__name__)
 
 class MessageRouter(IMessageHandler):
@@ -13,19 +16,19 @@ class MessageRouter(IMessageHandler):
     def __init__(
         self,
         sms_handler: IChannelHandler,
-        email_handler: IChannelHandler,
-        push_handler: IChannelHandler,
-        whatsapp_handler: IChannelHandler
+        # email_handler: IChannelHandler,
+        # push_handler: IChannelHandler,
+        # whatsapp_handler: IChannelHandler
     ):
         self._handlers: Dict[NotificationChannel, IChannelHandler] = {
-            NotificationChannel.SMS: sms_handler,
-            NotificationChannel.EMAIL: email_handler,
-            NotificationChannel.PUSH: push_handler,
-            NotificationChannel.WHATSAPP: whatsapp_handler
+            NotificationChannel.SMS: sms_handler
+            # NotificationChannel.EMAIL: email_handler,
+            # NotificationChannel.PUSH: push_handler,
+            # NotificationChannel.WHATSAPP: whatsapp_handler
         }
         logger.info('MessageRouter initialized with 4 channel handlers')
 
-    async def do_route(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> None:
+    async def do_route(self,  channel: NotificationChannel, tenant:Tenant, message: NotificationRequest) -> NotificationResponse:
         """Route message to appropriate channel handler."""
         logger.info(f'Routing message to {channel.value} channel')
         
@@ -34,8 +37,7 @@ class MessageRouter(IMessageHandler):
             raise MessageRoutingError(f'No handler configured for channel: {channel.value}')
         
         try:
-            await handler.receive_message(tenant, message)
-            logger.info(f'Successfully routed to {channel.value} handler')
+           return await handler.receive_message(tenant, message)
         except Exception as e:
             logger.error(f'Failed to route to {channel.value}: {str(e)}', exc_info=True)
-            raise MessageRoutingError(f'Routing failed for {channel.value}: {str(e)}') from e
+            raise MessageRoutingError(f'Routing failed for {channel.value}: {str(e)}',"exception") from e

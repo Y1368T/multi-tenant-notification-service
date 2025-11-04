@@ -95,6 +95,6 @@ class TenantService:
             List of active Tenant entities
         """
         async with self.uow:
-            tenants = await self.uow.tenants.get_active_tenants()
+            tenants = await self.uow.tenants.find(lambda t: t.is_active)
             return tenants
     

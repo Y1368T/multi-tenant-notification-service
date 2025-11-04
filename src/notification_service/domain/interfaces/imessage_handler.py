@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.value_objects.notification_types import NotificationChannel
+from notification_service.domain.value_objects.notification_response import NotificationResponse
+from notification_service.domain.entities.tenant.tenant import Tenant
 class IMessageHandler(ABC):
     """
     Interface for message routing logic.
@@ -13,7 +15,7 @@ class IMessageHandler(ABC):
     """
     
     @abstractmethod
-    async def do_route(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> None:
+    async def do_route(self,  channel: NotificationChannel, tenant:Tenant, message: NotificationRequest) -> NotificationResponse:
         """
         Route incoming message to appropriate channel handler.
         

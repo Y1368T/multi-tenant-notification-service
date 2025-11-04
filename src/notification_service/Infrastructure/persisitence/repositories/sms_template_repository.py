@@ -9,4 +9,4 @@ class SmsTemplateRepository(GenericRepository[SmsTemplateModel, SmsTemplate]):
     """Repository for SMS templates."""
     
     def __init__(self, session: AsyncSession):
-        super().__init__(session, SmsTemplateModel, SmsTemplateMapper)
+        super().__init__(session, SmsTemplateModel, SmsTemplateMapper())

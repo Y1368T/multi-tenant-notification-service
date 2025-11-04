@@ -24,8 +24,6 @@ class TenantSmsConfigurationMapper:
             id=model.id,
             tenant_id=model.tenant_id,
             provider_name=model.provider_name,
-            api_key=model.api_key,
-            sender_id=model.sender_id,
             config=model.config,
             is_active=model.is_active,
             rate_limit_per_minute=model.rate_limit_per_minute,
@@ -52,8 +50,6 @@ class TenantSmsConfigurationMapper:
             id=entity.id,
             tenant_id=entity.tenant_id,
             provider_name=entity.provider_name,
-            api_key=entity.api_key,
-            sender_id=entity.sender_id,
             config=entity.config,
             is_active=entity.is_active,
             rate_limit_per_minute=entity.rate_limit_per_minute,
@@ -100,8 +96,6 @@ class TenantSmsConfigurationMapper:
         """
         model.tenant_id = entity.tenant_id
         model.provider_name = entity.provider_name
-        model.api_key = entity.api_key
-        model.sender_id = entity.sender_id
         model.config = entity.config
         model.is_active = entity.is_active
         model.rate_limit_per_minute = entity.rate_limit_per_minute

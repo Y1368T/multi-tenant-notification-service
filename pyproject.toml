@@ -23,6 +23,7 @@ psycopg2-binary = ">=2.9.11,<3.0.0"
 aio-pika = {version = ">=9.5.7,<10.0.0", python = ">=3.10,<4.0"}
 redis = {version = ">=5.0.0,<6.0.0", python = ">=3.10,<4.0"}
 qena-shared-lib = "^0.1.18"
+httpx = "^0.28.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

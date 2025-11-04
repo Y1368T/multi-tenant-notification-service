@@ -5,6 +5,7 @@ Abstraction for third-party notification providers (Twilio, SendGrid, FCM, etc.)
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from datetime import datetime
+from uuid import UUID
 
 
 class IProviderService(ABC):
@@ -13,66 +14,13 @@ class IProviderService(ABC):
     Each provider (Twilio, SendGrid, FCM, APNS) implements this interface.
     """
     
-    @abstractmethod
-    async def construct_message(
-        self,
-        template: str,
-        payload: Dict[str, Any],
-        recipient: str
-    ) -> str:
-        """
-        Construct final message by interpolating template with payload.
-        
-        Args:
-            template: Template string (e.g., "Hello {name}, your balance is {balance}")
-            payload: Variable values (e.g., {"name": "John", "balance": "1000"})
-            recipient: Recipient identifier (phone/email/device_token)
-            
-        Returns:
-            Final message string
-        """
-        pass
-    
-    @abstractmethod
-    async def construct_request_object(
-        self,
-        message: str,
-        recipient: str,
-        metadata: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Construct provider-specific request payload.
-        
-        Args:
-            message: Final message content
-            recipient: Recipient identifier
-            metadata: Additional metadata (idempotency key, custom fields)
-            
-        Returns:
-            Provider-specific request dict
-            
-        Example for Twilio:
-        {
-            "To": "+251912345678",
-            "From": "+1234567890",
-            "Body": "Your balance is 1000 ETB"
-        }
-        
-        Example for SendGrid:
-        {
-            "personalizations": [{"to": [{"email": "user@example.com"}]}],
-            "from": {"email": "noreply@qenabank.com"},
-            "subject": "Account Balance",
-            "content": [{"type": "text/plain", "value": "Your balance is 1000 ETB"}]
-        }
-        """
-        pass
     
     @abstractmethod
     async def send(
         self,
         request_object: Dict[str, Any],
-        notification_id: str
+        message_to_send: str,
+        template_id:UUID
     ) -> Dict[str, Any]:
         """
         Send notification via provider API.

@@ -9,4 +9,4 @@ class EmailNotificationRepository(GenericRepository[EmailNotificationModel, Emai
     """Repository for email notifications."""
     
     def __init__(self, session: AsyncSession):
-        super().__init__(session, EmailNotificationModel, EmailNotificationMapper)
+        super().__init__(session, EmailNotificationModel, EmailNotificationMapper())

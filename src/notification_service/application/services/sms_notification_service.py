@@ -1,36 +1,43 @@
 from uuid import UUID
+from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
 from notification_service.domain.value_objects.providers import SMSProvider
-
+from notification_service.domain.value_objects.notification_types import NotificationChannel
+from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.notification_response import NotificationResponse
+from notification_service.domain.interfaces import IMessageHandler
+from notification_service.domain.entities.tenant import Tenant
+from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 class SMSNotificationService:
-    def __init__(self, uow, sms_provider):
+    def __init__(self, uow:IUnitOfWork, process_message_use_case: ProcessMessageUseCase,message_router:IMessageHandler):
         self.uow = uow
-        self.sms_provider = sms_provider
+        self.process_message_use_case = process_message_use_case
+        self.message_router=message_router
 
-    async def send_sms_notification(self, tenant_id: UUID, sms_notification: SMSNotification) -> bool:
-        """Send an SMS notification using the SMS provider.
+
+    async def prepare_and_send_sms(self, tenant_id: UUID, message_data: NotificationRequest) -> NotificationResponse:
+        """Prepare and send an SMS notification.
 
         Args:
-            sms_notification: SMSNotification entity to send
-
-        Returns:
-            True if the SMS was sent successfully, False otherwise
-        """
-        config = await self.uow.sms_configurations.get_by_tenant_id(tenant_id)
-        if not config or not config.is_active:
-            return False
+            tenant_id: Tenant identifier
+            message_data: Dictionary containing SMS message details
+            """
         
-        provider = SMSProvider(config.provider_name)
-        is_healthy = await self.sms_provider.do_a_circuit_breaker_check(config, provider)
-        if not is_healthy:
-            return False
-
-        handler = self.sms_provider._handlers.get(provider)
-        if not handler:
-            return False
-
-        success = await self.sms_provider.send_sms(config, sms_notification)
-        return success
+        valid= self.process_message_use_case.validate_message(message=message_data,channel=NotificationChannel.SMS)
+        if valid is None:
+            return {"success": False, "error": "Validation failed"}
+        
+        if isinstance(valid, dict) and valid.get("success") is False:
+            return valid
+        tenant = None
+        async with self.uow:
+            tenant = await self.uow.tenants.get_by_id(tenant_id)
+            
+            if not tenant:
+                return {"success": False, "error": "Tenant does not exist"}
+            response= await self.message_router.do_route(NotificationChannel.SMS, tenant, message_data)
+            return response
+            
     
     async def get_sms_notifications(self, tenant_id):
         """Retrieve SMS notifications for a given tenant.

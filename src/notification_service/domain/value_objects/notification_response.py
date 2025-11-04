@@ -34,13 +34,16 @@ class NotificationResponse:
         "deliveredAt": "2024-01-15T10:30:05Z"
     }
     """
-    notification_id: str
-    tenant_id: str
-    channel: str
-    status: str
-    recipient: str  # Phone/Email/DeviceToken
-    created_at: datetime
+    notification_id: Optional[str]=None
+    tenant_id: Optional[str]=None
+    channel: Optional[str]=None
+    status: Optional[str]=None
+    recipients: Optional[List[str]]=None # List of Phone/Email/DeviceToken addresses
+    created_at: Optional[datetime]=None
     delivered_at: Optional[datetime] = None
+    success: bool = True
+    error_message: Optional[str] = None
+    message: Optional[str] = None
 
 
 @dataclass(frozen=True)

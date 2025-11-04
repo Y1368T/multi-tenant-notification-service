@@ -36,24 +36,10 @@ class UnitOfWork(IUnitOfWork):
 
     def __init__(self,database: Database):
         self.database=database
+        self.session = None
         pass
     
-    def set_constructor(self):
-        self.session = self.database.get_session()
-        self._email_notifications = EmailNotificationRepository(self.session)
-        self._email_outbox = EmailOutboxRepository(self.session)
-        self._email_templates = EmailTemplateRepository(self.session)
-
-        self._sms_notifications = SmsNotificationRepository(self.session)
-        self._sms_outbox = SmsOutboxRepository(self.session)
-        self._sms_templates = SmsTemplateRepository(self.session)
-
-        self._in_app_notifications = InAppNotificationRepository(self.session)
-        self._in_app_templates = InAppTemplateRepository(self.session)
-
-        self._tenants = TenantRepository(self.session, TenantMapper())
-        self._tenant_email_configurations = TenantEmailConfigurationRepository(self.session)
-        self._tenant_sms_configurations = TenantSmsConfigurationRepository(self.session)
+      
 
     @property
     def email_notifications(self):
@@ -101,6 +87,21 @@ class UnitOfWork(IUnitOfWork):
 
     async def __aenter__(self):
         """Enter async context manager."""
+        self.session = self.database.get_session()
+        self._email_notifications = EmailNotificationRepository(self.session)
+        self._email_outbox = EmailOutboxRepository(self.session)
+        self._email_templates = EmailTemplateRepository(self.session)
+
+        self._sms_notifications = SmsNotificationRepository(self.session)
+        self._sms_outbox = SmsOutboxRepository(self.session)
+        self._sms_templates = SmsTemplateRepository(self.session)
+
+        self._in_app_notifications = InAppNotificationRepository(self.session)
+        self._in_app_templates = InAppTemplateRepository(self.session)
+
+        self._tenants = TenantRepository(self.session, TenantMapper())
+        self._tenant_email_configurations = TenantEmailConfigurationRepository(self.session)
+        self._tenant_sms_configurations = TenantSmsConfigurationRepository(self.session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

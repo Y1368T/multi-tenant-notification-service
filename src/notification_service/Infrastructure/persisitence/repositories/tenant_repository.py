@@ -11,6 +11,7 @@ class TenantRepository(GenericRepository[TenantModel, Tenant], ITenantRepository
     """Repository for tenants with custom methods."""
 
     def __init__(self, session: AsyncSession, mapper: TenantMapper):
+        super().__init__(session, TenantModel, mapper)
         self.session = session
         self.mapper = mapper
 

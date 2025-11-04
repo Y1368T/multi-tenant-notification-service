@@ -1,8 +1,10 @@
 from notification_service.domain.entities.tenant.tenant_email_configuration import TenantEmailConfiguration
 from notification_service.domain.value_objects.providers import EmailProvider
 from uuid import UUID
+from notification_service.Infrastructure.providers.email.smtp_email_sender import SmtpEmailSender
+from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 class TenantEmailConfigurationService:
-    def __init__(self, uow, email_provider):
+    def __init__(self, uow:IUnitOfWork, email_provider:SmtpEmailSender):
         self.uow = uow
         self._handlers = {
             EmailProvider.SENDGRID: email_provider

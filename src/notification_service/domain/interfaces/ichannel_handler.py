@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 from notification_service.domain.value_objects.notification_request import NotificationRequest
+from uuid import UUID
+
 class IChannelHandler(ABC):
     """Interface for channel handler operations."""
     
@@ -24,17 +26,7 @@ class IChannelHandler(ABC):
             dict: The channel configuration for the tenant.
         """
         pass
-    @abstractmethod
-    async def validate_channel_config(self, config: dict) -> bool:
-        """Validate the provided channel configuration.
-        
-        Args:
-            config (dict): The channel configuration to validate.
-
-        Returns:
-            bool: True if the configuration is valid, False otherwise.
-        """
-        pass
+    
     @abstractmethod
     async def load_template(self, tenant_id: str, template_name: str, language: str) -> dict:
         """Load the message template for a given tenant and template name.
@@ -55,7 +47,9 @@ class IChannelHandler(ABC):
         request: NotificationRequest,
         tenant_id: str,
         config: Dict[str, Any],
-       template: str
+        template_id:UUID,
+        template: str
+       
     ) -> None:
        """
        Route notification to the appropriate provider for delivery.

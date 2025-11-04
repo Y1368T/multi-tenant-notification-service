@@ -9,4 +9,4 @@ class SmsOutboxRepository(GenericRepository[SmsOutboxModel, SMSOutbox]):
     """Repository for SMS outbox."""
     
     def __init__(self, session: AsyncSession):
-        super().__init__(session, SmsOutboxModel, SmsOutboxMapper)
+        super().__init__(session, SmsOutboxModel, SmsOutboxMapper())

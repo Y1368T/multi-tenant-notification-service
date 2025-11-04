@@ -58,7 +58,7 @@ from notification_service.Infrastructure.persisitence.models.base import Base
 from notification_service.Infrastructure.persisitence.models.email.email_notification import EmailNotificationModel  # noqa: F401
 from notification_service.Infrastructure.persisitence.models.email.email_outbox import EmailOutboxModel  # noqa: F401
 from notification_service.Infrastructure.persisitence.models.email.email_template import EmailTemplateModel  # noqa: F401
-from notification_service.Infrastructure.persisitence.models.sms.sms_notification import SmsNotificationModel  # noqa: F401
+from notification_service.Infrastructure.persisitence.models.sms.sms_notification import SMSNotificationModel  # noqa: F401
 from notification_service.Infrastructure.persisitence.models.sms.sms_outbox import SmsOutboxModel  # noqa: F401
 from notification_service.Infrastructure.persisitence.models.sms.sms_template import SmsTemplateModel  # noqa: F401
 from notification_service.Infrastructure.persisitence.models.in_app.in_app_notification import InAppNotificationModel  # noqa: F401

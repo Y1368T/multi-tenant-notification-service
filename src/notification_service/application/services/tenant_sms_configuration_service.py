@@ -2,11 +2,12 @@ from typing import Optional, Dict
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.value_objects.providers import SMSProvider
-
+from notification_service.Infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomShortcodeSMSProvider
+from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 class TenantSMSConfigurationService:
 
 
-    def __init__(self, uow, ethio_service):
+    def __init__(self, uow:IUnitOfWork, ethio_service:EthioTelecomShortcodeSMSProvider):
         self.uow = uow
         self._handlers = {
             SMSProvider.ETHIOTELECOM: ethio_service
@@ -22,7 +23,7 @@ class TenantSMSConfigurationService:
             TenantSMSConfiguration object if found, None otherwise
         """
         async with self.uow:
-            config = await self.uow.sms_configurations.get_by_tenant_id(tenant_id)
+            config = await self.uow.tenant_sms_configurations.find(lambda x:x.tenant_id==tenant_id)
             return config
     async def create_configuration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
         """Create a new SMS configuration for a tenant.
@@ -34,7 +35,7 @@ class TenantSMSConfigurationService:
             Created TenantSMSConfiguration entity
         """
         async with self.uow:
-            created_config = await self.uow.sms_configurations.add(config)
+            created_config = await self.uow.tenant_sms_configurations.add(config)
             await self.uow.commit()
             return created_config
         
@@ -48,7 +49,7 @@ class TenantSMSConfigurationService:
             Updated TenantSMSConfiguration entity
         """
         async with self.uow:
-            updated_config = await self.uow.sms_configurations.update(config)
+            updated_config = await self.uow.tenant_sms_configurations.update(config)
             await self.uow.commit()
             return updated_config
         
@@ -59,7 +60,7 @@ class TenantSMSConfigurationService:
             config_id: TenantSMSConfiguration identifier
         """
         async with self.uow:
-            await self.uow.sms_configurations.delete(config_id)
+            await self.uow.tenant_sms_configurations.delete(config_id)
             await self.uow.commit()
             
     async def get_configuration_by_id(self, config_id: UUID) -> Optional[TenantSMSConfiguration]:
@@ -72,7 +73,7 @@ class TenantSMSConfigurationService:
             TenantSMSConfiguration entity if found, None otherwise
         """
         async with self.uow:
-            config = await self.uow.sms_configurations.get_by_id(config_id)
+            config = await self.uow.tenant_sms_configurations.get_by_id(config_id)
             return config
         
     async def do_a_circuit_breaker_check(self, config: TenantSMSConfiguration, provider: SMSProvider) -> bool:
