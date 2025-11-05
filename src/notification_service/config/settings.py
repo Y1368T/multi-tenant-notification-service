@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     debug: bool = True
 
     # Database (async) - defaults to host.docker.internal for Docker environment
-    database_url: str = "postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/qena_notification_service_db"
+    database_url: str = "postgresql+asyncpg://postgres:123456@localhost:5432/qena_notification_service_db"
 
     # Redis - defaults to redis service name for Docker environment
     redis_url: str = "redis://:@redis:6379/0"

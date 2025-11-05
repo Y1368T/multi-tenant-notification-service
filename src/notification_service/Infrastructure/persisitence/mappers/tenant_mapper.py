@@ -25,6 +25,8 @@ class TenantMapper:
             name=model.name,
             prefix=model.prefix,
             is_active=model.is_active,
+            api_keys=model.api_keys,
+            supported_channels=model.supported_channels,
             rate_limit_per_minute=model.rate_limit_per_minute,
             rate_limit_per_hour=model.rate_limit_per_hour,
             rate_limit_per_day=model.rate_limit_per_day,
@@ -50,6 +52,8 @@ class TenantMapper:
             name=entity.name,
             prefix=entity.prefix,
             is_active=entity.is_active,
+            api_keys=entity.api_keys,
+            supported_channels=entity.supported_channels,
             rate_limit_per_minute=entity.rate_limit_per_minute,
             rate_limit_per_hour=entity.rate_limit_per_hour,
             rate_limit_per_day=entity.rate_limit_per_day,
@@ -95,6 +99,8 @@ class TenantMapper:
         model.name = entity.name
         model.prefix = entity.prefix
         model.is_active = entity.is_active
+        model.supported_channels=entity.supported_channels
+        model.api_keys=entity.api_keys
         model.rate_limit_per_minute = entity.rate_limit_per_minute
         model.rate_limit_per_hour = entity.rate_limit_per_hour
         model.rate_limit_per_day = entity.rate_limit_per_day

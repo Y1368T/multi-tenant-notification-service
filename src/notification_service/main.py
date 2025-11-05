@@ -30,7 +30,7 @@ from notification_service.Infrastructure.providers.sms.kifiya_sms_gateway import
 
 
 from fastapi import FastAPI
-
+from fastapi.middleware.cors import CORSMiddleware
 def main()->FastAPI:
     builder=(Builder()
     .with_title("Notification Service")
@@ -62,7 +62,13 @@ def main()->FastAPI:
 )
     
     app=builder.build()
-   
+    app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],                # restrict in production e.g. ["https://app.example.com"]
+    allow_credentials=True,
+    allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+    allow_headers=["*"],
+      )
     return app
 
 

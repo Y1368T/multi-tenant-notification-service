@@ -11,6 +11,8 @@ class Tenant:
     name: str
     prefix: str
     is_active: bool = True
+    supported_channels: list[str] = field(default_factory=list)
+    api_keys: str = ""
     rate_limit_per_minute: int = 60
     rate_limit_per_hour: int = 1000
     rate_limit_per_day: int = 10000

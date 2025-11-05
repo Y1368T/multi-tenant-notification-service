@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Boolean,Integer
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
+from sqlalchemy.dialects.postgresql import ARRAY
 
 class TenantModel(BaseModel):
     __tablename__ = "tenants"
@@ -8,6 +9,8 @@ class TenantModel(BaseModel):
     name = Column(String, unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True)
     prefix = Column(String(10), unique=True, index=True, nullable=False)
+    api_keys = Column(String, nullable=True)
+    supported_channels = Column(ARRAY(String), nullable=True)
     rate_limit_per_minute = Column(Integer, default=60)
     rate_limit_per_hour = Column(Integer, default=1000)
     rate_limit_per_day = Column(Integer, default=10000)

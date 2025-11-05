@@ -20,7 +20,7 @@ class TenantController(ControllerBase):
         
 
 
-    @get("/tenants/{tenant_id}")
+    @get("/get_by_id/{tenant_id}")
     async def get_tenant(self, tenant_id: UUID):
         tenant = await self.tenant_service.get_tenant_by_id(tenant_id)
         return tenant
@@ -36,7 +36,7 @@ class TenantController(ControllerBase):
         tenantentity = await self.tenant_service.create_tenant(tenantentity)
         return tenantentity
     
-    @get("getall")
+    @get("/getall")
     async def get_all_tenants(self):
         tenants = await self.tenant_service.list_all_tenants()
         return tenants

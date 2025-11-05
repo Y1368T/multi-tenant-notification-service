@@ -6,6 +6,7 @@ class TenantRequestDTO(BaseModel):
     name: str
     prefix: str
     is_active: bool
+    supported_channels: list[str]
     model_config=ConfigDict(
         from_attributes = True,
         json_schema_extra = {
