@@ -11,6 +11,7 @@ class TenantModel(BaseModel):
     prefix = Column(String(10), unique=True, index=True, nullable=False)
     api_keys = Column(String, nullable=True)
     supported_channels = Column(ARRAY(String), nullable=True)
+    prefered_communication_method=Column(String, nullable=False,default="rest")  # Rest , Kafka , RabbitMq , gRPC
     rate_limit_per_minute = Column(Integer, default=60)
     rate_limit_per_hour = Column(Integer, default=1000)
     rate_limit_per_day = Column(Integer, default=10000)

@@ -15,3 +15,4 @@ class EmailProvider(Enum):
 class PushProvider(Enum):
     FIREBASE = "firebase"
     ONESIGNAL = "onesignal"
+

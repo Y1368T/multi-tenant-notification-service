@@ -36,3 +36,5 @@ class TenantSMSConfigurationController(ControllerBase):
         sms_config = await self.tenant_sms_configuration_service.get_configuration_by_id(config_id)
         return sms_config
     
+    
+    

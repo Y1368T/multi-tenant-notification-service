@@ -13,7 +13,9 @@ class IProviderService(ABC):
     Interface for provider-specific notification delivery.
     Each provider (Twilio, SendGrid, FCM, APNS) implements this interface.
     """
-    
+    @abstractmethod
+    async def test(self, config: Dict[str, Any],address:str) -> bool:
+        pass
     
     @abstractmethod
     async def send(

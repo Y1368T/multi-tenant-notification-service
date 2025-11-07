@@ -60,18 +60,18 @@ class NotificationRequest:
         """Create NotificationRequest from dictionary."""
         recipients = [Recipient(**rec) for rec in data.get("recipients", [])]
         return cls(
-            service_name=data["serviceName"],
+            service_name=data["service_name"],
             recipients=recipients,
-            template_name=data["templateName"],
+            template_name=data["template_name"],
             payload=data["payload"],
-            idempotency_key=data.get("idempotencyKey", str(uuid.uuid4()))
+            idempotency_key=data.get("idempotency_key", str(uuid.uuid4()))
         )
     def to_dict(self) -> Dict[str, Any]:
         """Convert NotificationRequest to dictionary."""
         return {
-            "serviceName": self.service_name,
+            "service_name": self.service_name,
             "recipients": [vars(recipient) for recipient in self.recipients],
-            "templateName": self.template_name,
+            "template_name": self.template_name,
             "payload": self.payload,
-            "idempotencyKey": self.idempotency_key
+            "idempotency_key": self.idempotency_key
         }

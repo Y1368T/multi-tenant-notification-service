@@ -2,12 +2,16 @@ from typing import List,Optional
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant import Tenant
 from notification_service.domain.interfaces import IUnitOfWork
-
+from notification_service.Infrastructure.messaging.rabbitmq import RabbitMQConsumer
+from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 
 class TenantService:
-    def __init__(self, uow: IUnitOfWork):
+    def __init__(self, uow: IUnitOfWork,rabbitmq_consumer:IMessageConsumer):
         self.uow = uow
+        self.rabbitmq_consumer=rabbitmq_consumer
     
+        
+        
     async def get_tenant_by_prefix(self, prefix: str ) -> Optional[Tenant]:
         """Retrieve tenant by its prefix.
         
@@ -39,8 +43,16 @@ class TenantService:
             Created Tenant entity with generated ID
         """
         async with self.uow:
-            created_tenant = await self.uow.tenants.add(tenant)
+            created_tenant: Tenant = await self.uow.tenants.add(tenant)
             await self.uow.commit()
+            if(created_tenant.prefered_communication_method == "rabbitmq" and created_tenant.is_active and created_tenant.supported_channels and self.rabbitmq_consumer):
+                # Additional logic for rabbitmq preferred communication method can be added here
+                for channel in created_tenant.supported_channels:
+                    queue_name = f"notification.{channel}.{created_tenant.prefix}"
+                    # Here you might want to initialize or configure the queue for the tenant
+                    await self.rabbitmq_consumer.ensure_queue_exists_and_subscribe(queue_name=queue_name,channel=channel)
+                    pass
+                
             return created_tenant
     async def update_tenant(self, tenant: Tenant) -> Tenant:
         """Update an existing tenant.
@@ -96,5 +108,12 @@ class TenantService:
         """
         async with self.uow:
             tenants = await self.uow.tenants.find(lambda t: t.is_active)
+            return tenants
+    
+    async def get_tenants_for_rabbitmq(self)->list[Tenant]:
+        
+        async with self.uow:
+            tenants = await self.uow.tenants.find(lambda t: t.prefered_communication_method == "rabbitmq" 
+                                                  and t.is_active)
             return tenants
     

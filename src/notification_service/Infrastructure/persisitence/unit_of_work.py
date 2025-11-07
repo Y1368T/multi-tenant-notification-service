@@ -17,17 +17,11 @@ from notification_service.Infrastructure.persisitence.repositories.tenant_reposi
 from notification_service.Infrastructure.persisitence.repositories.tenant_email_configuration_repository import TenantEmailConfigurationRepository
 from notification_service.Infrastructure.persisitence.repositories.tenant_sms_configuration_repository import TenantSmsConfigurationRepository
 from notification_service.Infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
-from notification_service.Infrastructure.persisitence.mappers.email_notification_mapper import EmailNotificationMapper
-from notification_service.Infrastructure.persisitence.mappers.email_outbox_mapper import EmailOutboxMapper
-from notification_service.Infrastructure.persisitence.mappers.email_template_mapper import EmailTemplateMapper
-from notification_service.Infrastructure.persisitence.mappers.sms_notification_mapper import SmsNotificationMapper
-from notification_service.Infrastructure.persisitence.mappers.sms_outbox_mapper import SmsOutboxMapper
-from notification_service.Infrastructure.persisitence.mappers.sms_template_mapper import SmsTemplateMapper
-from notification_service.Infrastructure.persisitence.mappers.in_app_notification_mapper import InAppNotificationMapper
-from notification_service.Infrastructure.persisitence.mappers.in_app_template_mapper import InAppTemplateMapper
-from notification_service.Infrastructure.persisitence.mappers.tenant_email_configuration_mapper import TenantEmailConfigurationMapper
-from notification_service.Infrastructure.persisitence.mappers.tenant_sms_configuration_mapper import TenantSmsConfigurationMapper
 from notification_service.Infrastructure.persisitence.db_session.session import  Database
+from notification_service.Infrastructure.persisitence.repositories.provider_repository import ProviderRepository
+from notification_service.domain.entities.providers_supported import Provider
+from notification_service.Infrastructure.persisitence.models.providers_supported import ProviderModel
+from notification_service.Infrastructure.persisitence.mappers.provider_mapper import ProviderMapper
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +33,9 @@ class UnitOfWork(IUnitOfWork):
         self.session = None
         pass
     
-      
+    @property
+    def providers(self):
+        return self._providers
 
     @property
     def email_notifications(self):
@@ -102,6 +98,7 @@ class UnitOfWork(IUnitOfWork):
         self._tenants = TenantRepository(self.session, TenantMapper())
         self._tenant_email_configurations = TenantEmailConfigurationRepository(self.session)
         self._tenant_sms_configurations = TenantSmsConfigurationRepository(self.session)
+        self._providers = ProviderRepository(self.session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

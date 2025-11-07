@@ -17,13 +17,7 @@ class ProcessMessageUseCase:
     async def execute(self, channel, tenant:Tenant, message:NotificationRequest) -> NotificationResponse:
         """Process the incoming message"""
         logger.info(f"Processing message: {message}")
-        # Parse the message into a NotificationRequest object
-        try:
-            notification_request = NotificationRequest.from_dict(message)
-            message = notification_request
-        except Exception as e:
-            logger.error(f"Failed to parse message into NotificationRequest: {e}")
-            return
+        
         validated = self.validate_message(message, channel)
         if not validated:
             logger.warning(f"Message validation failed for channel {channel}. Skipping processing.")

@@ -44,7 +44,8 @@ class EthioTelecomShortcodeSMSProvider(IProviderService):
     def __init__(self):
         pass
      
-    
+    async def test(self, config: Dict[str, Any],address:str) -> bool:
+        pass
 
     async def send(
         self,

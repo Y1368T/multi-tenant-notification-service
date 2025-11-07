@@ -3,10 +3,12 @@ from notification_service.adpaters.inbound.rest.routers.tenant_routers import Te
 from notification_service.adpaters.inbound.rest.routers.sms_notification_router import SMSNotificationController
 from notification_service.adpaters.inbound.rest.routers.tenant_sms_configuration import TenantSMSConfigurationController
 from notification_service.adpaters.inbound.rest.routers.sms_template_router import SMSTemplateController
+from notification_service.adpaters.inbound.rest.routers.provider_supported_router import ProviderSupportedController
 def register_controllers(builder: Builder) -> None:
     builder.with_controllers(
         TenantController,
         SMSNotificationController,
         TenantSMSConfigurationController,
-        SMSTemplateController
+        SMSTemplateController,
+        ProviderSupportedController
     )

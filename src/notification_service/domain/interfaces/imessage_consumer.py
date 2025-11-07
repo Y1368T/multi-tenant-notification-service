@@ -45,17 +45,4 @@ class IMessageConsumer(ABC):
         """
         pass
     
-    @abstractmethod
-    async def publish(
-        self,
-        queue_name: str,
-        message: Dict[str, Any]
-    ) -> None:
-        """
-        Publish a message to a queue.
-        
-        Args:
-            queue_name: Target queue name
-            message: Message payload (will be JSON serialized)
-        """
-        pass
+    

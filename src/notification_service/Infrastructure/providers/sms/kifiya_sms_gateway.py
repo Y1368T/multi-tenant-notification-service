@@ -8,6 +8,7 @@ from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
 from notification_service.domain.value_objects.notification_status import NotificationStatus
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
+from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 from uuid import UUID
 from datetime import datetime
 import uuid
@@ -112,6 +113,28 @@ class KifiyaSMSGateway(IProviderService):
                 await self.uow.sms_outbox.add(outbox)
                 return NotificationResponse(success=False,message="Saved to outbox",notification_id=outbox.id,status="saved_to_outbox")
             return NotificationResponse(success=False,message="Failed to send message")
+    
+    
+    async def test(self, config: Dict[str, Any],address:str) -> ProviderTestResponse:
+            try:   
+                kifiyasmsconf=KifiyaSMSConfig.from_dict(config)
+                payload={
+                    "tokenId": kifiyasmsconf.tokenId,
+                    "phoneNo": address ,
+                    "message": "This is a test message"
+                }
+                response_data= await self.client.post(
+                    kifiyasmsconf.url,
+                    json=payload
+                )
+                response = KifiyaSMSResponse(**response_data.json())
+                if response.status=="success":
+                    return ProviderTestResponse(success=True,message="Test SMS sent successfully")
+                elif response.error:
+                    return ProviderTestResponse(success=False,message=f"Failed to send test SMS: {response.error}")
+            except Exception as e:
+                logger.error(f"Exception during Kifiya SMS test: {e}")
+                return ProviderTestResponse(success=False,message=f"Exception during test: {str(e)}")
             
     
     async def callback(self, provider_callback):

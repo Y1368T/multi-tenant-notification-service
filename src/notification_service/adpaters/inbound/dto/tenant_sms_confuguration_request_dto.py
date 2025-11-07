@@ -14,7 +14,7 @@ class TenantSMSConfigurationRequestDto(BaseModel):
     rate_limit_per_minute: int = 30
     rate_limit_per_hour: int = 500
     rate_limit_per_day: int = 5000
-    config: KifiyaSMSConfig = Field(default_factory=KifiyaSMSConfig)
+    config: Dict[str, Any] = Field(default_factory=dict)
     
     class Config:
         from_attributes = True

@@ -6,7 +6,11 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-
+@dataclass(frozen=True)
+class ProviderTestResponse:
+    """Response from testing a notification provider."""
+    success: bool
+    message: Optional[str] = None
 @dataclass(frozen=True)
 class DeliveryAttemptResponse:
     """Individual delivery attempt information."""

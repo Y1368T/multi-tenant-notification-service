@@ -1,9 +1,10 @@
 from sqlalchemy import select, func,delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Generic, Type, TypeVar, List, Optional, Dict, Any, Callable
+from typing import Generic, Type, TypeVar, List, Optional, Dict, Any, Callable,Union
 from uuid import UUID
 from notification_service.domain.interfaces.igeneric_repository import IGenericRepository
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -74,25 +75,34 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
             logger.error(f"Error getting {self.model_class.__name__} by id: {e}")
             raise
     
-    async def list(
-        self,
-        filters: Optional[Dict[str, Any]] = None,
-        limit: int = 100,
-        offset: int = 0
-    ) -> List[TEntity]:
-        """List entities with optional filtering and pagination."""
+    async def list(self, filter_func: Optional[Union[Callable[[TEntity], bool], Dict[str, Any]]] = None) -> List[TEntity]:
+        """
+        List entities with optional filtering.
+        
+        Args:
+            filter_func: Either a callable that takes an entity and returns bool,
+                        or a dict of field names and values to filter by
+        """
         try:
-            query = select(self.model_class)
-            
-            if filters:
-                for key, value in filters.items():
-                    if hasattr(self.model_class, key):
-                        query = query.where(getattr(self.model_class, key) == value)
-            
-            query = query.limit(limit).offset(offset)
-            result = await self.session.execute(query)
+            result = await self.session.execute(select(self.model_class))
             models = result.scalars().all()
-            return [self.mapper.to_entity(model) for model in models]
+            entities = [self.mapper.to_entity(model) for model in models]
+            
+            if filter_func is None:
+                return entities
+            
+            # Handle callable filter (lambda function)
+            if callable(filter_func):
+                return [e for e in entities if filter_func(e)]
+            
+            # Handle dict filter
+            if isinstance(filter_func, dict):
+                filtered = entities
+                for key, value in filter_func.items():
+                    filtered = [e for e in filtered if getattr(e, key, None) == value]
+                return filtered
+            
+            return entities
         except Exception as e:
             logger.error(f"Error listing {self.model_class.__name__}: {e}")
             raise

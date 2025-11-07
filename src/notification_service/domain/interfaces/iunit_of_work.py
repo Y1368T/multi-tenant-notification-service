@@ -19,7 +19,13 @@ class IUnitOfWork(ABC):
             template = await uow.email_templates.get_by_id(template_id)
             await uow.commit()  # Atomic commit
     """
-    
+    # ProviderRespositories
+    @property
+    @abstractmethod
+    def providers(self) -> IGenericRepository:
+        """Get providers repository."""
+        pass
+
     # Email repositories
     @property
     @abstractmethod

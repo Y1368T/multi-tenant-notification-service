@@ -14,7 +14,7 @@ from qena_shared_lib.http import ControllerBase,get,post,api_controller,put,dele
 @api_controller(prefix="/tenants", tags=["Tenants"])
 class TenantController(ControllerBase):
     """Controller for tenant-related endpoints."""
-    def __init__(self, tenant_service: TenantService = Depends()):
+    def __init__(self, tenant_service: TenantService):
         self.tenant_service = tenant_service
         
         
@@ -27,10 +27,15 @@ class TenantController(ControllerBase):
 
     @post("/create")
     async def create_tenant(self,tenant_data: TenantRequestDTO):
+        if(tenant_data.prefered_communication_method not in ["rest", "kafka", "rabbitmq", "grpc"]):
+            raise ValueError("Invalid preferred communication method")
+        
         tenantentity=Tenant(
             name=tenant_data.name,
             prefix=tenant_data.prefix,
             is_active=tenant_data.is_active,
+            supported_channels=tenant_data.supported_channels,
+            prefered_communication_method=tenant_data.prefered_communication_method,
             id=uuid4()
         )
         tenantentity = await self.tenant_service.create_tenant(tenantentity)

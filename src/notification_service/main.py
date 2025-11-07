@@ -27,7 +27,8 @@ from notification_service.Infrastructure.providers.sms.ethiotelecom_shortcode im
 from notification_service.application.services.sms_template_service import SMSTemplateService
 from notification_service.Infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
 # from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
-
+from notification_service.application.services.provider_service import ProviderService
+from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,11 +48,12 @@ def main()->FastAPI:
     builder.with_transient(ProcessMessageUseCase)
     builder.with_transient(IMessageHandler,MessageRouter)
     builder.with_transient(IChannelHandler,SMSChannelHandler)
-    
+    builder.with_singleton(IMessageConsumer, RabbitMQConsumer)
     builder.with_transient(tenant_service.TenantService)
     builder.with_transient(tenant_sms_configuration_service.TenantSMSConfigurationService)
     builder.with_transient(sms_notification_service.SMSNotificationService)
     builder.with_transient(SMSTemplateService)
+    builder.with_transient(ProviderService)
     
     logging.basicConfig(
     level=logging.INFO,  # Set to INFO to see info logs
@@ -79,17 +81,19 @@ async def lifespan(app: FastAPI):
     db=get_service(app,Database)
     await db.connect()
     tenantservice=get_service(app,tenant_service.TenantService)
-    active_tenants = await tenantservice.get_active_tenants()
-    queu_name="notification.sms.qena"
-    # create rabbit client and adapter (process use case can be injected later)
-    rabbit_client = RabbitMQConsumer(settings.rabbitmq_url)
-    adapter_consumer = NotificationRabbitMQConsumer(
+    
+    # Get ProcessMessageUseCase from DI container
+    process_message_usecase = get_service(app, ProcessMessageUseCase)
+    rabbit_client = get_service(app, IMessageConsumer)
+    tenantservice.rabbitmq_consumer = rabbit_client
+   # create rabbit client and adapter
+    adapter_consumer =NotificationRabbitMQConsumer(
         rabbitmq_consumer=rabbit_client,
-        process_message_usecase=None
+        tenant_service=tenantservice
     )
 
     # connect, ensure queues for active tenants, subscribe and start consuming
-    task = asyncio.create_task(adapter_consumer.start_consuming(active_tenants=active_tenants))
+    task = asyncio.create_task(adapter_consumer.start_consuming())
 
     try:
         yield
@@ -100,14 +104,7 @@ async def lifespan(app: FastAPI):
         
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
-
-
-
-
-    
-
-
-
+        
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("notification_service.main:main",factory=True, host="0.0.0.0", port=8000)
