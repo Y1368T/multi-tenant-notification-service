@@ -9,6 +9,7 @@ from notification_service.Infrastructure.providers.sms.kifiya_sms_gateway  impor
 from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
+from notification_service.domain.value_objects.notification_status import NotificationStatus
 from uuid import UUID
 logger = logging.getLogger(__name__)
 
@@ -23,31 +24,52 @@ class SMSChannelHandler(IChannelHandler):
         }
         logger.info('SMSChannelHandler initialized')
         
-    async def receive_message(self, tenant: Tenant, message: NotificationRequest) -> NotificationResponse:
+    async def receive_message(self, tenantPrefix: str, message: NotificationRequest) -> NotificationResponse:
         """Receive a message from the message router."""
-        logger.info(f"Receiving SMS message for tenant {tenant.name}")
+        logger.info(f"Receiving SMS message for tenant {tenantPrefix} with template {message.template_name}")
         # Implementation for receiving SMS message
-        
-        tenant_config = await self.load_tenant_config(tenant.id)
+        tenantdb: Tenant = None
+        async with self.unitofWork:
+            tenantdb= await self.unitofWork.tenants.first_or_default(lambda t: t.prefix == tenantPrefix)
+            if not tenantdb:
+                logger.error(f"Tenant with prefix {tenantPrefix} not found")
+                return NotificationResponse(success=False, error_message=f"Tenant with prefix {tenantPrefix} not found")
+            if message.idempotency_key is None:
+                logger.warning(f"Message for tenant {tenantPrefix} is missing idempotency key. Generating a new one.")
+                return NotificationResponse(success=False, error_message="Idempotency key is required")
+            check_idempotency=await self.unitofWork.sms_notifications.first_or_default(lambda n: n.idempotency_key == message.idempotency_key and n.tenant_id==tenantdb.id)
+            
+            if check_idempotency:
+                logger.info(f"Duplicate message detected for tenant {tenantPrefix} with idempotency key {message.idempotency_key}")
+                return NotificationResponse(success=True, message="Duplicate message ignored")
+            elif check_idempotency is None:
+                logger.info(f"Processing new message for tenant {tenantPrefix} with idempotency key {message.idempotency_key}")
+                check_outbox_idempotency=await self.unitofWork.sms_outbox.first_or_default(lambda n: n.idempotency_key == message.idempotency_key and n.tenant_id==tenantdb.id and n.status!=NotificationStatus.FAILED)
+                if check_outbox_idempotency:
+                    logger.info(f"Duplicate message detected in outbox for tenant {tenantPrefix} with idempotency key {message.idempotency_key}")
+                    return NotificationResponse(success=True, message="Duplicate message ignored")
+        tenant_config = await self.load_tenant_config(tenantdb.id)
         if not tenant_config:
-            logger.error(f"No SMS channel config for tenant {tenant.id}")
+            logger.error(f"No SMS channel config for tenant {tenantdb.id}")
             return
         # send grpc request to customer management service to get customer language preference for Qena system
-        language = "es"
-        template = await self.load_template(tenant.id, message.template_name,message.service_name)
+        language = message.lang if message.lang else "en"
+        template = await self.load_template(tenantdb.id, message.template_name,message.service_name)
         if not template:
-            logger.error(f"Template {message.template_name} not found for tenant {tenant.id}")
+            logger.error(f"Template {message.template_name} not found for tenant {tenantdb.id}")
             return
+        
         template_text= template.content.get(language, {})
-        return await self.route_to_provider(message, tenant, tenant_config, template.id,template_text)
+        return await self.route_to_provider(message, tenantdb, tenant_config, template.id,template_text)
 
     async def load_tenant_config(self, tenant_id: UUID) -> list[TenantSMSConfiguration]:
         """Load the SMS channel configuration for a given tenant."""
         logger.info(f"Loading SMS channel config for tenant {tenant_id}")
         # Implementation for loading tenant config
-        config:list[TenantSMSConfiguration]= await self.unitofWork.tenant_sms_configurations.find(lambda t:t.tenant_id==tenant_id and t.priroty==1)
-        if config:
-            return config
+        async with self.unitofWork:
+            config:list[TenantSMSConfiguration]= await self.unitofWork.tenant_sms_configurations.find(lambda t:t.tenant_id==tenant_id and t.priroty==1)
+            if config:
+                return config
 
     
 
@@ -75,7 +97,7 @@ class SMSChannelHandler(IChannelHandler):
         
         logger.info(f"Routing SMS notification for tenant {tenant.name} to provider")
         config=configs[0]
-        match config.provider_name:
+        match config.provider_name.lower():
             case SMSProvider.ETHIOTELECOM.value:
                 # Implementation for routing to EThioTelecom
                 # replace the message payload in the template with actual values from request. and give me example

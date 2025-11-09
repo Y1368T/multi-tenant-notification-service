@@ -29,17 +29,17 @@ class SMSNotificationService:
         
         if isinstance(valid, dict) and valid.get("success") is False:
             return valid
-        tenant = None
+        tenant: Tenant = None
         async with self.uow:
             tenant = await self.uow.tenants.get_by_id(tenant_id)
             
             if not tenant:
                 return {"success": False, "error": "Tenant does not exist"}
-            response= await self.message_router.do_route(NotificationChannel.SMS, tenant, message_data)
+            response= await self.message_router.do_route(NotificationChannel.SMS, tenant.prefix, message_data)
             return response
             
     
-    async def get_sms_notifications(self, tenant_id):
+    async def get_sms_notifications(self, tenant_id)->list[SMSNotification]:
         """Retrieve SMS notifications for a given tenant.
 
         Args:
@@ -48,6 +48,6 @@ class SMSNotificationService:
             List of SMSNotification entities
         """
         async with self.uow:
-            notifications = await self.uow.sms_notifications.get_by_tenant_id(tenant_id)
+            notifications = await self.uow.sms_notifications.find(lambda t:t.==tenant_id)
             return notifications
         

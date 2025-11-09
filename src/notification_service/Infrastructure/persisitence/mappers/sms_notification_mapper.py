@@ -28,7 +28,8 @@ class SmsNotificationMapper:
             idempotency_key=model.idempotency_key,
             template_id=model.template_id,
             created_at=model.created_at,
-            updated_at=model.updated_at
+            updated_at=model.updated_at,
+            # templateName=model.template.template_name
         )
     
     @staticmethod

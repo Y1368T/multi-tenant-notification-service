@@ -23,7 +23,7 @@ class TenantRepository(GenericRepository[TenantModel, Tenant], ITenantRepository
     
     async def get_tenant_by_prefix(self, prefix: str) -> Tenant | None:
         """Get tenant by name prefix."""
-        query = select(TenantModel).where(TenantModel.prefix.startswith(prefix))
+        query = select(TenantModel).where(TenantModel.prefix == prefix)
         result = await self.session.execute(query)
         return self.mapper.to_entity(result.scalars().first())
     

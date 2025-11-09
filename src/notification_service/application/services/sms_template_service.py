@@ -78,4 +78,15 @@ class SMSTemplateService:
             templates=await self.uow.sms_templates.list(lambda x:x.tenant_id==tenant_id and x.template_name==template_name and x.service_name==service_name)
             return templates
     
-    
+    async def get_templates_by_tenant(self, tenant_id: UUID):
+        """Retrieve SMS templates by tenant ID.
+        
+        Args:
+            tenant_id: UUID of the tenant
+            
+        Returns:
+            List of SmsTemplate entities
+        """
+        async with self.uow:
+            templates = await self.uow.sms_templates.list(lambda x: x.tenant_id == tenant_id)
+            return templates

@@ -14,7 +14,7 @@ class ProcessMessageUseCase:
     def __init__(self, message_router:IMessageHandler):
         self.message_router = message_router
 
-    async def execute(self, channel, tenant:Tenant, message:NotificationRequest) -> NotificationResponse:
+    async def execute(self, channel, tenant:str, message:NotificationRequest) -> NotificationResponse:
         """Process the incoming message"""
         logger.info(f"Processing message: {message}")
         

@@ -31,4 +31,10 @@ class SMSNotificationController(ControllerBase):
         await self.sms_notification_service.delete_notification(notification_id)
         return {"message": "SMS Notification deleted successfully"}
     
+    @get("/get_sms_by_tenant/{tenantId}")
+    async def getSmsByTenant(self,tenantId):
+       result= await self.sms_notification_service.get_sms_notifications(tenantId)
+       return result
+        
+    
     

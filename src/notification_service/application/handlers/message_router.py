@@ -28,7 +28,7 @@ class MessageRouter(IMessageHandler):
         }
         logger.info('MessageRouter initialized with 4 channel handlers')
 
-    async def do_route(self,  channel: NotificationChannel, tenant:Tenant, message: NotificationRequest) -> NotificationResponse:
+    async def do_route(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> NotificationResponse:
         """Route message to appropriate channel handler."""
         logger.info(f'Routing message to {channel.value} channel')
         

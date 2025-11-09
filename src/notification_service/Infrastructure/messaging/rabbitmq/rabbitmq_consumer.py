@@ -1,10 +1,14 @@
 """RabbitMQ consumer implementation using aio-pika."""
 import json
 import logging
+from select import select
 from typing import Callable, Awaitable, Dict, Any, Optional
+from notification_service.Infrastructure.persisitence.models.tenant.tenant import TenantModel
+from sqlalchemy.ext.asyncio import AsyncSession
 import aio_pika
 from aio_pika import Message, DeliveryMode, ExchangeType
 from aio_pika.abc import AbstractRobustConnection, AbstractChannel, AbstractQueue, AbstractIncomingMessage
+from notification_service.Infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.value_objects.notification_types import NotificationChannel
 from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
@@ -20,7 +24,9 @@ logger = logging.getLogger(__name__)
 class RabbitMQConsumer(IMessageConsumer):
     """RabbitMQ consumer implementation with async support."""
     
-    def __init__(self,settings:Settings,process_message_usecase:ProcessMessageUseCase):
+    def __init__(self,settings:Settings,
+                 process_message_usecase:ProcessMessageUseCase
+                 ):
         """Initialize RabbitMQ consumer.
         
         Args:
@@ -264,8 +270,6 @@ class RabbitMQConsumer(IMessageConsumer):
                 if len(queue_parts) != 3 or queue_parts[0] != "notification":
                     raise ValueError(f"Invalid queue name format: {queue_name}")
                 tenant_prefix = queue_parts[2]
-
-
                 await self.process_message_usecase.execute(NotificationChannel.SMS, tenant_prefix, notification_request)
 
                 logger.info(f"Successfully processed SMS notification")

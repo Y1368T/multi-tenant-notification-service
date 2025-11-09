@@ -13,6 +13,7 @@ class SMSNotification:
     message_content: Dict[str, Any]
     status: str = "pending"
     idempotency_key: Optional[str] = None
-    template_id: Optional[UUID] = None
+    template_id: UUID = None
+    templateName:Optional[str]=None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)

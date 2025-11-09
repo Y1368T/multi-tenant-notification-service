@@ -7,7 +7,7 @@ class IChannelHandler(ABC):
     """Interface for channel handler operations."""
     
     @abstractmethod
-    async def receive_message(self, tenant: str,message: NotificationRequest) -> NotificationRequest:
+    async def receive_message(self, tenantPrefix: str,message: NotificationRequest) -> NotificationRequest:
         """Receive a message from the message router.
 
         Returns:

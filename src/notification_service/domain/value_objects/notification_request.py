@@ -33,6 +33,7 @@ class NotificationRequest:
         "templateName": "account_balance",
         "payload": {"balance": "1000.00", "currency": "ETB"},
         "idempotencyKey": "unique-transaction-id-12345",
+        "lang": "en"  # Optional, defaults to "en",
         
     }
     """
@@ -41,6 +42,7 @@ class NotificationRequest:
     template_name: str
     payload: Dict[str, Any]  # Template variables
     idempotency_key: str = field(default_factory=lambda: str(uuid.uuid4()))
+    lang: str = "en"  # Optional, defaults to "en"
     
     def __post_init__(self):
         """Validate request."""
@@ -64,7 +66,8 @@ class NotificationRequest:
             recipients=recipients,
             template_name=data["template_name"],
             payload=data["payload"],
-            idempotency_key=data.get("idempotency_key", str(uuid.uuid4()))
+            idempotency_key=data.get("idempotency_key", str(uuid.uuid4())),
+            lang=data.get("lang", "en")
         )
     def to_dict(self) -> Dict[str, Any]:
         """Convert NotificationRequest to dictionary."""
@@ -73,5 +76,6 @@ class NotificationRequest:
             "recipients": [vars(recipient) for recipient in self.recipients],
             "template_name": self.template_name,
             "payload": self.payload,
-            "idempotency_key": self.idempotency_key
+            "idempotency_key": self.idempotency_key,
+            "lang": self.lang
         }
