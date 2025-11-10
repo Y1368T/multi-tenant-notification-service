@@ -2,8 +2,8 @@
 from typing import Optional
 from sqlalchemy import inspect
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
-from notification_service.Infrastructure.persisitence.models.sms.sms_template import SmsTemplateModel
-from notification_service.Infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
+from notification_service.infrastructure.persisitence.models.sms.sms_template import SmsTemplateModel
+from notification_service.infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
            
 
 class SmsTemplateMapper:

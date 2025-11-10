@@ -1,8 +1,8 @@
 from notification_service.domain.interfaces.iunit_of_work  import IUnitOfWork
 from notification_service.domain.entities.providers_supported import Provider
 from uuid import UUID
-from notification_service.adpaters.inbound.dto.provider_supported_dto import TestRequestDto
-from notification_service.Infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
+from notification_service.adapters.inbound.dto.provider_supported_dto import TestRequestDto
+from notification_service.infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 
 

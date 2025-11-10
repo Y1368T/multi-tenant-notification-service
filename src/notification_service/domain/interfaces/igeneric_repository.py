@@ -268,6 +268,37 @@ class IGenericRepository(ABC, Generic[T]):
         pass
     
     @abstractmethod
+    async def list_advanced_paginated(
+        self,
+        page: int,
+        page_size: int,
+        *,
+        root_filters: Optional[Dict[str, Any]] = None,
+        related_filters: Optional[List[Any]] = None,
+        includes: Optional[List[str]] = None,
+        sort_by: Optional[str] = None,
+        sort_direction: str = "desc",
+        search_text: Optional[str] = None,
+        search_fields: Optional[List[str]] = None
+    ):
+        """
+        Fully generic, SQL-only deep query with eager loading, filters, sorting and search.
+        Returns a PaginatedResult of entities.
+        
+        Args:
+            page: Page number (1-indexed)
+            page_size: Page size (max is enforced by caller)
+            root_filters: Dict of root field equals filters
+            related_filters: List of (relationship_path, field, op, value)
+            includes: Relationship paths for eager loading
+            sort_by: Field or dotted path (e.g., "template.tenant.name")
+            sort_direction: "asc" or "desc"
+            search_text: Text to search using ILIKE
+            search_fields: List of fields or dotted paths to OR-match against
+        """
+        pass
+    
+    @abstractmethod
     async def exists(self, entity_id: UUID) -> bool:
         """
         Check if entity exists by ID.

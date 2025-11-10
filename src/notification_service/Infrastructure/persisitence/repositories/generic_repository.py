@@ -1,11 +1,12 @@
-from sqlalchemy import select, func,delete, update
+from sqlalchemy import select, func,delete, update, or_, asc, desc
+from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Generic, Type, TypeVar, List, Optional, Dict, Any, Callable,Union
 from uuid import UUID
 from notification_service.domain.interfaces.igeneric_repository import IGenericRepository
 import logging
 from notification_service.domain.value_objects.paginated_result import PaginatedResult
-from notification_service.Infrastructure.persisitence.extensions.linq_extensions import LinqQuery
+from notification_service.infrastructure.persisitence.extensions.linq_extensions import LinqQuery
 
 logger = logging.getLogger(__name__)
 
@@ -453,3 +454,165 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
                 .to_list())
         """
         return self.query().where(predicate)
+
+    # ---------------------------------------------------------------------
+    # Advanced, generic, SQL-only deep query support
+    # ---------------------------------------------------------------------
+    def _apply_op(self, column, op: str, value: Any):
+        op_l = (op or "eq").lower()
+        if op_l == "eq":
+            return column == value
+        if op_l == "ne":
+            return column != value
+        if op_l == "gt":
+            return column > value
+        if op_l == "gte":
+            return column >= value
+        if op_l == "lt":
+            return column < value
+        if op_l == "lte":
+            return column <= value
+        if op_l == "like":
+            return column.like(f"%{value}%")
+        if op_l == "ilike":
+            return column.ilike(f"%{value}%")
+        if op_l == "in":
+            seq = value if isinstance(value, (list, tuple, set)) else [value]
+            return column.in_(seq)
+        raise ValueError(f"Unsupported op: {op}")
+
+    def _ensure_joins(self, stmt, root_model, rel_path: str, cache: Dict[str, Any]):
+        if not rel_path:
+            return stmt, root_model
+        if rel_path in cache:
+            return stmt, cache[rel_path]
+        current = root_model
+        built: List[str] = []
+        for part in rel_path.split("."):
+            built.append(part)
+            key = ".".join(built)
+            if key in cache:
+                current = cache[key]
+                continue
+            rel_attr = getattr(current, part, None)
+            if rel_attr is None or not hasattr(rel_attr, "property"):
+                break
+            target_cls = rel_attr.property.mapper.class_
+            alias = aliased(target_cls)
+            if current is root_model:
+                stmt = stmt.join(alias, getattr(root_model, part))
+            else:
+                stmt = stmt.join(alias, getattr(current, part))
+            cache[key] = alias
+            current = alias
+        cache[rel_path] = current
+        return stmt, current
+
+    def _resolve_path_column(self, stmt, root_model, path: str, cache: Dict[str, Any]):
+        if "." not in path:
+            return stmt, getattr(root_model, path)
+        *rel_parts, field = path.split(".")
+        rel_path = ".".join(rel_parts)
+        stmt, alias = self._ensure_joins(stmt, root_model, rel_path, cache)
+        return stmt, getattr(alias, field)
+
+    def _get_pk_column(self):
+        Model = self.model_class
+        mapper = getattr(Model, "__mapper__", None)
+        if mapper and mapper.primary_key:
+            return mapper.primary_key[0]
+        if hasattr(Model, "id"):
+            return getattr(Model, "id")
+        return None
+
+    async def list_advanced_paginated(
+        self,
+        page: int,
+        page_size: int,
+        *,
+        root_filters: Optional[Dict[str, Any]] = None,
+        related_filters: Optional[List[Any]] = None,
+        includes: Optional[List[str]] = None,
+        sort_by: Optional[str] = None,
+        sort_direction: str = "desc",
+        search_text: Optional[str] = None,
+        search_fields: Optional[List[str]] = None
+    ) -> PaginatedResult[TEntity]:
+        Model = self.model_class
+        stmt = select(Model)
+        join_cache: Dict[str, Any] = {}
+
+        if includes:
+            for inc in includes:
+                parts = inc.split(".")
+                # Build loader option using class-bound attributes
+                try:
+                    first_attr = getattr(Model, parts[0])
+                except AttributeError:
+                    continue
+                opt = selectinload(first_attr)
+                current_cls = first_attr.property.mapper.class_
+                for p in parts[1:]:
+                    try:
+                        sub_attr = getattr(current_cls, p)
+                    except AttributeError:
+                        sub_attr = None
+                    if sub_attr is None:
+                        break
+                    opt = opt.selectinload(sub_attr)
+                    current_cls = sub_attr.property.mapper.class_
+                stmt = stmt.options(opt)
+
+        if root_filters:
+            for key, value in root_filters.items():
+                if hasattr(Model, key):
+                    stmt = stmt.where(getattr(Model, key) == value)
+
+        if related_filters:
+            for rf in related_filters:
+                if isinstance(rf, (list, tuple)) and len(rf) == 4:
+                    rel_path, field, op, value = rf
+                    full_path = f"{rel_path}.{field}" if rel_path else field
+                    stmt, col = self._resolve_path_column(stmt, Model, full_path, join_cache)
+                    stmt = stmt.where(self._apply_op(col, op, value))
+
+        if search_text and search_fields:
+            clauses = []
+            for fpath in search_fields:
+                stmt, col = self._resolve_path_column(stmt, Model, fpath, join_cache)
+                clauses.append(col.ilike(f"%{search_text}%"))
+            if clauses:
+                stmt = stmt.where(or_(*clauses))
+
+        if sort_by:
+            stmt, sort_col = self._resolve_path_column(stmt, Model, sort_by, join_cache)
+            if sort_col is not None:
+                stmt = stmt.order_by(desc(sort_col) if (sort_direction or "desc").lower() == "desc" else asc(sort_col))
+
+        # Build count over the filtered (pre-pagination) statement
+        pk_col = self._get_pk_column()
+        base_for_count = stmt.order_by(None)
+        if pk_col is not None:
+            count_subq = base_for_count.with_only_columns(pk_col).distinct().subquery()
+            count_stmt = select(func.count()).select_from(count_subq)
+        else:
+            count_stmt = select(func.count()).select_from(base_for_count.subquery())
+        total_count = await self.session.scalar(count_stmt)
+
+        offset = (page - 1) * page_size
+        stmt = stmt.offset(offset).limit(page_size)
+
+        result = await self.session.execute(stmt)
+        models = result.scalars().all()
+        entities = [self.mapper.to_entity(m) for m in models]
+
+        total_pages = (total_count + page_size - 1) // page_size
+        return PaginatedResult(
+            items=entities,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_previous=page > 1
+        )

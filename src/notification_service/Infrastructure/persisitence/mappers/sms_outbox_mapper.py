@@ -1,7 +1,7 @@
 """Mapper for SMSOutbox entity and model."""
 from typing import Optional
 from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
-from notification_service.Infrastructure.persisitence.models.sms.sms_outbox import SmsOutboxModel
+from notification_service.infrastructure.persisitence.models.sms.sms_outbox import SmsOutboxModel
 
 
 class SmsOutboxMapper:

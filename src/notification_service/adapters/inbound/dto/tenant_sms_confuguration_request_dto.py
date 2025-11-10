@@ -2,8 +2,8 @@ from typing import Dict, Any
 from pydantic import BaseModel, Field
 from uuid import UUID, uuid4
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
-from notification_service.Infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomConfiguration
-from notification_service.Infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSConfig
+from notification_service.infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomConfiguration
+from notification_service.infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSConfig
 
 
 class TenantSMSConfigurationRequestDto(BaseModel):

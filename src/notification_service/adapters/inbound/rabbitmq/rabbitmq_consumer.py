@@ -6,7 +6,7 @@ import json
 from uuid import UUID
 from aio_pika.abc import AbstractIncomingMessage
 
-from notification_service.Infrastructure.messaging.rabbitmq.rabbitmq_consumer import RabbitMQConsumer
+from notification_service.infrastructure.messaging.rabbitmq.rabbitmq_consumer import RabbitMQConsumer
 from notification_service.application.services.tenant_service import TenantService
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class NotificationRabbitMQConsumer:
     
     def __init__(
         self,
-        rabbitmq_consumer: RabbitMQConsumer,  # Infrastructure client
+        rabbitmq_consumer: RabbitMQConsumer,  # infrastructure client
         tenant_service: TenantService
     ):
         self.rabbitmq_consumer = rabbitmq_consumer

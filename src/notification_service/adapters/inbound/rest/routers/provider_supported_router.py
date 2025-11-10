@@ -1,7 +1,7 @@
 from qena_shared_lib.http import ControllerBase,api_controller,get,post,delete,put
 from notification_service.application.services.provider_service import ProviderService
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
-from notification_service.adpaters.inbound.dto.provider_supported_dto import ProviderSupportedDTO,TestRequestDto
+from notification_service.adapters.inbound.dto.provider_supported_dto import ProviderSupportedDTO,TestRequestDto
 from uuid import UUID
 from fastapi import Depends
 import logging

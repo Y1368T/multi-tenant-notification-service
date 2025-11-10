@@ -1,10 +1,10 @@
 """Email outbox repository implementation."""
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from notification_service.Infrastructure.persisitence.repositories.generic_repository import GenericRepository
-from notification_service.Infrastructure.persisitence.models.email.email_outbox import EmailOutboxModel
+from notification_service.infrastructure.persisitence.repositories.generic_repository import GenericRepository
+from notification_service.infrastructure.persisitence.models.email.email_outbox import EmailOutboxModel
 from notification_service.domain.entities.email.email_outbox import EmailOutbox
-from notification_service.Infrastructure.persisitence.mappers.email_outbox_mapper import EmailOutboxMapper
+from notification_service.infrastructure.persisitence.mappers.email_outbox_mapper import EmailOutboxMapper
 
 class EmailOutboxRepository(GenericRepository[EmailOutboxModel, EmailOutbox]):
     """Repository for email outbox."""

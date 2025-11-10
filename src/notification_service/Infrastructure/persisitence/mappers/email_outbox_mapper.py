@@ -1,7 +1,7 @@
 """Mapper for EmailOutbox entity and model."""
 from typing import Optional
 from notification_service.domain.entities.email.email_outbox import EmailOutbox
-from notification_service.Infrastructure.persisitence.models.email.email_outbox import EmailOutboxModel
+from notification_service.infrastructure.persisitence.models.email.email_outbox import EmailOutboxModel
 
 
 class EmailOutboxMapper:

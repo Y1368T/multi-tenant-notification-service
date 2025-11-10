@@ -1,7 +1,7 @@
 """Mapper for TenantEmailConfiguration entity and model."""
 from typing import Optional
 from notification_service.domain.entities.tenant.tenant_email_configuration import TenantEmailConfiguration
-from notification_service.Infrastructure.persisitence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel
+from notification_service.infrastructure.persisitence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel
 
 
 class TenantEmailConfigurationMapper:

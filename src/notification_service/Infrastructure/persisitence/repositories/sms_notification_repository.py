@@ -1,10 +1,10 @@
 """SMS notification repository implementation."""
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from notification_service.Infrastructure.persisitence.repositories.generic_repository import GenericRepository
-from notification_service.Infrastructure.persisitence.models.sms.sms_notification import SMSNotificationModel
+from notification_service.infrastructure.persisitence.repositories.generic_repository import GenericRepository
+from notification_service.infrastructure.persisitence.models.sms.sms_notification import SMSNotificationModel
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
-from notification_service.Infrastructure.persisitence.mappers.sms_notification_mapper import SmsNotificationMapper
+from notification_service.infrastructure.persisitence.mappers.sms_notification_mapper import SmsNotificationMapper
 
 class SmsNotificationRepository(GenericRepository[SMSNotificationModel, SMSNotification]):
     """Repository for SMS notifications."""

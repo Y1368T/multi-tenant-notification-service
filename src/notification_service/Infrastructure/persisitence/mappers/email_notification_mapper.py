@@ -1,7 +1,7 @@
 """Mapper for EmailNotification entity and model."""
 from typing import Optional
 from notification_service.domain.entities.email.email_notification import EmailNotification
-from notification_service.Infrastructure.persisitence.models.email.email_notification import EmailNotificationModel
+from notification_service.infrastructure.persisitence.models.email.email_notification import EmailNotificationModel
 
 
 class EmailNotificationMapper:

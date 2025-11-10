@@ -1,5 +1,5 @@
 from notification_service.application.services.tenant_service import TenantService
-from notification_service.Infrastructure.messaging.rabbitmq.rabbitmq_consumer import RabbitMQConsumer
+from notification_service.infrastructure.messaging.rabbitmq.rabbitmq_consumer import RabbitMQConsumer
 class RabbitMQHandler:
     def __init__(self, tenant_service:TenantService,rabbitmq_consumer: RabbitMQConsumer):
         self.tenant_service = tenant_service

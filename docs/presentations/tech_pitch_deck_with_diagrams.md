@@ -203,7 +203,7 @@ sequenceDiagram
 
 - ✅ **Single consumer** for all services
 - ✅ **Loose coupling** via dependency injection
-- ✅ **Clear separation** of concerns (Domain, Application, Infrastructure)
+- ✅ **Clear separation** of concerns (Domain, Application, infrastructure)
 - ✅ **Highly testable** with interface mocking
 - ✅ **Multi-provider** with automatic fallback
 - ✅ **Full multi-tenancy** support

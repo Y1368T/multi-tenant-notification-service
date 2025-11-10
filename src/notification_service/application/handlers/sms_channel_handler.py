@@ -4,8 +4,8 @@ from notification_service.domain.interfaces.ichannel_handler import IChannelHand
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
-from notification_service.Infrastructure.providers.sms.ethiotelecom_shortcode  import EthioTelecomShortcodeSMSProvider
-from notification_service.Infrastructure.providers.sms.kifiya_sms_gateway  import KifiyaSMSGateway
+from notification_service.infrastructure.providers.sms.ethiotelecom_shortcode  import EthioTelecomShortcodeSMSProvider
+from notification_service.infrastructure.providers.sms.kifiya_sms_gateway  import KifiyaSMSGateway
 from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration

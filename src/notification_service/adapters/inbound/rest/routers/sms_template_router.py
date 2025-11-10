@@ -1,6 +1,6 @@
 from qena_shared_lib.http import ControllerBase,get,post,api_controller,put,delete
 from notification_service.application.services.sms_template_service import SMSTemplateService
-from notification_service.adpaters.inbound.dto.sms_template_request_dto import SMSTemplateRequestDTO,SMSTemplateFilters
+from notification_service.adapters.inbound.dto.sms_template_request_dto import SMSTemplateRequestDTO,SMSTemplateFilters
 from uuid import UUID
 
 @api_controller(prefix="/sms-templates", tags=["SMS Templates"])

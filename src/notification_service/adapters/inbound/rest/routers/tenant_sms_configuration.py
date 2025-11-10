@@ -2,7 +2,7 @@ from notification_service.application.services.tenant_sms_configuration_service 
 from qena_shared_lib.http import ControllerBase,get,post,api_controller,put,delete
 from fastapi import APIRouter, Depends
 from uuid import UUID
-from notification_service.adpaters.inbound.dto.tenant_sms_confuguration_request_dto import TenantSMSConfigurationRequestDto
+from notification_service.adapters.inbound.dto.tenant_sms_confuguration_request_dto import TenantSMSConfigurationRequestDto
 @api_controller(prefix="/tenant-sms-configurations", tags=["Tenant SMS Configurations"])
 class TenantSMSConfigurationController(ControllerBase):
     

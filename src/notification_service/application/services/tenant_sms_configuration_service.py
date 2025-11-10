@@ -2,7 +2,7 @@ from typing import Optional, Dict
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.value_objects.providers import SMSProvider
-from notification_service.Infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomShortcodeSMSProvider
+from notification_service.infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomShortcodeSMSProvider
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 class TenantSMSConfigurationService:
 

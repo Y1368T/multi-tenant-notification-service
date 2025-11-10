@@ -1,10 +1,10 @@
 """Tenant email configuration repository implementation."""
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from notification_service.Infrastructure.persisitence.repositories.generic_repository import GenericRepository
-from notification_service.Infrastructure.persisitence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel
+from notification_service.infrastructure.persisitence.repositories.generic_repository import GenericRepository
+from notification_service.infrastructure.persisitence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel
 from notification_service.domain.entities.tenant.tenant_email_configuration import TenantEmailConfiguration
-from notification_service.Infrastructure.persisitence.mappers.tenant_email_configuration_mapper import TenantEmailConfigurationMapper
+from notification_service.infrastructure.persisitence.mappers.tenant_email_configuration_mapper import TenantEmailConfigurationMapper
 
 class TenantEmailConfigurationRepository(GenericRepository[TenantEmailConfigurationModel, TenantEmailConfiguration]):
     """Repository for tenant email configurations."""
