@@ -8,7 +8,7 @@ from notification_service.domain.entities.tenant.tenant import Tenant
 from notification_service.adapters.inbound.dto.tenant_request_dto import TenantRequestDTO
 from notification_service.config.settings import settings
 from qena_shared_lib.http import ControllerBase,get,post,api_controller,put,delete
-from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest, PaginatedRequestDTO
+from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest, PaginatedRequestDTO, RelatedFilter
 from typing import Optional
 
 @api_controller(prefix="/tenants", tags=["Tenants"])
@@ -65,7 +65,7 @@ class TenantController(ControllerBase):
         tenants = await self.tenant_service.get_all_tenants_advanced(req)
         return tenants
     
-    @put("/update/{tennat_id}")
+    @put("/update/{tenant_id}")
     async def update(self,tenant_id:UUID, tenant:Tenant):
         tenant=await self.tenant_service.update_tenant(tenant_id,tenant)
         return tenant

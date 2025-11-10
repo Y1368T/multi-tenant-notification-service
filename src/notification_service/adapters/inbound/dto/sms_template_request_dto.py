@@ -38,6 +38,34 @@ class SMSTemplateRequestDTO(BaseModel):
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
+        
+class SMSTemplateResponseDTO(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    template_name: str
+    service_name: str
+    version: int
+    is_active: bool
+    content: Dict[str, str]
+    created_at: datetime
+    updated_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+    
+    @classmethod
+    def from_entity_with_relations(cls, template: SmsTemplate):
+        """Create DTO from entity with related data."""
+        return cls(
+            id=template.id,
+            tenant_id=template.tenant_id,
+            template_name=template.template_name,
+            service_name=template.service_name,
+            version=template.version,
+            is_active=template.is_active,
+            content=template.content,
+            created_at=template.created_at,
+            updated_at=template.updated_at
+        )
 class SMSTemplateFilters(BaseModel):
     tenant_id:UUID
     template_name:str

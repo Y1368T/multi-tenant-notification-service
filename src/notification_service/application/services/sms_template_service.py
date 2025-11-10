@@ -1,6 +1,10 @@
+from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
+from notification_service.adapters.inbound.dto.sms_template_request_dto import SMSTemplateResponseDTO
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from uuid import UUID
+
+from notification_service.domain.value_objects.paginated_result import PaginatedResponseDTO
 class SMSTemplateService:
     
     def __init__(self,uow:IUnitOfWork):
@@ -90,3 +94,43 @@ class SMSTemplateService:
         async with self.uow:
             templates = await self.uow.sms_templates.list(lambda x: x.tenant_id == tenant_id)
             return templates
+        
+    async def get_all_templates_advanced(
+        self,
+        req: PaginatedRequest
+    ) -> PaginatedResponseDTO[SMSTemplateResponseDTO]:
+        """
+        SQL-only filtering, deep relationship filtering, sorting and multi-field search.
+        """
+        async with self.uow:
+            
+            related_filters_tuples = [
+            (rf.relationship_path, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
+            for rf in (req.related_filters or [])
+            ]
+            result = await self.uow.sms_templates.list_advanced_paginated(
+                page=req.page,
+                page_size=req.page_size,
+                root_filters=req.filters or {},
+                related_filters=related_filters_tuples,
+                includes=[],
+                sort_by=req.sort_by,
+                sort_direction=req.sort_direction.value,
+                search_text=req.search_text,
+                search_fields=req.search_fields or []
+            )
+
+            dto_items = [
+                SMSTemplateResponseDTO.from_entity_with_relations(template)
+                for template in result.items
+            ]
+
+            return PaginatedResponseDTO(
+                items=dto_items,
+                page=result.page,
+                page_size=result.page_size,
+                total_count=result.total_count,
+                total_pages=result.total_pages,
+                has_next=result.has_next,
+                has_previous=result.has_previous
+            )

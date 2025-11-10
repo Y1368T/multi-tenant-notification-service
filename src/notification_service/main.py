@@ -32,12 +32,103 @@ from notification_service.domain.interfaces.imessage_consumer import IMessageCon
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
+from typing import Any, Dict
+
+def custom_openapi(app: FastAPI) -> Dict[str, Any]:
+    """Custom OpenAPI schema generator that fixes anyOf null type issues."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Fix OpenAPI version format
+    openapi_schema["openapi"] = "3.0.0"
+    
+    # Fix anyOf with null type issues - convert to nullable
+    def fix_schema(schema: Any) -> Any:
+        """Recursively fix anyOf schemas with null type."""
+        if isinstance(schema, dict):
+            # Check if this is an anyOf with null type
+            if "anyOf" in schema:
+                any_of = schema["anyOf"]
+                if isinstance(any_of, list) and len(any_of) == 2:
+                    # Check if one is null type
+                    null_index = None
+                    type_index = None
+                    for i, item in enumerate(any_of):
+                        if isinstance(item, dict):
+                            if item.get("type") == "null":
+                                null_index = i
+                            elif "type" in item and item["type"] != "null":
+                                type_index = i
+                    
+                    # If we found both null and a type, convert to nullable
+                    if null_index is not None and type_index is not None:
+                        type_schema = any_of[type_index].copy()
+                        type_schema["nullable"] = True
+                        # Copy other properties from the original schema
+                        new_schema = {k: v for k, v in schema.items() if k != "anyOf"}
+                        new_schema.update(type_schema)
+                        schema = new_schema
+            
+            # Recursively fix nested schemas, including properties
+            for key, value in schema.items():
+                if key == "properties" and isinstance(value, dict):
+                    # Fix properties within schemas
+                    for prop_name, prop_schema in value.items():
+                        schema[key][prop_name] = fix_schema(prop_schema)
+                else:
+                    schema[key] = fix_schema(value)
+        elif isinstance(schema, list):
+            schema = [fix_schema(item) for item in schema]
+        
+        return schema
+    
+    # Fix all schemas in the OpenAPI spec
+    if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
+        for schema_name, schema_def in openapi_schema["components"]["schemas"].items():
+            openapi_schema["components"]["schemas"][schema_name] = fix_schema(schema_def)
+    
+    # Fix parameter schemas and response schemas
+    if "paths" in openapi_schema:
+        for path, methods in openapi_schema["paths"].items():
+            for method, operation in methods.items():
+                if isinstance(operation, dict):
+                    # Fix parameters
+                    if "parameters" in operation:
+                        for param in operation["parameters"]:
+                            if "schema" in param:
+                                param["schema"] = fix_schema(param["schema"])
+                    # Fix request body schemas
+                    if "requestBody" in operation and "content" in operation["requestBody"]:
+                        for content_type, content_schema in operation["requestBody"]["content"].items():
+                            if "schema" in content_schema:
+                                content_schema["schema"] = fix_schema(content_schema["schema"])
+                    # Fix response schemas
+                    if "responses" in operation:
+                        for status_code, response in operation["responses"].items():
+                            if "content" in response:
+                                for content_type, content_schema in response["content"].items():
+                                    if "schema" in content_schema:
+                                        content_schema["schema"] = fix_schema(content_schema["schema"])
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
 def main()->FastAPI:
     builder=(Builder()
     .with_title("Notification Service")
     .with_description("Service for sending notifications via email and SMS")
     .with_version("1.0.0")
     .with_lifespan(lifespan))
+    builder._openapi_url="/openapi.json"
+    builder._docs_url="/docs"
     register_controllers(builder)
     builder.with_singleton(Settings,instance=Settings())
     builder.with_singleton(Database)
@@ -64,6 +155,10 @@ def main()->FastAPI:
 )
     
     app=builder.build()
+    
+    # Override OpenAPI schema generation to fix version and anyOf issues
+    app.openapi = lambda: custom_openapi(app)
+    
     app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],                # restrict in production e.g. ["https://app.example.com"]

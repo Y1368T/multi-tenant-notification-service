@@ -1,3 +1,4 @@
+from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest, PaginatedRequestDTO, RelatedFilter
 from notification_service.application.services.tenant_sms_configuration_service import TenantSMSConfigurationService
 from qena_shared_lib.http import ControllerBase,get,post,api_controller,put,delete
 from fastapi import APIRouter, Depends
@@ -37,4 +38,23 @@ class TenantSMSConfigurationController(ControllerBase):
         return sms_config
     
     
-    
+    @get("/get_by_filter")
+    async def get_tenant_sms_configuration_by_filter(self, params: PaginatedRequestDTO = Depends()):
+        default_search_fields = [
+            "provider_name"
+        ]
+        root_filters = {"tenant_id": params.tenant_id} if params.tenant_id else {}
+        related_filters: list[RelatedFilter] = []
+
+        req = PaginatedRequest(
+            page=params.page,
+            page_size=params.page_size,
+            sort_by="created_at",
+            sort_direction=params.sort_direction,
+            search=params.search,
+            search_fields=default_search_fields,
+            filters=root_filters,                    # add fixed root filters here if needed
+            related_filters=related_filters if related_filters else []
+        )
+        sms_config = await self.tenant_sms_configuration_service.get_all_configurations_advanced(req)
+        return sms_config

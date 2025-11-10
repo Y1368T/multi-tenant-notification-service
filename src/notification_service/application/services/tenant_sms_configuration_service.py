@@ -4,6 +4,11 @@ from notification_service.domain.entities.tenant.tenant_sms_configuration import
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomShortcodeSMSProvider
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
+from notification_service.adapters.inbound.dto.tenant_sms_confuguration_request_dto import TenantSMSConfigurationResponseDTO
+from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
+from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
+
+
 class TenantSMSConfigurationService:
 
 
@@ -93,3 +98,42 @@ class TenantSMSConfigurationService:
             case _:
                 return False
         return False
+    async def get_all_configurations_advanced(
+        self,
+        req: PaginatedRequest
+    ) -> PaginatedResponseDTO[TenantSMSConfigurationResponseDTO]:
+        """
+        SQL-only filtering, deep relationship filtering, sorting and multi-field search.
+        """
+        async with self.uow:
+            
+            related_filters_tuples = [
+            (rf.relationship_path, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
+            for rf in (req.related_filters or [])
+            ]
+            result = await self.uow.tenant_sms_configurations.list_advanced_paginated(
+                page=req.page,
+                page_size=req.page_size,
+                root_filters=req.filters or {},
+                related_filters=related_filters_tuples,
+                includes=[],
+                sort_by=req.sort_by,
+                sort_direction=req.sort_direction.value,
+                search_text=req.search_text,
+                search_fields=req.search_fields or []
+            )
+
+            dto_items = [
+                TenantSMSConfigurationResponseDTO.from_entity_with_relations(config)
+                for config in result.items
+            ]
+
+            return PaginatedResponseDTO(
+                items=dto_items,
+                page=result.page,
+                page_size=result.page_size,
+                total_count=result.total_count,
+                total_pages=result.total_pages,
+                has_next=result.has_next,
+                has_previous=result.has_previous
+            )
