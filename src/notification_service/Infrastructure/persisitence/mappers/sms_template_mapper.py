@@ -1,8 +1,10 @@
 """Mapper for SmsTemplate entity and model."""
 from typing import Optional
+from sqlalchemy import inspect
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from notification_service.Infrastructure.persisitence.models.sms.sms_template import SmsTemplateModel
-
+from notification_service.Infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
+           
 
 class SmsTemplateMapper:
     """Mapper for converting between SmsTemplate entity and SmsTemplateModel."""
@@ -19,6 +21,16 @@ class SmsTemplateMapper:
         """
         if model is None:
             return None
+        
+        # Map tenant relationship if loaded (avoid lazy loading)
+        tenant_entity = None
+        insp = inspect(model)
+        if 'tenant' in insp.unloaded:
+            # Relationship not loaded, skip it
+            tenant_entity = None
+        elif hasattr(model, 'tenant') and model.__dict__.get('tenant') is not None:
+            # Relationship is loaded and not None
+            tenant_entity = TenantMapper.to_entity(model.__dict__['tenant'])
 
         return SmsTemplate(
             id=model.id,
@@ -29,7 +41,8 @@ class SmsTemplateMapper:
             is_active=model.is_active,
             version=model.version,
             created_at=model.created_at,
-            updated_at=model.updated_at
+            updated_at=model.updated_at,
+            tenant=tenant_entity
         )
     
     @staticmethod
