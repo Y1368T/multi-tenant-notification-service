@@ -85,7 +85,9 @@ class KifiyaSMSGateway(IProviderService):
                     template_id=template_id
                 )
                 # You might want to save sms_notification to a database or log it here
-                await self.uow.sms_notifications.add(sms_notification)
+                result=await self.uow.sms_notifications.add(sms_notification)
+                await self.uow.commit()
+                logger.info(f"SMSNotification saved with ID: {result.id}")
                 return NotificationResponse(
                     notification_id=str(uuid.uuid4()),
                     tenant_id=tenant_config.tenant_id,

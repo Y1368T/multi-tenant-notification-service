@@ -231,8 +231,7 @@ class RabbitMQConsumer(IMessageConsumer):
     
     async def _handle_email_message(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming email notification message."""
-        async with message.process():
-            try:
+        try:
                 # Parse message body
                 payload = json.loads(message.body.decode())
                 queue_name = message.method.routing_key
@@ -251,14 +250,13 @@ class RabbitMQConsumer(IMessageConsumer):
                 
                 logger.info(f"Successfully processed email notification")
                 
-            except Exception as e:
+        except Exception as e:
                 logger.error(f"Error processing email message: {e}")
                 raise  # Will be requeued
     
     async def _handle_sms_message(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming SMS notification message."""
-        async with message.process():
-            try:
+        try:
                 payload = json.loads(message.body.decode())
                 
                 logger.info(f"Received SMS notification: {payload}")
@@ -274,14 +272,13 @@ class RabbitMQConsumer(IMessageConsumer):
 
                 logger.info(f"Successfully processed SMS notification")
                 
-            except Exception as e:
+        except Exception as e:
                 logger.error(f"Error processing SMS message: {e}")
                 raise
     
     async def _handle_in_app_message(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming in-app notification message."""
-        async with message.process():
-            try:
+        try:
                 payload = json.loads(message.body.decode())
                 
                 logger.info(f"Received in-app notification: {payload}")
@@ -298,7 +295,7 @@ class RabbitMQConsumer(IMessageConsumer):
 
                 logger.info(f"Successfully processed in-app notification")
                 
-            except Exception as e:
+        except Exception as e:
                 logger.error(f"Error processing in-app message: {e}")
                 raise
     

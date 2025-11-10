@@ -48,6 +48,6 @@ class SMSNotificationService:
             List of SMSNotification entities
         """
         async with self.uow:
-            notifications = await self.uow.sms_notifications.find(lambda t:t.==tenant_id)
+            notifications = await self.uow.sms_notifications.find(lambda t:t.template.tenant_id==tenant_id)
             return notifications
         
