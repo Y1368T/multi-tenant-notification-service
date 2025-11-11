@@ -77,9 +77,9 @@ class LinqQuery(Generic[T, M]):
             Self for method chaining
             
         Example:
-            query.where(lambda x: x.is_active)
+            query.where(lambda x: x.isActive)
                  .where(lambda x: x.parent1.id == id)
-                 .where(lambda x: x.parent2.is_active and x.parent3.id == other_id)
+                 .where(lambda x: x.parent2.isActive and x.parent3.id == other_id)
         """
         self._predicates.append(predicate)
         return self
@@ -105,7 +105,7 @@ class LinqQuery(Generic[T, M]):
         self._predicates.append(combined_predicate)
         return self
     
-    def order_by(self, key_selector: Callable[[Any], Any], column_name: Optional[str] = None) -> "LinqQuery[T, M]":
+    def orderBy(self, key_selector: Callable[[Any], Any], column_name: Optional[str] = None) -> "LinqQuery[T, M]":
         """
         Order results ascending (similar to EF OrderBy).
         
@@ -117,7 +117,7 @@ class LinqQuery(Generic[T, M]):
             Self for method chaining
             
         Example:
-            query.order_by(lambda x: x.created_at, "created_at")
+            query.orderBy(lambda x: x.createdAt, "createdAt")
         """
         self._order_clauses.append((key_selector, column_name, False))
         return self
@@ -134,7 +134,7 @@ class LinqQuery(Generic[T, M]):
             Self for method chaining
             
         Example:
-            query.order_by_descending(lambda x: x.created_at, "created_at")
+            query.order_by_descending(lambda x: x.createdAt, "createdAt")
         """
         self._order_clauses.append((key_selector, column_name, True))
         return self
@@ -151,8 +151,8 @@ class LinqQuery(Generic[T, M]):
             Self for method chaining
             
         Example:
-            query.order_by(lambda x: x.tenant_id, "tenant_id")
-                 .then_by(lambda x: x.created_at, "created_at")
+            query.orderBy(lambda x: x.tenantId, "tenantId")
+                 .then_by(lambda x: x.createdAt, "createdAt")
         """
         self._order_clauses.append((key_selector, column_name, False))
         return self
@@ -175,8 +175,8 @@ class LinqQuery(Generic[T, M]):
             Self for method chaining
             
         Example:
-            query.select(lambda x: {"id": x.id, "name": x.template_name})
-            query.select(lambda x: x.template_name)
+            query.select(lambda x: {"id": x.id, "name": x.templateName})
+            query.select(lambda x: x.templateName)
         """
         self._selector = selector
         return self
@@ -235,7 +235,7 @@ class LinqQuery(Generic[T, M]):
         for key_selector, column_name, descending in self._order_clauses:
             if column_name:
                 col = getattr(self._model_class, column_name)
-                self._stmt = self._stmt.order_by(col.desc() if descending else col.asc())
+                self._stmt = self._stmt.orderBy(col.desc() if descending else col.asc())
         
         # Apply distinct
         if self._distinct:
@@ -246,7 +246,7 @@ class LinqQuery(Generic[T, M]):
         models = result.unique().scalars().all()
         
         # Map to entities
-        entities = [self._mapper.to_entity(m) for m in models]
+        entities = [self._mapper.toEntity(m) for m in models]
         
         # Apply in-memory predicates
         for predicate in self._predicates:
@@ -305,7 +305,7 @@ class LinqQuery(Generic[T, M]):
             has_previous=page > 1
         )
     
-    async def first_or_default(self) -> Optional[Any]:
+    async def firstOrDefault(self) -> Optional[Any]:
         """
         Get first result or None (similar to EF FirstOrDefault).
         
@@ -313,13 +313,13 @@ class LinqQuery(Generic[T, M]):
             First entity or None
             
         Example:
-            entity = await query.first_or_default()
+            entity = await query.firstOrDefault()
         """
         self._stmt = self._stmt.limit(1)
         results = await self.to_list()
         return results[0] if results else None
     
-    async def single_or_default(self) -> Optional[Any]:
+    async def singleOrDefault(self) -> Optional[Any]:
         """
         Get single result or None, raises if multiple (similar to EF SingleOrDefault).
         
@@ -330,7 +330,7 @@ class LinqQuery(Generic[T, M]):
             ValueError: If multiple results found
             
         Example:
-            entity = await query.single_or_default()
+            entity = await query.singleOrDefault()
         """
         results = await self.to_list()
         if len(results) > 1:

@@ -7,17 +7,17 @@ class TenantModel(BaseModel):
     __tablename__ = "tenants"
 
     name = Column(String, unique=True, index=True, nullable=False)
-    is_active = Column(Boolean, default=True)
+    isActive = Column(Boolean, name="is_active", default=True)
     prefix = Column(String(10), unique=True, index=True, nullable=False)
-    api_keys = Column(String, nullable=True)
-    supported_channels = Column(ARRAY(String), nullable=True)
-    prefered_communication_method=Column(String, nullable=False,default="rest")  # Rest , Kafka , RabbitMq , gRPC
-    rate_limit_per_minute = Column(Integer, default=60)
-    rate_limit_per_hour = Column(Integer, default=1000)
-    rate_limit_per_day = Column(Integer, default=10000)
+    apiKeys = Column(String, name="api_keys", nullable=True)
+    supportedChannels = Column(ARRAY(String), name="supported_channels", nullable=True)
+    preferedCommunicationMethod=Column(String, name="prefered_communication_method", nullable=False,default="rest")  # Rest , Kafka , RabbitMq , gRPC
+    rateLimitPerMinute = Column(Integer, name="rate_limit_per_minute", default=60)
+    rateLimitPerHour = Column(Integer, name="rate_limit_per_hour", default=1000)
+    rateLimitPerDay = Column(Integer, name="rate_limit_per_day", default=10000)
     
-    email_configurations = relationship("TenantEmailConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
-    sms_configurations = relationship("TenantSMSConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
-    sms_templates = relationship("SmsTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
-    email_templates = relationship("EmailTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
-    in_app_templates = relationship("InAppTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
+    emailConfigurations = relationship("TenantEmailConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
+    smsConfigurations = relationship("TenantSMSConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
+    smsTemplates = relationship("SmsTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
+    emailTemplates = relationship("EmailTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
+    inAppTemplates = relationship("InAppTemplateModel", back_populates="tenant", cascade="all, delete-orphan")

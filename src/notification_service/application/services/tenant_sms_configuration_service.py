@@ -18,19 +18,19 @@ class TenantSMSConfigurationService:
             SMSProvider.ETHIOTELECOM: ethio_service
         }
 
-    async def get_configuration_by_tenant_id(self, tenant_id: UUID) -> TenantSMSConfiguration:
+    async def getConfigurationByTenantId(self, tenantId: UUID) -> TenantSMSConfiguration:
         """Retrieve SMS configuration for a given tenant.
         
         Args:
-            tenant_id: Tenant identifier
+            tenantId: Tenant identifier
 
         Returns:
             TenantSMSConfiguration object if found, None otherwise
         """
         async with self.uow:
-            config = await self.uow.tenant_sms_configurations.find(lambda x:x.tenant_id==tenant_id)
+            config = await self.uow.tenantSmsConfigurations.find(lambda x:x.tenantId==tenantId)
             return config
-    async def create_configuration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
+    async def createConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
         """Create a new SMS configuration for a tenant.
         
         Args:
@@ -40,11 +40,11 @@ class TenantSMSConfigurationService:
             Created TenantSMSConfiguration entity
         """
         async with self.uow:
-            created_config = await self.uow.tenant_sms_configurations.add(config)
+            createdConfig = await self.uow.tenantSmsConfigurations.add(config)
             await self.uow.commit()
-            return created_config
+            return createdConfig
         
-    async def update_configuration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
+    async def updateConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
         """Update an existing SMS configuration for a tenant.
 
         Args:
@@ -54,34 +54,34 @@ class TenantSMSConfigurationService:
             Updated TenantSMSConfiguration entity
         """
         async with self.uow:
-            updated_config = await self.uow.tenant_sms_configurations.update(config)
+            updatedConfig = await self.uow.tenantSmsConfigurations.update(config)
             await self.uow.commit()
-            return updated_config
+            return updatedConfig
         
-    async def delete_configuration(self, config_id: UUID) -> None:
+    async def deleteConfiguration(self, configId: UUID) -> None:
         """Delete an existing SMS configuration for a tenant.
 
         Args:
-            config_id: TenantSMSConfiguration identifier
+            configId: TenantSMSConfiguration identifier
         """
         async with self.uow:
-            await self.uow.tenant_sms_configurations.delete(config_id)
+            await self.uow.tenantSmsConfigurations.delete(configId)
             await self.uow.commit()
             
-    async def get_configuration_by_id(self, config_id: UUID) -> Optional[TenantSMSConfiguration]:
+    async def getConfigurationById(self, configId: UUID) -> Optional[TenantSMSConfiguration]:
         """Retrieve SMS configuration by its ID.
         
         Args:
-            config_id: TenantSMSConfiguration identifier
+            configId: TenantSMSConfiguration identifier
 
         Returns:
             TenantSMSConfiguration entity if found, None otherwise
         """
         async with self.uow:
-            config = await self.uow.tenant_sms_configurations.get_by_id(config_id)
+            config = await self.uow.tenantSmsConfigurations.getById(configId)
             return config
         
-    async def do_a_circuit_breaker_check(self, config: TenantSMSConfiguration, provider: SMSProvider) -> bool:
+    async def doACircuitBreakerCheck(self, config: TenantSMSConfiguration, provider: SMSProvider) -> bool:
         """Perform a circuit breaker check for SMS configurations.
         
         Returns:
@@ -98,7 +98,7 @@ class TenantSMSConfigurationService:
             case _:
                 return False
         return False
-    async def get_all_configurations_advanced(
+    async def getAllConfigurationsAdvanced(
         self,
         req: PaginatedRequest
     ) -> PaginatedResponseDTO[TenantSMSConfigurationResponseDTO]:
@@ -107,33 +107,33 @@ class TenantSMSConfigurationService:
         """
         async with self.uow:
             
-            related_filters_tuples = [
-            (rf.relationship_path, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
-            for rf in (req.related_filters or [])
+            relatedFiltersTuples = [
+            (rf.relationshipPath, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
+            for rf in (req.relatedFilters or [])
             ]
-            result = await self.uow.tenant_sms_configurations.list_advanced_paginated(
+            result = await self.uow.tenantSmsConfigurations.listAdvancedPaginated(
                 page=req.page,
-                page_size=req.page_size,
-                root_filters=req.filters or {},
-                related_filters=related_filters_tuples,
+                pageSize=req.pageSize,
+                rootFilters=req.filters or {},
+                relatedFilters=relatedFiltersTuples,
                 includes=[],
-                sort_by=req.sort_by,
-                sort_direction=req.sort_direction.value,
-                search_text=req.search_text,
-                search_fields=req.search_fields or []
+                sortBy=req.sortBy,
+                sortDirection=req.sortDirection.value,
+                searchText=req.searchText,
+                searchFields=req.searchFields or []
             )
 
-            dto_items = [
-                TenantSMSConfigurationResponseDTO.from_entity_with_relations(config)
+            dtoItems = [
+                TenantSMSConfigurationResponseDTO.fromEntityWithRelations(config)
                 for config in result.items
             ]
 
             return PaginatedResponseDTO(
-                items=dto_items,
+                items=dtoItems,
                 page=result.page,
-                page_size=result.page_size,
-                total_count=result.total_count,
-                total_pages=result.total_pages,
-                has_next=result.has_next,
-                has_previous=result.has_previous
+                pageSize=result.pageSize,
+                totalCount=result.totalCount,
+                totalPages=result.totalPages,
+                hasNext=result.hasNext,
+                hasPrevious=result.hasPrevious
             )

@@ -15,27 +15,27 @@ class TenantRepository(GenericRepository[TenantModel, Tenant], ITenantRepository
         self.session = session
         self.mapper = mapper
 
-    async def get_by_name(self, tenant_name: str) -> Tenant | None:
+    async def getByName(self, tenantName: str) -> Tenant | None:
         """Get tenant by its name."""
-        query = select(TenantModel).where(TenantModel.name == tenant_name)
+        query = select(TenantModel).where(TenantModel.name == tenantName)
         result = await self.session.execute(query)
-        return self.mapper.to_entity(result.scalars().first())
+        return self.mapper.toEntity(result.scalars().first())
     
-    async def get_tenant_by_prefix(self, prefix: str) -> Tenant | None:
+    async def getTenantByPrefix(self, prefix: str) -> Tenant | None:
         """Get tenant by name prefix."""
         query = select(TenantModel).where(TenantModel.prefix == prefix)
         result = await self.session.execute(query)
-        return self.mapper.to_entity(result.scalars().first())
+        return self.mapper.toEntity(result.scalars().first())
     
-    async def get_tenants_by_channel_support(self, channel: str) -> list[Tenant | None]:
+    async def getTenantsBySupportedChannel(self, channel: str) -> list[Tenant | None]:
         """Get tenants that support a specific notification channel."""
-        query = select(TenantModel).where(TenantModel.supported_channels.contains([channel]))
+        query = select(TenantModel).where(TenantModel.supportedChannels.contains([channel]))
         result = await self.session.execute(query)
-        return self.mapper.to_list_of_entities(result.scalars().all())
+        return self.mapper.toListOfEntities(result.scalars().all())
     
-    async def get_active_tenants(self) -> list[Tenant | None]:
+    async def getActiveTenants(self) -> list[Tenant | None]:
         """Get all active tenants."""
-        query = select(TenantModel).where(TenantModel.is_active == True)
+        query = select(TenantModel).where(TenantModel.isActive == True)
         result = await self.session.execute(query)
-        return self.mapper.to_list_of_entities(result.scalars().all())
+        return self.mapper.toListOfEntities(result.scalars().all())
     

@@ -29,7 +29,7 @@ class IGenericRepository(ABC, Generic[T]):
         pass
     
     @abstractmethod
-    async def get_by_id(self, entity_id: UUID) -> Optional[T]:
+    async def getById(self, entity_id: UUID) -> Optional[T]:
         """Retrieve entity by ID."""
         pass
     
@@ -57,12 +57,12 @@ class IGenericRepository(ABC, Generic[T]):
             predicate: Lambda expression to filter entities
             
         Example:
-            templates = await repo.find(lambda t: t.is_active and t.tenant_id == tenant_id)
+            templates = await repo.find(lambda t: t.isActive and t.tenantId == tenantId)
         """
         pass
     
     @abstractmethod
-    async def first_or_default(
+    async def firstOrDefault(
         self,
         predicate: Optional[Callable[[T], bool]] = None
     ) -> Optional[T]:
@@ -73,12 +73,12 @@ class IGenericRepository(ABC, Generic[T]):
             predicate: Optional lambda expression
             
         Example:
-            template = await repo.first_or_default(lambda t: t.template_name == "welcome")
+            template = await repo.firstOrDefault(lambda t: t.templateName == "welcome")
         """
         pass
     
     @abstractmethod
-    async def single_or_default(
+    async def singleOrDefault(
         self,
         predicate: Callable[[T], bool]
     ) -> Optional[T]:
@@ -89,7 +89,7 @@ class IGenericRepository(ABC, Generic[T]):
             predicate: Lambda expression
             
         Example:
-            template = await repo.single_or_default(lambda t: t.id == template_id)
+            template = await repo.singleOrDefault(lambda t: t.id == template_id)
         """
         pass
     
@@ -102,7 +102,7 @@ class IGenericRepository(ABC, Generic[T]):
         Check if any entity matches predicate (EF Any).
         
         Example:
-            exists = await repo.any(lambda t: t.template_name == "welcome")
+            exists = await repo.any(lambda t: t.templateName == "welcome")
         """
         pass
     
@@ -115,12 +115,12 @@ class IGenericRepository(ABC, Generic[T]):
         Count entities matching predicate (EF Count).
         
         Example:
-            total = await repo.count(lambda t: t.is_active)
+            total = await repo.count(lambda t: t.isActive)
         """
         pass
     
     @abstractmethod
-    async def order_by(
+    async def orderBy(
         self,
         key_selector: Callable[[T], Any],
         descending: bool = False,
@@ -137,10 +137,10 @@ class IGenericRepository(ABC, Generic[T]):
             predicate: Optional filter
             
         Example:
-            templates = await repo.order_by(
-                lambda t: t.created_at,
+            templates = await repo.orderBy(
+                lambda t: t.createdAt,
                 descending=True,
-                predicate=lambda t: t.is_active
+                predicate=lambda t: t.isActive
             )
         """
         pass
@@ -160,51 +160,51 @@ class IGenericRepository(ABC, Generic[T]):
             
         Example:
             names = await repo.select(
-                lambda t: t.template_name,
-                predicate=lambda t: t.is_active
+                lambda t: t.templateName,
+                predicate=lambda t: t.isActive
             )
         """
         pass
     
     @abstractmethod
-    async def list_paginated(
+    async def listPaginated(
         self,
         page: int,
-        page_size: int,
+        pageSize: int,
         filters: Optional[Dict[str, Any]] = None,
-        loader_options: Optional[List[Any]] = None,
-        order_by: Optional[Any] = None
+        loaderOptions: Optional[List[Any]] = None,
+        orderBy: Optional[Any] = None
     ):
         """
         List entities with pagination and optional filtering.
         
         Args:
             page: Page number (1-indexed)
-            page_size: Number of items per page
+            pageSize: Number of items per page
             filters: Optional dictionary of field: value filters
-            loader_options: Optional SQLAlchemy loader options (e.g., joinedload)
-            order_by: Optional SQLAlchemy order_by clause
+            loaderOptions: Optional SQLAlchemy loader options (e.g., joinedload)
+            orderBy: Optional SQLAlchemy orderBy clause
             
         Returns:
             PaginatedResult with items and metadata
             
         Example:
-            result = await repo.list_paginated(
+            result = await repo.listPaginated(
                 page=1,
-                page_size=10,
-                filters={"is_active": True},
-                order_by=Model.created_at.desc()
+                pageSize=10,
+                filters={"isActive": True},
+                orderBy=Model.createdAt.desc()
             )
         """
         pass
     
     @abstractmethod
-    async def find_paginated(
+    async def findPaginated(
         self,
         predicate: Callable[[T], bool],
         page: int,
-        page_size: int,
-        loader_options: Optional[List[Any]] = None
+        pageSize: int,
+        loaderOptions: Optional[List[Any]] = None
     ):
         """
         Find entities matching predicate with pagination.
@@ -212,42 +212,42 @@ class IGenericRepository(ABC, Generic[T]):
         Args:
             predicate: Lambda expression to filter entities
             page: Page number (1-indexed)
-            page_size: Number of items per page
-            loader_options: Optional SQLAlchemy loader options
+            pageSize: Number of items per page
+            loaderOptions: Optional SQLAlchemy loader options
             
         Returns:
             PaginatedResult with items and metadata
             
         Example:
-            result = await repo.find_paginated(
-                lambda t: t.is_active and t.tenant_id == tenant_id,
+            result = await repo.findPaginated(
+                lambda t: t.isActive and t.tenantId == tenantId,
                 page=1,
-                page_size=20
+                pageSize=20
             )
         """
         pass
     
     @abstractmethod
-    async def list_by_related_equal(
+    async def listByRelatedEqual(
         self,
-        related_model: Any,
-        relationship_name: str,
-        related_field: str,
+        relatedModel: Any,
+        relationshipName: str,
+        relatedField: str,
         value: Any,
         page: Optional[int] = None,
-        page_size: Optional[int] = None,
+        pageSize: Optional[int] = None,
         eager: bool = True
     ) -> Union[List[T], Any]:
         """
         List entities by filtering on related model field.
         
         Args:
-            related_model: Related SQLAlchemy model class
-            relationship_name: Relationship attribute name on primary model
-            related_field: Column name on related model to filter
+            relatedModel: Related SQLAlchemy model class
+            relationshipName: Relationship attribute name on primary model
+            relatedField: Column name on related model to filter
             value: Value to match
             page: Optional page number for pagination
-            page_size: Optional page size for pagination
+            pageSize: Optional page size for pagination
             eager: Whether to eager load the relationship
             
         Returns:
@@ -255,31 +255,31 @@ class IGenericRepository(ABC, Generic[T]):
             
         Example:
             # Get all notifications for a tenant through template relationship
-            result = await sms_notifications_repo.list_by_related_equal(
-                related_model=SmsTemplateModel,
-                relationship_name="template",
-                related_field="tenant_id",
-                value=tenant_id,
+            result = await smsNotificationsRepo.listByRelatedEqual(
+                relatedModel=SmsTemplateModel,
+                relationshipName="template",
+                relatedField="tenantId",
+                value=tenantId,
                 page=1,
-                page_size=10,
+                pageSize=10,
                 eager=True
             )
         """
         pass
     
     @abstractmethod
-    async def list_advanced_paginated(
+    async def listAdvancedPaginated(
         self,
         page: int,
-        page_size: int,
+        pageSize: int,
         *,
-        root_filters: Optional[Dict[str, Any]] = None,
-        related_filters: Optional[List[Any]] = None,
+        rootFilters: Optional[Dict[str, Any]] = None,
+        relatedFilters: Optional[List[Any]] = None,
         includes: Optional[List[str]] = None,
-        sort_by: Optional[str] = None,
-        sort_direction: str = "desc",
-        search_text: Optional[str] = None,
-        search_fields: Optional[List[str]] = None
+        sortBy: Optional[str] = None,
+        sortDirection: str = "desc",
+        searchText: Optional[str] = None,
+        searchFields: Optional[List[str]] = None
     ):
         """
         Fully generic, SQL-only deep query with eager loading, filters, sorting and search.
@@ -287,14 +287,14 @@ class IGenericRepository(ABC, Generic[T]):
         
         Args:
             page: Page number (1-indexed)
-            page_size: Page size (max is enforced by caller)
-            root_filters: Dict of root field equals filters
-            related_filters: List of (relationship_path, field, op, value)
+            pageSize: Page size (max is enforced by caller)
+            rootFilters: Dict of root field equals filters
+            relatedFilters: List of (relationshipPath, field, op, value)
             includes: Relationship paths for eager loading
-            sort_by: Field or dotted path (e.g., "template.tenant.name")
-            sort_direction: "asc" or "desc"
-            search_text: Text to search using ILIKE
-            search_fields: List of fields or dotted paths to OR-match against
+            sortBy: Field or dotted path (e.g., "template.tenant.name")
+            sortDirection: "asc" or "desc"
+            searchText: Text to search using ILIKE
+            searchFields: List of fields or dotted paths to OR-match against
         """
         pass
     
@@ -325,7 +325,7 @@ class IGenericRepository(ABC, Generic[T]):
         Example:
             result = await repo.query()
                 .where(lambda x: x.status == "active")
-                .order_by_descending(lambda x: x.created_at)
+                .order_by_descending(lambda x: x.createdAt)
                 .to_paginated_list(page=1, page_size=10)
         """
         pass
@@ -342,7 +342,7 @@ class IGenericRepository(ABC, Generic[T]):
             LinqQuery builder instance
             
         Example:
-            query = repo.where(lambda x: x.is_active)
+            query = repo.where(lambda x: x.isActive)
             results = await query.to_list()
         """
         pass

@@ -32,11 +32,11 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
     async def add(self, entity: TEntity) -> TEntity:
         """Add new entity to repository."""
         try:
-            model = self.mapper.to_model(entity)
+            model = self.mapper.toModel(entity)
             self.session.add(model)
             await self.session.flush()
             logger.debug(f"Added {self.model_class.__name__} with id {model.id}")
-            return self.mapper.to_entity(model)
+            return self.mapper.toEntity(model)
         except Exception as e:
             logger.error(f"Error adding {self.model_class.__name__}: {e}")
             raise
@@ -44,11 +44,11 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
     async def update(self, entity: TEntity) -> TEntity:
         """Update existing entity."""
         try:
-            model = self.mapper.to_model(entity)
+            model = self.mapper.toModel(entity)
             merged_model = await self.session.merge(model)
             await self.session.flush()
             logger.debug(f"Updated {self.model_class.__name__} with id {model.id}")
-            return self.mapper.to_entity(merged_model)
+            return self.mapper.toEntity(merged_model)
         except Exception as e:
             logger.error(f"Error updating {self.model_class.__name__}: {e}")
             raise
@@ -64,7 +64,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
             logger.error(f"Error deleting {self.model_class.__name__}: {e}")
             raise
     
-    async def get_by_id(
+    async def getById(
         self,
         entity_id: UUID,
         loader_options: Optional[List[Any]] = None
@@ -77,7 +77,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
                     stmt = stmt.options(opt)
             result = await self.session.execute(stmt)
             model = result.scalar_one_or_none()
-            return self.mapper.to_entity(model) if model else None
+            return self.mapper.toEntity(model) if model else None
         except Exception as e:
             logger.error(f"Error getting {self.model_class.__name__} by id: {e}")
             raise
@@ -95,7 +95,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
                     stmt = stmt.options(opt)
             result = await self.session.execute(stmt)
             models = result.scalars().all()
-            entities = [self.mapper.to_entity(model) for model in models]
+            entities = [self.mapper.toEntity(model) for model in models]
             
             if filter_func is None:
                 return entities
@@ -111,23 +111,23 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
             logger.error(f"Error listing {self.model_class.__name__}: {e}")
             raise
 
-    async def list_paginated(
+    async def listPaginated(
         self,
         page: int = 1,
-        page_size: int = 10,
+        pageSize: int = 10,
         filters: Optional[Dict[str, Any]] = None,
-        loader_options: Optional[List[Any]] = None,
-        order_by: Optional[Any] = None
+        loaderOptions: Optional[List[Any]] = None,
+        orderBy: Optional[Any] = None
     ) -> PaginatedResult[TEntity]:
         """
         List entities with pagination and filtering.
         
         Args:
             page: Page number (1-indexed)
-            page_size: Number of items per page
+            pageSize: Number of items per page
             filters: Dictionary of column_name: value for filtering
-            loader_options: SQLAlchemy loader options for eager loading
-            order_by: SQLAlchemy column for ordering (e.g., Model.created_at.desc())
+            loaderOptions: SQLAlchemy loader options for eager loading
+            orderBy: SQLAlchemy column for ordering (e.g., Model.createdAt.desc())
         """
         try:
             # Base query
@@ -141,37 +141,37 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
             
             # Count total
             count_stmt = select(func.count()).select_from(stmt.subquery())
-            total_count = await self.session.scalar(count_stmt)
+            totalCount = await self.session.scalar(count_stmt)
             
             # Apply ordering
-            if order_by is not None:
-                stmt = stmt.order_by(order_by)
+            if orderBy is not None:
+                stmt = stmt.order_by(orderBy)
             
             # Apply eager loading
-            if loader_options:
-                for opt in loader_options:
+            if loaderOptions:
+                for opt in loaderOptions:
                     stmt = stmt.options(opt)
             
             # Apply pagination
-            offset = (page - 1) * page_size
-            stmt = stmt.offset(offset).limit(page_size)
+            offset = (page - 1) * pageSize
+            stmt = stmt.offset(offset).limit(pageSize)
             
             # Execute
             result = await self.session.execute(stmt)
             models = result.scalars().all()
-            entities = [self.mapper.to_entity(model) for model in models]
+            entities = [self.mapper.toEntity(model) for model in models]
             
             # Calculate pagination metadata
-            total_pages = (total_count + page_size - 1) // page_size
+            totalPages = (totalCount + pageSize - 1) // pageSize
             
             return PaginatedResult(
                 items=entities,
-                total_count=total_count,
+                totalCount=totalCount,
                 page=page,
-                page_size=page_size,
-                total_pages=total_pages,
-                has_next=page < total_pages,
-                has_previous=page > 1
+                pageSize=pageSize,
+                totalPages=totalPages,
+                hasNext=page < totalPages,
+                hasPrevious=page > 1
             )
         except Exception as e:
             logger.error(f"Error paginating {self.model_class.__name__}: {e}")
@@ -190,103 +190,106 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
                 stmt = stmt.options(opt)
         result = await self.session.execute(stmt)
         models = result.scalars().all()
-        entities = [self.mapper.to_entity(m) for m in models]
+        entities = [self.mapper.toEntity(m) for m in models]
         return [e for e in entities if predicate(e)]
 
-    async def find_paginated(
+    async def findPaginated(
         self,
         predicate: Callable[[TEntity], bool],
         page: int = 1,
-        page_size: int = 10,
-        loader_options: Optional[List[Any]] = None
+        pageSize: int = 10,
+        loaderOptions: Optional[List[Any]] = None
     ) -> PaginatedResult[TEntity]:
         """Find entities matching a predicate with pagination."""
         # Note: This loads all matching entities into memory then paginates
-        # For large datasets, prefer list_paginated with SQL filters
-        all_entities = await self.find(predicate, loader_options)
-        total_count = len(all_entities)
+        # For large datasets, prefer listPaginated with SQL filters
+        allEntities = await self.find(predicate, loaderOptions)
+        totalCount = len(allEntities)
         
         # Paginate in memory
-        start = (page - 1) * page_size
-        end = start + page_size
-        items = all_entities[start:end]
+        start = (page - 1) * pageSize
+        end = start + pageSize
+        items = allEntities[start:end]
         
-        total_pages = (total_count + page_size - 1) // page_size
+        totalPages = (totalCount + pageSize - 1) // pageSize
         
         return PaginatedResult(
             items=items,
-            total_count=total_count,
+            totalCount=totalCount,
             page=page,
-            page_size=page_size,
-            total_pages=total_pages,
-            has_next=page < total_pages,
-            has_previous=page > 1
+            pageSize=pageSize,
+            totalPages=totalPages,
+            hasNext=page < totalPages,
+            hasPrevious=page > 1
         )
 
-    async def list_by_related_equal(
+    async def listByRelatedEqual(
         self,
-        related_model: Any,
-        relationship_name: str,
-        related_field: str,
+        relatedModel: Any,
+        relationshipName: str,
+        relatedField: str,
         value: Any,
         page: Optional[int] = None,
-        page_size: Optional[int] = None,
+        pageSize: Optional[int] = None,
         eager: bool = True
     ) -> Union[List[TEntity], PaginatedResult[TEntity]]:
         """
         List entities by filtering on related model field.
         
         Args:
-            related_model: Related SQLAlchemy model
-            relationship_name: Relationship attribute name on primary model
-            related_field: Column name on related model to filter
+            relatedModel: Related SQLAlchemy model
+            relationshipName: Relationship attribute name on primary model
+            relatedField: Column name on related model to filter
             value: Value to match
             page: Optional page number for pagination
-            page_size: Optional page size for pagination
+            pageSize: Optional page size for pagination
             eager: Whether to eager load the relationship
         """
-        rel_attr = getattr(self.model_class, relationship_name)
-        rel_col = getattr(related_model, related_field)
+        relAttr = getattr(self.model_class, relationshipName)
+        relCol = getattr(relatedModel, relatedField)
         
-        stmt = select(self.model_class).join(rel_attr).where(rel_col == value)
+        stmt = select(self.model_class).join(relAttr).where(relCol == value)
         
         if eager:
             from sqlalchemy.orm import selectinload
             # Load the relationship and its nested tenant relationship
-            stmt = stmt.options(
-                selectinload(rel_attr).selectinload(related_model.tenant)
-            )
+            if hasattr(relatedModel, 'tenant'):
+                stmt = stmt.options(
+                    selectinload(relAttr).selectinload(relatedModel.tenant)
+                )
+            else:
+                stmt = stmt.options(selectinload(relAttr))
         
         # Pagination
-        if page is not None and page_size is not None:
+        if page is not None and pageSize is not None:
             # Count total
             count_stmt = select(func.count()).select_from(stmt.subquery())
-            total_count = await self.session.scalar(count_stmt)
+            totalCount = await self.session.scalar(count_stmt)
             
             # Apply pagination
-            offset = (page - 1) * page_size
-            stmt = stmt.offset(offset).limit(page_size)
+            offset = (page - 1) * pageSize
+            stmt = stmt.offset(offset).limit(pageSize)
             
             result = await self.session.execute(stmt)
-            entities = [self.mapper.to_entity(m) for m in result.scalars().all()]
+            entities = [self.mapper.toEntity(m) for m in result.scalars().all()]
             
-            total_pages = (total_count + page_size - 1) // page_size
+            totalPages = (totalCount + pageSize - 1) // pageSize
             
             return PaginatedResult(
                 items=entities,
-                total_count=total_count,
+                totalCount=totalCount,
                 page=page,
-                page_size=page_size,
-                total_pages=total_pages,
-                has_next=page < total_pages,
-                has_previous=page > 1
+                pageSize=pageSize,
+                totalPages=totalPages,
+                hasNext=page < totalPages,
+                hasPrevious=page > 1
             )
         else:
             # No pagination
             result = await self.session.execute(stmt)
-            return [self.mapper.to_entity(m) for m in result.scalars().all()]
+            return [self.mapper.toEntity(m) for m in result.scalars().all()]
 
-    async def first_or_default(
+    async def firstOrDefault(
         self,
         predicate: Optional[Callable[[TEntity], bool]] = None
     ) -> Optional[TEntity]:
@@ -298,7 +301,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         if not model:
             return None
         
-        entity = self.mapper.to_entity(model)
+        entity = self.mapper.toEntity(model)
         
         if predicate is None or predicate(entity):
             return entity
@@ -309,13 +312,13 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         models = result.scalars().all()
         
         for model in models:
-            entity = self.mapper.to_entity(model)
+            entity = self.mapper.toEntity(model)
             if predicate(entity):
                 return entity
         
         return None
     
-    async def single_or_default(
+    async def singleOrDefault(
         self,
         predicate: Callable[[TEntity], bool]
     ) -> Optional[TEntity]:
@@ -323,7 +326,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         query = select(self.model_class)
         result = await self.session.execute(query)
         models = result.scalars().all()
-        entities = [self.mapper.to_entity(model) for model in models]
+        entities = [self.mapper.toEntity(model) for model in models]
         
         matching = [e for e in entities if predicate(e)]
         
@@ -350,7 +353,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         models = result.scalars().all()
         
         for model in models:
-            entity = self.mapper.to_entity(model)
+            entity = self.mapper.toEntity(model)
             if predicate(entity):
                 return True
         
@@ -379,7 +382,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         except Exception as e:
             logger.error(f"Error checking existence of {self.model_class.__name__}: {e}")
             raise
-    async def order_by(
+    async def orderBy(
         self,
         key_selector: Callable[[TEntity], Any],
         descending: bool = False,
@@ -391,7 +394,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         query = select(self.model_class).limit(limit).offset(offset)
         result = await self.session.execute(query)
         models = result.scalars().all()
-        entities = [self.mapper.to_entity(model) for model in models]
+        entities = [self.mapper.toEntity(model) for model in models]
         
         # Apply predicate if provided
         if predicate:
@@ -409,7 +412,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         query = select(self.model_class)
         result = await self.session.execute(query)
         models = result.scalars().all()
-        entities = [self.mapper.to_entity(model) for model in models]
+        entities = [self.mapper.toEntity(model) for model in models]
         
         # Apply predicate if provided
         if predicate:
@@ -427,7 +430,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         Example:
             results = await (repository.query()
                 .where(lambda x: x.status == NotificationStatus.SENT)
-                .order_by(lambda x: x.created_at, "created_at")
+                .orderBy(lambda x: x.createdAt, "createdAt")
                 .skip(10)
                 .take(20)
                 .to_list())
@@ -450,7 +453,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         Example:
             results = await (repository
                 .where(lambda x: x.status == NotificationStatus.SENT)
-                .order_by(lambda x: x.created_at)
+                .orderBy(lambda x: x.createdAt)
                 .to_list())
         """
         return self.query().where(predicate)
@@ -525,18 +528,18 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
             return getattr(Model, "id")
         return None
 
-    async def list_advanced_paginated(
+    async def listAdvancedPaginated(
         self,
         page: int,
-        page_size: int,
+        pageSize: int,
         *,
-        root_filters: Optional[Dict[str, Any]] = None,
-        related_filters: Optional[List[Any]] = None,
+        rootFilters: Optional[Dict[str, Any]] = None,
+        relatedFilters: Optional[List[Any]] = None,
         includes: Optional[List[str]] = None,
-        sort_by: Optional[str] = None,
-        sort_direction: str = "desc",
-        search_text: Optional[str] = None,
-        search_fields: Optional[List[str]] = None
+        sortBy: Optional[str] = None,
+        sortDirection: str = "desc",
+        searchText: Optional[str] = None,
+        searchFields: Optional[List[str]] = None
     ) -> PaginatedResult[TEntity]:
         Model = self.model_class
         stmt = select(Model)
@@ -563,31 +566,31 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
                     current_cls = sub_attr.property.mapper.class_
                 stmt = stmt.options(opt)
 
-        if root_filters:
-            for key, value in root_filters.items():
+        if rootFilters:
+            for key, value in rootFilters.items():
                 if hasattr(Model, key):
                     stmt = stmt.where(getattr(Model, key) == value)
 
-        if related_filters:
-            for rf in related_filters:
+        if relatedFilters:
+            for rf in relatedFilters:
                 if isinstance(rf, (list, tuple)) and len(rf) == 4:
                     rel_path, field, op, value = rf
                     full_path = f"{rel_path}.{field}" if rel_path else field
                     stmt, col = self._resolve_path_column(stmt, Model, full_path, join_cache)
                     stmt = stmt.where(self._apply_op(col, op, value))
 
-        if search_text and search_fields:
+        if searchText and searchFields:
             clauses = []
-            for fpath in search_fields:
+            for fpath in searchFields:
                 stmt, col = self._resolve_path_column(stmt, Model, fpath, join_cache)
-                clauses.append(col.ilike(f"%{search_text}%"))
+                clauses.append(col.ilike(f"%{searchText}%"))
             if clauses:
                 stmt = stmt.where(or_(*clauses))
 
-        if sort_by:
-            stmt, sort_col = self._resolve_path_column(stmt, Model, sort_by, join_cache)
-            if sort_col is not None:
-                stmt = stmt.order_by(desc(sort_col) if (sort_direction or "desc").lower() == "desc" else asc(sort_col))
+        if sortBy:
+            stmt, sortCol = self._resolve_path_column(stmt, Model, sortBy, join_cache)
+            if sortCol is not None:
+                stmt = stmt.order_by(desc(sortCol) if (sortDirection or "desc").lower() == "desc" else asc(sortCol))
 
         # Build count over the filtered (pre-pagination) statement
         pk_col = self._get_pk_column()
@@ -597,22 +600,22 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
             count_stmt = select(func.count()).select_from(count_subq)
         else:
             count_stmt = select(func.count()).select_from(base_for_count.subquery())
-        total_count = await self.session.scalar(count_stmt)
+        totalCount = await self.session.scalar(count_stmt)
 
-        offset = (page - 1) * page_size
-        stmt = stmt.offset(offset).limit(page_size)
+        offset = (page - 1) * pageSize
+        stmt = stmt.offset(offset).limit(pageSize)
 
         result = await self.session.execute(stmt)
         models = result.scalars().all()
-        entities = [self.mapper.to_entity(m) for m in models]
+        entities = [self.mapper.toEntity(m) for m in models]
 
-        total_pages = (total_count + page_size - 1) // page_size
+        totalPages = (totalCount + pageSize - 1) // pageSize
         return PaginatedResult(
             items=entities,
-            total_count=total_count,
+            totalCount=totalCount,
             page=page,
-            page_size=page_size,
-            total_pages=total_pages,
-            has_next=page < total_pages,
-            has_previous=page > 1
+            pageSize=pageSize,
+            totalPages=totalPages,
+            hasNext=page < totalPages,
+            hasPrevious=page > 1
         )

@@ -8,7 +8,7 @@ class TenantSmsConfigurationMapper:
     """Mapper for converting between TenantSMSConfiguration entity and TenantSMSConfigurationModel."""
     
     @staticmethod
-    def to_entity(model: TenantSMSConfigurationModel) -> TenantSMSConfiguration:
+    def toEntity(model: TenantSMSConfigurationModel) -> TenantSMSConfiguration:
         """Convert database model to domain entity.
         
         Args:
@@ -22,19 +22,19 @@ class TenantSmsConfigurationMapper:
         
         return TenantSMSConfiguration(
             id=model.id,
-            tenant_id=model.tenant_id,
-            provider_name=model.provider_name,
+            tenantId=model.tenantId,
+            providerName=model.providerName,
             config=model.config,
-            is_active=model.is_active,
-            rate_limit_per_minute=model.rate_limit_per_minute,
-            rate_limit_per_hour=model.rate_limit_per_hour,
-            rate_limit_per_day=model.rate_limit_per_day,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            isActive=model.isActive,
+            rateLimitPerMinute=model.rateLimitPerMinute,
+            rateLimitPerHour=model.rateLimitPerHour,
+            rateLimitPerDay=model.rateLimitPerDay,
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: TenantSMSConfiguration) -> TenantSMSConfigurationModel:
+    def toModel(entity: TenantSMSConfiguration) -> TenantSMSConfigurationModel:
         """Convert domain entity to database model.
         
         Args:
@@ -48,19 +48,19 @@ class TenantSmsConfigurationMapper:
         
         return TenantSMSConfigurationModel(
             id=entity.id,
-            tenant_id=entity.tenant_id,
-            provider_name=entity.provider_name,
+            tenantId=entity.tenantId,
+            providerName=entity.providerName,
             config=entity.config,
-            is_active=entity.is_active,
-            rate_limit_per_minute=entity.rate_limit_per_minute,
-            rate_limit_per_hour=entity.rate_limit_per_hour,
-            rate_limit_per_day=entity.rate_limit_per_day,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            isActive=entity.isActive,
+            rateLimitPerMinute=entity.rateLimitPerMinute,
+            rateLimitPerHour=entity.rateLimitPerHour,
+            rateLimitPerDay=entity.rateLimitPerDay,
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[TenantSMSConfigurationModel]) -> list[TenantSMSConfiguration]:
+    def toListOfEntities(models: list[TenantSMSConfigurationModel]) -> list[TenantSMSConfiguration]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -69,10 +69,10 @@ class TenantSmsConfigurationMapper:
         Returns:
             List of TenantSMSConfiguration domain entities
         """
-        return [TenantSmsConfigurationMapper.to_entity(model) for model in models]
+        return [TenantSmsConfigurationMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[TenantSMSConfiguration]) -> list[TenantSMSConfigurationModel]:
+    def toListOfModels(entities: list[TenantSMSConfiguration]) -> list[TenantSMSConfigurationModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -81,10 +81,10 @@ class TenantSmsConfigurationMapper:
         Returns:
             List of TenantSMSConfigurationModel for database
         """
-        return [TenantSmsConfigurationMapper.to_model(entity) for entity in entities]
+        return [TenantSmsConfigurationMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: TenantSMSConfigurationModel, entity: TenantSMSConfiguration) -> TenantSMSConfigurationModel:
+    def updateModelFromEntity(model: TenantSMSConfigurationModel, entity: TenantSMSConfiguration) -> TenantSMSConfigurationModel:
         """Update existing model with entity data.
         
         Args:
@@ -94,13 +94,13 @@ class TenantSmsConfigurationMapper:
         Returns:
             Updated TenantSMSConfigurationModel
         """
-        model.tenant_id = entity.tenant_id
-        model.provider_name = entity.provider_name
+        model.tenantId = entity.tenantId
+        model.providerName = entity.providerName
         model.config = entity.config
-        model.is_active = entity.is_active
-        model.rate_limit_per_minute = entity.rate_limit_per_minute
-        model.rate_limit_per_hour = entity.rate_limit_per_hour
-        model.rate_limit_per_day = entity.rate_limit_per_day
-        model.updated_at = entity.updated_at
+        model.isActive = entity.isActive
+        model.rateLimitPerMinute = entity.rateLimitPerMinute
+        model.rateLimitPerHour = entity.rateLimitPerHour
+        model.rateLimitPerDay = entity.rateLimitPerDay
+        model.updatedAt = entity.updatedAt
         
         return model

@@ -8,7 +8,7 @@ class EmailNotificationMapper:
     """Mapper for converting between EmailNotification entity and EmailNotificationModel."""
     
     @staticmethod
-    def to_entity(model: EmailNotificationModel) -> EmailNotification:
+    def toEntity(model: EmailNotificationModel) -> EmailNotification:
         """Convert database model to domain entity.
         
         Args:
@@ -22,17 +22,17 @@ class EmailNotificationMapper:
         
         return EmailNotification(
             id=model.id,
-            recipient_email=model.recipient_email,
-            message_content=model.message_content,
+            recipientEmail=model.recipientEmail,
+            messageContent=model.messageContent,
             status=model.status,
-            idempotency_key=model.idempotency_key,
-            template_id=model.template_id,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            idempotencyKey=model.idempotencyKey,
+            templateId=model.templateId,
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: EmailNotification) -> EmailNotificationModel:
+    def toModel(entity: EmailNotification) -> EmailNotificationModel:
         """Convert domain entity to database model.
         
         Args:
@@ -46,17 +46,17 @@ class EmailNotificationMapper:
         
         return EmailNotificationModel(
             id=entity.id,
-            recipient_email=entity.recipient_email,
-            message_content=entity.message_content,
+            recipientEmail=entity.recipientEmail,
+            messageContent=entity.messageContent,
             status=entity.status,
-            idempotency_key=entity.idempotency_key,
-            template_id=entity.template_id,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            idempotencyKey=entity.idempotencyKey,
+            templateId=entity.templateId,
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
         
     @staticmethod
-    def to_list_of_entities(models: list[EmailNotificationModel]) -> list[EmailNotification]:
+    def toListOfEntities(models: list[EmailNotificationModel]) -> list[EmailNotification]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -65,10 +65,10 @@ class EmailNotificationMapper:
         Returns:
             List of EmailNotification domain entities
         """
-        return [EmailNotificationMapper.to_entity(model) for model in models]
+        return [EmailNotificationMapper.toEntity(model) for model in models]
 
     @staticmethod
-    def to_list_of_models(entities: list[EmailNotification]) -> list[EmailNotificationModel]:
+    def toListOfModels(entities: list[EmailNotification]) -> list[EmailNotificationModel]:
         """Convert list of domain entities to list of database models.
 
         Args:
@@ -77,10 +77,10 @@ class EmailNotificationMapper:
         Returns:
             List of EmailNotificationModel for database
         """
-        return [EmailNotificationMapper.to_model(entity) for entity in entities]
+        return [EmailNotificationMapper.toModel(entity) for entity in entities]
 
     @staticmethod
-    def update_model_from_entity(model: EmailNotificationModel, entity: EmailNotification) -> EmailNotificationModel:
+    def updateModelFromEntity(model: EmailNotificationModel, entity: EmailNotification) -> EmailNotificationModel:
         """Update existing model with entity data.
         
         Args:
@@ -90,11 +90,11 @@ class EmailNotificationMapper:
         Returns:
             Updated EmailNotificationModel
         """
-        model.recipient_email = entity.recipient_email
-        model.message_content = entity.message_content
+        model.recipientEmail = entity.recipientEmail
+        model.messageContent = entity.messageContent
         model.status = entity.status
-        model.idempotency_key = entity.idempotency_key
-        model.template_id = entity.template_id
-        model.updated_at = entity.updated_at
+        model.idempotencyKey = entity.idempotencyKey
+        model.templateId = entity.templateId
+        model.updatedAt = entity.updatedAt
         
         return model

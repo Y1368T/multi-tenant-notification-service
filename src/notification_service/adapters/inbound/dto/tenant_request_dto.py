@@ -4,14 +4,17 @@ from uuid import UUID
 from typing import Optional,List
 
 
+from pydantic import Field
+
 class TenantRequestDTO(BaseModel):
     name: str
     prefix: str
-    is_active: bool
-    supported_channels: list[str]
-    prefered_communication_method: str
+    isActive: bool = Field(alias="is_active")
+    supportedChannels: list[str] = Field(alias="supported_channels")
+    preferedCommunicationMethod: str = Field(alias="prefered_communication_method")
     model_config=ConfigDict(
         from_attributes = True,
+        populate_by_name=True,
         json_schema_extra = {
             "example": {
                 "name": "Tenant A",
@@ -27,19 +30,19 @@ class TenantResponseDTO(BaseModel):
     id: UUID
     name: str
     prefix: str
-    is_active: bool
-    supported_channels: list[str] = []  # Default to empty list
-    prefered_communication_method: Optional[str] = None  # Also make this optional
+    isActive: bool = Field(alias="is_active")
+    supportedChannels: list[str] = Field(default_factory=list, alias="supported_channels")
+    preferedCommunicationMethod: Optional[str] = Field(default=None, alias="prefered_communication_method")
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
    
     @classmethod
-    def from_entity_with_relations(cls, tenant):
+    def fromEntityWithRelations(cls, tenant):
         return cls(
             id=tenant.id,
             name=tenant.name,
             prefix=tenant.prefix,
-            is_active=getattr(tenant, "is_active", True),
-            supported_channels=getattr(tenant, "supported_channels", None) or [],  # Handle None
-            prefered_communication_method=getattr(tenant, "prefered_communication_method", None)
+            isActive=getattr(tenant, "isActive", True),
+            supportedChannels=getattr(tenant, "supportedChannels", None) or [],
+            preferedCommunicationMethod=getattr(tenant, "preferedCommunicationMethod", None)
         )

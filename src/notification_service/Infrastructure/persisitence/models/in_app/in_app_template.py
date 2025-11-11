@@ -5,14 +5,14 @@ from ..base import BaseModel
 class InAppTemplateModel(BaseModel):
     __tablename__ = "in_app_templates"
 
-    template_name = Column(String, unique=True, index=True, nullable=False)
+    templateName = Column(String, name="template_name", unique=True, index=True, nullable=False)
     body = Column(JSONB, nullable=False,default=dict)
-    is_active = Column(Boolean, default=True)
+    isActive = Column(Boolean, name="is_active", default=True)
     version = Column(Integer, nullable=False, default=1)
-    service_name = Column(String, nullable=False)
-    tenant_id = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    tenant = relationship("TenantModel", back_populates="in_app_templates")
-    in_app_notifications = relationship("InAppNotificationModel", back_populates="template")
+    serviceName = Column(String, name="service_name", nullable=False)
+    tenantId = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), name="tenant_id", nullable=False)
+    tenant = relationship("TenantModel", back_populates="inAppTemplates")
+    inAppNotifications = relationship("InAppNotificationModel", back_populates="template")
     __table_args__ = (
         UniqueConstraint('tenant_id', 'service_name', 'template_name', 'version', name='uix_in_app_template'),
     )

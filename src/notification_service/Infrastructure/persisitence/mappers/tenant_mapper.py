@@ -8,7 +8,7 @@ class TenantMapper:
     """Mapper for converting between Tenant entity and TenantModel."""
     
     @staticmethod
-    def to_entity(model: TenantModel) -> Tenant:
+    def toEntity(model: TenantModel) -> Tenant:
         """Convert database model to domain entity.
         
         Args:
@@ -24,19 +24,19 @@ class TenantMapper:
             id=model.id,
             name=model.name,
             prefix=model.prefix,
-            is_active=model.is_active,
-            api_keys=model.api_keys,
-            prefered_communication_method=model.prefered_communication_method,
-            supported_channels=model.supported_channels,
-            rate_limit_per_minute=model.rate_limit_per_minute,
-            rate_limit_per_hour=model.rate_limit_per_hour,
-            rate_limit_per_day=model.rate_limit_per_day,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            isActive=model.isActive,
+            apiKeys=model.apiKeys,
+            preferedCommunicationMethod=model.preferedCommunicationMethod,
+            supportedChannels=model.supportedChannels,
+            rateLimitPerMinute=model.rateLimitPerMinute,
+            rateLimitPerHour=model.rateLimitPerHour,
+            rateLimitPerDay=model.rateLimitPerDay,
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: Tenant) -> TenantModel:
+    def toModel(entity: Tenant) -> TenantModel:
         """Convert domain entity to database model.
         
         Args:
@@ -52,19 +52,19 @@ class TenantMapper:
             id=entity.id,
             name=entity.name,
             prefix=entity.prefix,
-            is_active=entity.is_active,
-            api_keys=entity.api_keys,
-            prefered_communication_method=entity.prefered_communication_method,
-            supported_channels=entity.supported_channels,
-            rate_limit_per_minute=entity.rate_limit_per_minute,
-            rate_limit_per_hour=entity.rate_limit_per_hour,
-            rate_limit_per_day=entity.rate_limit_per_day,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            isActive=entity.isActive,
+            apiKeys=entity.apiKeys,
+            preferedCommunicationMethod=entity.preferedCommunicationMethod,
+            supportedChannels=entity.supportedChannels,
+            rateLimitPerMinute=entity.rateLimitPerMinute,
+            rateLimitPerHour=entity.rateLimitPerHour,
+            rateLimitPerDay=entity.rateLimitPerDay,
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[TenantModel]) -> list[Tenant]:
+    def toListOfEntities(models: list[TenantModel]) -> list[Tenant]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -73,10 +73,10 @@ class TenantMapper:
         Returns:
             List of Tenant domain entities
         """
-        return [TenantMapper.to_entity(model) for model in models]
+        return [TenantMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[Tenant]) -> list[TenantModel]:
+    def toListOfModels(entities: list[Tenant]) -> list[TenantModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -85,10 +85,10 @@ class TenantMapper:
         Returns:
             List of TenantModel for database
         """
-        return [TenantMapper.to_model(entity) for entity in entities]
+        return [TenantMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: TenantModel, entity: Tenant) -> TenantModel:
+    def updateModelFromEntity(model: TenantModel, entity: Tenant) -> TenantModel:
         """Update existing model with entity data.
         
         Args:
@@ -100,13 +100,13 @@ class TenantMapper:
         """
         model.name = entity.name
         model.prefix = entity.prefix
-        model.is_active = entity.is_active
-        model.supported_channels=entity.supported_channels
-        model.api_keys=entity.api_keys
-        model.prefered_communication_method=entity.prefered_communication_method
-        model.rate_limit_per_minute = entity.rate_limit_per_minute
-        model.rate_limit_per_hour = entity.rate_limit_per_hour
-        model.rate_limit_per_day = entity.rate_limit_per_day
-        model.updated_at = entity.updated_at
+        model.isActive = entity.isActive
+        model.supportedChannels=entity.supportedChannels
+        model.apiKeys=entity.apiKeys
+        model.preferedCommunicationMethod=entity.preferedCommunicationMethod
+        model.rateLimitPerMinute = entity.rateLimitPerMinute
+        model.rateLimitPerHour = entity.rateLimitPerHour
+        model.rateLimitPerDay = entity.rateLimitPerDay
+        model.updatedAt = entity.updatedAt
         
         return model

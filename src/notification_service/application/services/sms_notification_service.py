@@ -18,21 +18,21 @@ from notification_service.infrastructure.persisitence.models.sms.sms_notificatio
 from notification_service.infrastructure.persisitence.models.sms.sms_template import SmsTemplateModel
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
 class SMSNotificationService:
-    def __init__(self, uow:IUnitOfWork, process_message_use_case: ProcessMessageUseCase,message_router:IMessageHandler):
+    def __init__(self, uow:IUnitOfWork, processMessageUseCase: ProcessMessageUseCase,messageRouter:IMessageHandler):
         self.uow = uow
-        self.process_message_use_case = process_message_use_case
-        self.message_router=message_router
+        self.processMessageUseCase = processMessageUseCase
+        self.messageRouter=messageRouter
 
 
-    async def prepare_and_send_sms(
+    async def prepareAndSendSms(
         self, 
-        tenant_id: UUID, 
-        message_data: NotificationRequest
+        tenantId: UUID, 
+        messageData: NotificationRequest
     ) -> NotificationResponse:
         """Prepare and send an SMS notification."""
         
-        valid = self.process_message_use_case.validate_message(
-            message=message_data,
+        valid = self.processMessageUseCase.validateMessage(
+            message=messageData,
             channel=NotificationChannel.SMS
         )
         
@@ -43,7 +43,7 @@ class SMSNotificationService:
             )
         
         async with self.uow:
-            tenant = await self.uow.tenants.get_by_id(tenant_id)
+            tenant = await self.uow.tenants.getById(tenantId)
             
             if not tenant:
                 return NotificationResponse(
@@ -51,14 +51,14 @@ class SMSNotificationService:
                     message="Tenant does not exist"
                 )
             
-            response = await self.message_router.do_route(
+            response = await self.messageRouter.doRoute(
                 NotificationChannel.SMS, 
                 tenant,  # Pass Tenant object
-                message_data
+                messageData
             )
             return response
     
-    async def get_all_notifications_advanced(
+    async def getAllNotificationsAdvanced(
         self,
         req: PaginatedRequest
     ) -> PaginatedResponseDTO[SMSNotificationResponseDTO]:
@@ -67,35 +67,35 @@ class SMSNotificationService:
         """
         async with self.uow:
             
-            related_filters_tuples = [
-            (rf.relationship_path, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
-            for rf in (req.related_filters or [])
+            relatedFiltersTuples = [
+            (rf.relationshipPath, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
+            for rf in (req.relatedFilters or [])
             ]
-            result = await self.uow.sms_notifications.list_advanced_paginated(
+            result = await self.uow.smsNotifications.listAdvancedPaginated(
                 page=req.page,
-                page_size=req.page_size,
-                root_filters=req.filters or {},
-                related_filters=related_filters_tuples,
+                pageSize=req.pageSize,
+                rootFilters=req.filters or {},
+                relatedFilters=relatedFiltersTuples,
                 includes=[],
-                sort_by=req.sort_by,
-                sort_direction=req.sort_direction.value,
-                search_text=req.search_text,
-                search_fields=req.search_fields or []
+                sortBy=req.sortBy,
+                sortDirection=req.sortDirection.value,
+                searchText=req.searchText,
+                searchFields=req.searchFields or []
             )
 
-            dto_items = [
-                SMSNotificationResponseDTO.from_entity_with_relations(notification)
+            dtoItems = [
+                SMSNotificationResponseDTO.fromEntityWithRelations(notification)
                 for notification in result.items
             ]
 
             return PaginatedResponseDTO(
-                items=dto_items,
+                items=dtoItems,
                 page=result.page,
-                page_size=result.page_size,
-                total_count=result.total_count,
-                total_pages=result.total_pages,
-                has_next=result.has_next,
-                has_previous=result.has_previous
+                pageSize=result.pageSize,
+                totalCount=result.totalCount,
+                totalPages=result.totalPages,
+                hasNext=result.hasNext,
+                hasPrevious=result.hasPrevious
             )
     
     

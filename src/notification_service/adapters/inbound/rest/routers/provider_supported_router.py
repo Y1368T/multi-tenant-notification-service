@@ -19,7 +19,7 @@ class ProviderSupportedController(ControllerBase):
     
     @post("/create")
     async def create(self, provider_supported_dto: ProviderSupportedDTO):
-        provider_supported=provider_supported_dto.to_entity()
+        provider_supported=provider_supported_dto.toEntity()
         try :
             await self.provider_service.create_provider(provider_supported)
         except Exception as e:

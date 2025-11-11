@@ -9,13 +9,13 @@ class TenantEmailConfiguration:
     """Domain entity for tenant email configurations"""
     
     id: UUID
-    tenant_id: UUID
-    provider_name: str
+    tenantId: UUID
+    providerName: str
     priority: int = 1
-    is_active: bool = True
-    rate_limit_per_minute: int = 50
-    rate_limit_per_hour: int = 800
-    rate_limit_per_day: int = 8000
+    isActive: bool = True
+    rateLimitPerMinute: int = 50
+    rateLimitPerHour: int = 800
+    rateLimitPerDay: int = 8000
     config: Dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)

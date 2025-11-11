@@ -9,10 +9,10 @@ class EmailNotification:
     """Domain entity for email notifications"""
     
     id: UUID
-    recipient_email: str
-    message_content: Dict[str, Any]
+    recipientEmail: str
+    messageContent: Dict[str, Any]
     status: str = "pending"
-    idempotency_key: Optional[str] = None
-    template_id: Optional[UUID] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    idempotencyKey: Optional[str] = None
+    templateId: Optional[UUID] = None
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)

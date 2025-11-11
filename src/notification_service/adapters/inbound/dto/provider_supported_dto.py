@@ -1,4 +1,4 @@
-from pydantic import BaseModel,ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from notification_service.domain.entities.providers_supported import Provider
 from uuid import uuid4
 
@@ -22,17 +22,19 @@ class TestRequestDto(BaseModel):
 
 class ProviderSupportedDTO(BaseModel):
     
-    provider_name:str
-    display_name:str
-    channel:str
-    description:str
-    docs_url:str
-    test_endpoint:str
-    config_schema:dict
-    ui_schema:dict
-    is_active:bool
+    providerName: str = Field(alias="provider_name")
+    displayName: str = Field(alias="display_name")
+    channel: str
+    description: str
+    docsUrl: str = Field(alias="docs_url")
+    testEndpoint: str = Field(alias="test_endpoint")
+    configSchema: dict = Field(alias="config_schema")
+    uiSchema: dict = Field(alias="ui_schema")
+    isActive: bool = Field(alias="is_active")
     model_config = ConfigDict(
         from_attributes=True,
+        populate_by_name=True,
+        serialize_by_alias=False,
         json_schema_extra={
             "example": {
                 "provider_name": "ethiotelecom_shortcode",
@@ -64,17 +66,17 @@ class ProviderSupportedDTO(BaseModel):
         }
     )
     
-    def to_entity(self):
+    def toEntity(self):
         return Provider(
             id=uuid4(),
-            provider_name=self.provider_name,
-            display_name=self.display_name,
+            providerName=self.providerName,
+            displayName=self.displayName,
             channel=self.channel,
             description=self.description,
-            docs_url=self.docs_url,
-            test_endpoint=self.test_endpoint,
-            config_schema=self.config_schema,
-            ui_schema=self.ui_schema,
-            is_active=self.is_active
+            docsUrl=self.docsUrl,
+            testEndpoint=self.testEndpoint,
+            configSchema=self.configSchema,
+            uiSchema=self.uiSchema,
+            isActive=self.isActive
         )
         

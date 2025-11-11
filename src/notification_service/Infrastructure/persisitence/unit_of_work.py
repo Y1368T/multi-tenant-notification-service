@@ -38,66 +38,66 @@ class UnitOfWork(IUnitOfWork):
         return self._providers
 
     @property
-    def email_notifications(self):
-        return self._email_notifications
+    def emailNotifications(self):
+        return self._emailNotifications
 
     @property
-    def email_outbox(self):
-        return self._email_outbox
+    def emailOutbox(self):
+        return self._emailOutbox
 
     @property
-    def email_templates(self):
-        return self._email_templates
+    def emailTemplates(self):
+        return self._emailTemplates
 
     @property
-    def sms_notifications(self):
-        return self._sms_notifications
+    def smsNotifications(self):
+        return self._smsNotifications
 
     @property
-    def sms_outbox(self):
-        return self._sms_outbox
+    def smsOutbox(self):
+        return self._smsOutbox
 
     @property
-    def sms_templates(self):
-        return self._sms_templates
+    def smsTemplates(self):
+        return self._smsTemplates
 
     @property
-    def in_app_notifications(self):
-        return self._in_app_notifications
+    def inAppNotifications(self):
+        return self._inAppNotifications
 
     @property
-    def in_app_templates(self):
-        return self._in_app_templates
+    def inAppTemplates(self):
+        return self._inAppTemplates
 
     @property
     def tenants(self):
         return self._tenants
 
     @property
-    def tenant_email_configurations(self):
-        return self._tenant_email_configurations
+    def tenantEmailConfigurations(self):
+        return self._tenantEmailConfigurations
 
     @property
-    def tenant_sms_configurations(self):
-        return self._tenant_sms_configurations
+    def tenantSmsConfigurations(self):
+        return self._tenantSmsConfigurations
 
     async def __aenter__(self):
         """Enter async context manager."""
         self.session = self.database.get_session()
-        self._email_notifications = EmailNotificationRepository(self.session)
-        self._email_outbox = EmailOutboxRepository(self.session)
-        self._email_templates = EmailTemplateRepository(self.session)
+        self._emailNotifications = EmailNotificationRepository(self.session)
+        self._emailOutbox = EmailOutboxRepository(self.session)
+        self._emailTemplates = EmailTemplateRepository(self.session)
 
-        self._sms_notifications = SmsNotificationRepository(self.session)
-        self._sms_outbox = SmsOutboxRepository(self.session)
-        self._sms_templates = SmsTemplateRepository(self.session)
+        self._smsNotifications = SmsNotificationRepository(self.session)
+        self._smsOutbox = SmsOutboxRepository(self.session)
+        self._smsTemplates = SmsTemplateRepository(self.session)
 
-        self._in_app_notifications = InAppNotificationRepository(self.session)
-        self._in_app_templates = InAppTemplateRepository(self.session)
+        self._inAppNotifications = InAppNotificationRepository(self.session)
+        self._inAppTemplates = InAppTemplateRepository(self.session)
 
         self._tenants = TenantRepository(self.session, TenantMapper())
-        self._tenant_email_configurations = TenantEmailConfigurationRepository(self.session)
-        self._tenant_sms_configurations = TenantSmsConfigurationRepository(self.session)
+        self._tenantEmailConfigurations = TenantEmailConfigurationRepository(self.session)
+        self._tenantSmsConfigurations = TenantSmsConfigurationRepository(self.session)
         self._providers = ProviderRepository(self.session)
         return self
 

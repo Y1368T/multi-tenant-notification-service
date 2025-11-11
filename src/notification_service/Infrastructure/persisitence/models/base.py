@@ -6,5 +6,5 @@ class BaseModel(Base):
     __abstract__ = True
 
     id = Column(UUID, primary_key=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    createdAt = Column(DateTime, name="created_at", default=datetime.utcnow)
+    updatedAt = Column(DateTime, name="updated_at", default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -10,7 +10,7 @@ class SMSTemplateService:
     def __init__(self,uow:IUnitOfWork):
         self.uow=uow
     
-    async def create_sms_template(self,template:SmsTemplate):
+    async def createSmsTemplate(self,template:SmsTemplate):
         """Create a new SMS template.
         
         Args:
@@ -20,24 +20,24 @@ class SMSTemplateService:
             Created SmsTemplate entity with generated ID
         """
         async with self.uow:
-            created_template = await self.uow.sms_templates.add(template)
+            createdTemplate = await self.uow.smsTemplates.add(template)
             await self.uow.commit()
-            return created_template
+            return createdTemplate
         
-    async def get_sms_template_by_id(self, template_id):
+    async def getSmsTemplateById(self, templateId):
         """Retrieve an SMS template by its ID.
         
         Args:
-            template_id: UUID of the SMS template
+            templateId: UUID of the SMS template
             
         Returns:
             SmsTemplate entity if found, None otherwise
         """
         async with self.uow:
-            template = await self.uow.sms_templates.get_by_id(template_id)
+            template = await self.uow.smsTemplates.getById(templateId)
             return template
     
-    async def update_sms_template(self, template):
+    async def updateSmsTemplate(self, template):
         """Update an existing SMS template.
         
         Args:
@@ -47,55 +47,55 @@ class SMSTemplateService:
             Updated SmsTemplate entity
         """
         async with self.uow:
-            updated_template = await self.uow.sms_templates.update(template)
+            updatedTemplate = await self.uow.smsTemplates.update(template)
             await self.uow.commit()
-            return updated_template
+            return updatedTemplate
         
-    async def delete_sms_template(self, template_id):
+    async def deleteSmsTemplate(self, templateId):
         """Delete an SMS template by its ID.
         
         Args:
-            template_id: UUID of the SMS template to delete
+            templateId: UUID of the SMS template to delete
             
         Returns:
             None
         """
         async with self.uow:
-            await self.uow.sms_templates.delete(template_id)
+            await self.uow.smsTemplates.delete(templateId)
             await self.uow.commit()
     
-    async def list_sms_templates_by_tenant(self, tenant_id):
+    async def listSmsTemplatesByTenant(self, tenantId):
         """List all SMS templates for a given tenant.
         
         Args:
-            tenant_id: UUID of the tenant
+            tenantId: UUID of the tenant
         Returns:
             List of SmsTemplate entities
         """
         async with self.uow:
-            templates = await self.uow.sms_templates.list_by_tenant(tenant_id)
+            templates = await self.uow.smsTemplates.listByTenant(tenantId)
             return templates
     
-    async def get_template_by_filters(self,tenant_id:UUID,template_name:str,service_name:str):
+    async def getTemplateByFilters(self,tenantId:UUID,templateName:str,serviceName:str):
         """ get list of templates by filters"""
         async with self.uow:
-            templates=await self.uow.sms_templates.list(lambda x:x.tenant_id==tenant_id and x.template_name==template_name and x.service_name==service_name)
+            templates=await self.uow.smsTemplates.list(lambda x:x.tenantId==tenantId and x.templateName==templateName and x.serviceName==serviceName)
             return templates
     
-    async def get_templates_by_tenant(self, tenant_id: UUID):
+    async def getTemplatesByTenant(self, tenantId: UUID):
         """Retrieve SMS templates by tenant ID.
         
         Args:
-            tenant_id: UUID of the tenant
+            tenantId: UUID of the tenant
             
         Returns:
             List of SmsTemplate entities
         """
         async with self.uow:
-            templates = await self.uow.sms_templates.list(lambda x: x.tenant_id == tenant_id)
+            templates = await self.uow.smsTemplates.list(lambda x: x.tenantId == tenantId)
             return templates
         
-    async def get_all_templates_advanced(
+    async def getAllTemplatesAdvanced(
         self,
         req: PaginatedRequest
     ) -> PaginatedResponseDTO[SMSTemplateResponseDTO]:
@@ -104,33 +104,33 @@ class SMSTemplateService:
         """
         async with self.uow:
             
-            related_filters_tuples = [
-            (rf.relationship_path, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
-            for rf in (req.related_filters or [])
+            relatedFiltersTuples = [
+            (rf.relationshipPath, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
+            for rf in (req.relatedFilters or [])
             ]
-            result = await self.uow.sms_templates.list_advanced_paginated(
+            result = await self.uow.smsTemplates.listAdvancedPaginated(
                 page=req.page,
-                page_size=req.page_size,
-                root_filters=req.filters or {},
-                related_filters=related_filters_tuples,
+                pageSize=req.pageSize,
+                rootFilters=req.filters or {},
+                relatedFilters=relatedFiltersTuples,
                 includes=[],
-                sort_by=req.sort_by,
-                sort_direction=req.sort_direction.value,
-                search_text=req.search_text,
-                search_fields=req.search_fields or []
+                sortBy=req.sortBy,
+                sortDirection=req.sortDirection.value,
+                searchText=req.searchText,
+                searchFields=req.searchFields or []
             )
 
-            dto_items = [
-                SMSTemplateResponseDTO.from_entity_with_relations(template)
+            dtoItems = [
+                SMSTemplateResponseDTO.fromEntityWithRelations(template)
                 for template in result.items
             ]
 
             return PaginatedResponseDTO(
-                items=dto_items,
+                items=dtoItems,
                 page=result.page,
-                page_size=result.page_size,
-                total_count=result.total_count,
-                total_pages=result.total_pages,
-                has_next=result.has_next,
-                has_previous=result.has_previous
+                pageSize=result.pageSize,
+                totalCount=result.totalCount,
+                totalPages=result.totalPages,
+                hasNext=result.hasNext,
+                hasPrevious=result.hasPrevious
             )

@@ -1,29 +1,29 @@
 from dataclasses import dataclass
 from typing import List, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 TEntity = TypeVar('TEntity')
 
 @dataclass
 class PaginatedResult(Generic[TEntity]):
     """Container for paginated results."""
     items: List[TEntity]
-    total_count: int
+    totalCount: int
     page: int
-    page_size: int
-    total_pages: int
-    has_next: bool
-    has_previous: bool
+    pageSize: int
+    totalPages: int
+    hasNext: bool
+    hasPrevious: bool
     
 class PaginatedResponseDTO(Generic[TEntity], BaseModel):
     """Generic paginated response DTO."""
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
     
     items: list[TEntity]
-    total_count: int
+    totalCount: int = Field(alias="total_count")
     page: int
-    page_size: int
-    total_pages: int
-    has_next: bool
-    has_previous: bool
+    pageSize: int = Field(alias="page_size")
+    totalPages: int = Field(alias="total_pages")
+    hasNext: bool = Field(alias="has_next")
+    hasPrevious: bool = Field(alias="has_previous")

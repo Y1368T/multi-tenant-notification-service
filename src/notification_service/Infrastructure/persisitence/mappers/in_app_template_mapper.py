@@ -8,7 +8,7 @@ class InAppTemplateMapper:
     """Mapper for converting between InAppTemplate entity and InAppTemplateModel."""
     
     @staticmethod
-    def to_entity(model: InAppTemplateModel) -> InAppTemplate:
+    def toEntity(model: InAppTemplateModel) -> InAppTemplate:
         """Convert database model to domain entity.
         
         Args:
@@ -22,18 +22,18 @@ class InAppTemplateMapper:
         
         return InAppTemplate(
             id=model.id,
-            template_name=model.template_name,
+            templateName=model.templateName,
             body=model.body,
-            service_name=model.service_name,
-            tenant_id=model.tenant_id,
-            is_active=model.is_active,
+            serviceName=model.serviceName,
+            tenantId=model.tenantId,
+            isActive=model.isActive,
             version=model.version,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: InAppTemplate) -> InAppTemplateModel:
+    def toModel(entity: InAppTemplate) -> InAppTemplateModel:
         """Convert domain entity to database model.
         
         Args:
@@ -47,18 +47,18 @@ class InAppTemplateMapper:
         
         return InAppTemplateModel(
             id=entity.id,
-            template_name=entity.template_name,
+            templateName=entity.templateName,
             body=entity.body,
-            service_name=entity.service_name,
-            tenant_id=entity.tenant_id,
-            is_active=entity.is_active,
+            serviceName=entity.serviceName,
+            tenantId=entity.tenantId,
+            isActive=entity.isActive,
             version=entity.version,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[InAppTemplateModel]) -> list[InAppTemplate]:
+    def toListOfEntities(models: list[InAppTemplateModel]) -> list[InAppTemplate]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -67,10 +67,10 @@ class InAppTemplateMapper:
         Returns:
             List of InAppTemplate domain entities
         """
-        return [InAppTemplateMapper.to_entity(model) for model in models]
+        return [InAppTemplateMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[InAppTemplate]) -> list[InAppTemplateModel]:
+    def toListOfModels(entities: list[InAppTemplate]) -> list[InAppTemplateModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -79,10 +79,10 @@ class InAppTemplateMapper:
         Returns:
             List of InAppTemplateModel for database
         """
-        return [InAppTemplateMapper.to_model(entity) for entity in entities]
+        return [InAppTemplateMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: InAppTemplateModel, entity: InAppTemplate) -> InAppTemplateModel:
+    def updateModelFromEntity(model: InAppTemplateModel, entity: InAppTemplate) -> InAppTemplateModel:
         """Update existing model with entity data.
         
         Args:
@@ -92,12 +92,12 @@ class InAppTemplateMapper:
         Returns:
             Updated InAppTemplateModel
         """
-        model.template_name = entity.template_name
+        model.templateName = entity.templateName
         model.body = entity.body
-        model.service_name = entity.service_name
-        model.tenant_id = entity.tenant_id
-        model.is_active = entity.is_active
+        model.serviceName = entity.serviceName
+        model.tenantId = entity.tenantId
+        model.isActive = entity.isActive
         model.version = entity.version
-        model.updated_at = entity.updated_at
+        model.updatedAt = entity.updatedAt
         
         return model

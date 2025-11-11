@@ -8,7 +8,7 @@ class InAppNotificationMapper:
     """Mapper for converting between InAppNotification entity and InAppNotificationModel."""
     
     @staticmethod
-    def to_entity(model: InAppNotificationModel) -> InAppNotification:
+    def toEntity(model: InAppNotificationModel) -> InAppNotification:
         """Convert database model to domain entity.
         
         Args:
@@ -22,17 +22,17 @@ class InAppNotificationMapper:
         
         return InAppNotification(
             id=model.id,
-            recipient_user_id=model.recipient_user_id,
-            message_content=model.message_content,
+            recipientUserId=model.recipientUserId,
+            messageContent=model.messageContent,
             status=model.status,
-            idempotency_key=model.idempotency_key,
-            template_id=model.template_id,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            idempotencyKey=model.idempotencyKey,
+            templateId=model.templateId,
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: InAppNotification) -> InAppNotificationModel:
+    def toModel(entity: InAppNotification) -> InAppNotificationModel:
         """Convert domain entity to database model.
         
         Args:
@@ -46,17 +46,17 @@ class InAppNotificationMapper:
         
         return InAppNotificationModel(
             id=entity.id,
-            recipient_user_id=entity.recipient_user_id,
-            message_content=entity.message_content,
+            recipientUserId=entity.recipientUserId,
+            messageContent=entity.messageContent,
             status=entity.status,
-            idempotency_key=entity.idempotency_key,
-            template_id=entity.template_id,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            idempotencyKey=entity.idempotencyKey,
+            templateId=entity.templateId,
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[InAppNotificationModel]) -> list[InAppNotification]:
+    def toListOfEntities(models: list[InAppNotificationModel]) -> list[InAppNotification]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -65,10 +65,10 @@ class InAppNotificationMapper:
         Returns:
             List of InAppNotification domain entities
         """
-        return [InAppNotificationMapper.to_entity(model) for model in models]
+        return [InAppNotificationMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[InAppNotification]) -> list[InAppNotificationModel]:
+    def toListOfModels(entities: list[InAppNotification]) -> list[InAppNotificationModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -77,10 +77,10 @@ class InAppNotificationMapper:
         Returns:
             List of InAppNotificationModel for database
         """
-        return [InAppNotificationMapper.to_model(entity) for entity in entities]
+        return [InAppNotificationMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: InAppNotificationModel, entity: InAppNotification) -> InAppNotificationModel:
+    def updateModelFromEntity(model: InAppNotificationModel, entity: InAppNotification) -> InAppNotificationModel:
         """Update existing model with entity data.
         
         Args:
@@ -90,11 +90,11 @@ class InAppNotificationMapper:
         Returns:
             Updated InAppNotificationModel
         """
-        model.recipient_user_id = entity.recipient_user_id
-        model.message_content = entity.message_content
+        model.recipientUserId = entity.recipientUserId
+        model.messageContent = entity.messageContent
         model.status = entity.status
-        model.idempotency_key = entity.idempotency_key
-        model.template_id = entity.template_id
-        model.updated_at = entity.updated_at
+        model.idempotencyKey = entity.idempotencyKey
+        model.templateId = entity.templateId
+        model.updatedAt = entity.updatedAt
         
         return model

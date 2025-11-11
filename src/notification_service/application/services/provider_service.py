@@ -31,7 +31,7 @@ class ProviderService:
     
     async def get_provider_by_name(self,name:str)->Provider:
         async with self.uow:
-            provider = await self.uow.providers.first_or_default(lambda p: p.name == name)
+            provider = await self.uow.providers.firstOrDefault(lambda p: p.name == name)
             return provider
     
     async def update(self,provider:Provider)->Provider:

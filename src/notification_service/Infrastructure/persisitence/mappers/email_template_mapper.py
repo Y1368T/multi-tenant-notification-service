@@ -8,7 +8,7 @@ class EmailTemplateMapper:
     """Mapper for converting between EmailTemplate entity and EmailTemplateModel."""
     
     @staticmethod
-    def to_entity(model: EmailTemplateModel) -> EmailTemplate:
+    def toEntity(model: EmailTemplateModel) -> EmailTemplate:
         """Convert database model to domain entity.
         
         Args:
@@ -22,21 +22,21 @@ class EmailTemplateMapper:
         
         return EmailTemplate(
             id=model.id,
-            template_name=model.template_name,
+            templateName=model.templateName,
             subject=model.subject,
             body=model.body,
-            service_name=model.service_name,
-            tenant_id=model.tenant_id,
-            body_type=model.body_type,
-            file_urls=model.file_urls,
-            is_active=model.is_active,
+            serviceName=model.serviceName,
+            tenantId=model.tenantId,
+            bodyType=model.bodyType,
+            fileUrls=model.fileUrls,
+            isActive=model.isActive,
             version=model.version,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: EmailTemplate) -> EmailTemplateModel:
+    def toModel(entity: EmailTemplate) -> EmailTemplateModel:
         """Convert domain entity to database model.
         
         Args:
@@ -50,21 +50,21 @@ class EmailTemplateMapper:
         
         return EmailTemplateModel(
             id=entity.id,
-            template_name=entity.template_name,
+            templateName=entity.templateName,
             subject=entity.subject,
             body=entity.body,
-            service_name=entity.service_name,
-            tenant_id=entity.tenant_id,
-            body_type=entity.body_type,
-            file_urls=entity.file_urls,
-            is_active=entity.is_active,
+            serviceName=entity.serviceName,
+            tenantId=entity.tenantId,
+            bodyType=entity.bodyType,
+            fileUrls=entity.fileUrls,
+            isActive=entity.isActive,
             version=entity.version,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[EmailTemplateModel]) -> list[EmailTemplate]:
+    def toListOfEntities(models: list[EmailTemplateModel]) -> list[EmailTemplate]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -73,10 +73,10 @@ class EmailTemplateMapper:
         Returns:
             List of EmailTemplate domain entities
         """
-        return [EmailTemplateMapper.to_entity(model) for model in models]
+        return [EmailTemplateMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[EmailTemplate]) -> list[EmailTemplateModel]:
+    def toListOfModels(entities: list[EmailTemplate]) -> list[EmailTemplateModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -85,10 +85,10 @@ class EmailTemplateMapper:
         Returns:
             List of EmailTemplateModel for database
         """
-        return [EmailTemplateMapper.to_model(entity) for entity in entities]
+        return [EmailTemplateMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: EmailTemplateModel, entity: EmailTemplate) -> EmailTemplateModel:
+    def updateModelFromEntity(model: EmailTemplateModel, entity: EmailTemplate) -> EmailTemplateModel:
         """Update existing model with entity data.
         
         Args:
@@ -98,15 +98,15 @@ class EmailTemplateMapper:
         Returns:
             Updated EmailTemplateModel
         """
-        model.template_name = entity.template_name
+        model.templateName = entity.templateName
         model.subject = entity.subject
         model.body = entity.body
-        model.service_name = entity.service_name
-        model.tenant_id = entity.tenant_id
-        model.body_type = entity.body_type
-        model.file_urls = entity.file_urls
-        model.is_active = entity.is_active
+        model.serviceName = entity.serviceName
+        model.tenantId = entity.tenantId
+        model.bodyType = entity.bodyType
+        model.fileUrls = entity.fileUrls
+        model.isActive = entity.isActive
         model.version = entity.version
-        model.updated_at = entity.updated_at
+        model.updatedAt = entity.updatedAt
         
         return model

@@ -4,50 +4,50 @@ from notification_service.infrastructure.persisitence.models.providers_supported
 class ProviderMapper:
     
     @staticmethod
-    def to_entity(model:ProviderModel)->Provider:
+    def toEntity(model:ProviderModel)->Provider:
         
         if model is None:
             return None
         
         return Provider(
             id=model.id,
-            provider_name=model.provider_name,
-            display_name=model.display_name,
-            config_schema=model.config_schema,
-            ui_schema=model.ui_schema,
+            providerName=model.providerName,
+            displayName=model.displayName,
+            configSchema=model.configSchema,
+            uiSchema=model.uiSchema,
             channel=model.channel, # sms, email, push, whatsapp
             description=model.description,
-            docs_url=model.docs_url,
-            test_endpoint=model.test_endpoint,
-            is_active=model.is_active,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            docsUrl=model.docsUrl,
+            testEndpoint=model.testEndpoint,
+            isActive=model.isActive,
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     @staticmethod
-    def to_model(entity: Provider) -> ProviderModel:
+    def toModel(entity: Provider) -> ProviderModel:
         
         if entity is None:
             return None
         
         return ProviderModel(
             id=entity.id,
-            provider_name=entity.provider_name,
-            display_name=entity.display_name,
-            config_schema=entity.config_schema,
-            ui_schema=entity.ui_schema,
+            providerName=entity.providerName,
+            displayName=entity.displayName,
+            configSchema=entity.configSchema,
+            uiSchema=entity.uiSchema,
             channel=entity.channel,
             description=entity.description,
-            docs_url=entity.docs_url,
-            test_endpoint=entity.test_endpoint,
-            is_active=entity.is_active,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            docsUrl=entity.docsUrl,
+            testEndpoint=entity.testEndpoint,
+            isActive=entity.isActive,
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     
     
     @staticmethod
-    def to_list_of_entities(models: list[ProviderModel]) -> list[Provider]:
+    def toListOfEntities(models: list[ProviderModel]) -> list[Provider]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -56,10 +56,10 @@ class ProviderMapper:
         Returns:
             List of SMSNotification domain entities
         """
-        return [ProviderMapper.to_entity(model) for model in models]
+        return [ProviderMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[Provider]) -> list[ProviderModel]:
+    def toListOfModels(entities: list[Provider]) -> list[ProviderModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -68,26 +68,26 @@ class ProviderMapper:
         Returns:
             List of SMSNotificationModel for database
         """
-        return [ProviderMapper.to_model(entity) for entity in entities]
+        return [ProviderMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: ProviderModel, entity: Provider) -> ProviderModel:
+    def updateModelFromEntity(model: ProviderModel, entity: Provider) -> ProviderModel:
         
         
         model.channel=entity.channel
         model.description=entity.description
-        model.docs_url=entity.docs_url
-        model.test_endpoint=entity.test_endpoint
-        model.is_active=entity.is_active
-        model.updated_at=entity.updated_at
-        model.display_name=entity.display_name
-        model.name=entity.name
-        model.config_schema=entity.config_schema
-        model.ui_schema=entity.ui_schema
-        model.is_active=entity.is_active
+        model.docsUrl=entity.docsUrl
+        model.testEndpoint=entity.testEndpoint
+        model.isActive=entity.isActive
+        model.updatedAt=entity.updatedAt
+        model.displayName=entity.displayName
+        model.providerName=entity.providerName
+        model.configSchema=entity.configSchema
+        model.uiSchema=entity.uiSchema
+        model.isActive=entity.isActive
         model.id=entity.id
-        model.created_at=entity.created_at
-        model.updated_at=entity.updated_at
+        model.createdAt=entity.createdAt
+        model.updatedAt=entity.updatedAt
         
         return model
         

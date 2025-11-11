@@ -5,15 +5,15 @@ from ..base import BaseModel
 class SmsTemplateModel(BaseModel):
     __tablename__ = "sms_templates"
 
-    tenant_id = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    template_name = Column(String, nullable=False)
+    tenantId = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), name="tenant_id", nullable=False)
+    templateName = Column(String, name="template_name", nullable=False)
     content = Column(JSONB, nullable=False,default=dict)
-    is_active = Column(Boolean, default=True)
+    isActive = Column(Boolean, name="is_active", default=True)
     version = Column(Integer, nullable=False, default=1)
-    service_name = Column(String, nullable=False)
-    tenant = relationship("TenantModel", back_populates="sms_templates")
-    sms_notifications = relationship("SMSNotificationModel", back_populates="template")
-    sms_outboxes = relationship("SmsOutboxModel", back_populates="template")
+    serviceName = Column(String, name="service_name", nullable=False)
+    tenant = relationship("TenantModel", back_populates="smsTemplates")
+    smsNotifications = relationship("SMSNotificationModel", back_populates="template")
+    smsOutboxes = relationship("SmsOutboxModel", back_populates="template")
 
     __table_args__ = (
         UniqueConstraint('tenant_id','service_name', 'template_name','version', name='uix_tenant_sms_template'),

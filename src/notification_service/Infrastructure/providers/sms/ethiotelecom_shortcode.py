@@ -49,10 +49,10 @@ class EthioTelecomShortcodeSMSProvider(IProviderService):
 
     async def send(
         self,
-        request_object: NotificationRequest,
-        tenant_config: TenantSMSConfiguration,
-        message_to_send: str,
-        template_id: UUID
+        requestObject: NotificationRequest,
+        tenantConfig: TenantSMSConfiguration,
+        messageToSend: str,
+        templateId: UUID
     ) -> NotificationResponse:
         """
         Send SMS via EthioTelecom shortcode API.
@@ -62,71 +62,71 @@ class EthioTelecomShortcodeSMSProvider(IProviderService):
         
         try:
             # Simulate API call
-            provider_message_id = str(uuid.uuid4())
-            addresses = [recipient.address for recipient in request_object.recipients]
+            providerMessageId = str(uuid.uuid4())
+            addresses = [recipient.address for recipient in requestObject.recipients]
             
             
-            logger.info(f"Sent SMS to {addresses} with message {message_to_send}, provider_message_id: {provider_message_id}")
+            logger.info(f"Sent SMS to {addresses} with message {messageToSend}, providerMessageId: {providerMessageId}")
             #send a callback request
-            callback=tenant_config.config.get("callback_url")
+            callback=tenantConfig.config.get("callback_url")
             if callback:
                 #simulate callback
-                callback_data={
-                    "notification_id":provider_message_id,
+                callbackData={
+                    "notificationId":providerMessageId,
                     "status":"DELIVERED",
-                    "delivered_at":datetime.utcnow().isoformat()+"Z"
+                    "deliveredAt":datetime.utcnow().isoformat()+"Z"
                 }
-                logger.info(f"Sending callback to {callback} with data {callback_data}")
-                afro_response=  await self.send_afro_message(addresses,message_to_send)
+                logger.info(f"Sending callback to {callback} with data {callbackData}")
+                afroResponse=  await self.sendAfroMessage(addresses,messageToSend)
             return NotificationResponse(
-                notification_id=provider_message_id,
+                notificationId=providerMessageId,
                 status="sent",
                 channel="SMS",
                 recipients=addresses,
-                tenant_id=str(tenant_config.tenant_id),
-                created_at=datetime.utcnow(),
+                tenantId=str(tenantConfig.tenantId),
+                createdAt=datetime.utcnow(),
                 success=True,
-                message=message_to_send
+                message=messageToSend
             )
         except Exception as e:
             return NotificationResponse(  
-                notification_id="",
+                notificationId="",
                 status="failed",
                 channel="SMS",
                 recipients=[],
-                tenant_id=str(tenant_config.tenant_id),
-                created_at=datetime.utcnow(),
+                tenantId=str(tenantConfig.tenantId),
+                createdAt=datetime.utcnow(),
                 success=False,
                 message=str(e)
             )
 
     async def callback(
         self,
-        provider_callback: Dict[str, Any]
+        providerCallback: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Process EthioTelecom delivery status callback.
         """
         # Map EthioTelecom status to normalized status
-        status_mapping = {
+        statusMapping = {
             "DELIVERED": "delivered",
             "FAILED": "failed",
             "PENDING": "sent"
         }
         
         return {
-            "notification_id": provider_callback.get("notification_id"),
-            "status": status_mapping.get(provider_callback.get("status"), "unknown"),
-            "delivered_at": provider_callback.get("delivered_at"),
-            "error_message": provider_callback.get("error_message")
+            "notificationId": providerCallback.get("notificationId") or providerCallback.get("notification_id"),
+            "status": statusMapping.get(providerCallback.get("status"), "unknown"),
+            "deliveredAt": providerCallback.get("deliveredAt") or providerCallback.get("delivered_at"),
+            "errorMessage": providerCallback.get("errorMessage") or providerCallback.get("error_message")
         }
     
-    async def save_to_outbox(
+    async def saveToOutbox(
         self,
-        notification_id: str,
-        request_object: Dict[str, Any],
-        retry_count: int = 0,
-        next_retry_at: Any = None
+        notificationId: str,
+        requestObject: Dict[str, Any],
+        retryCount: int = 0,
+        nextRetryAt: Any = None
     ) -> None:
         """
         Save notification to outbox for guaranteed delivery.
@@ -144,7 +144,7 @@ class EthioTelecomShortcodeSMSProvider(IProviderService):
         # Implement circuit breaker logic here
         return True
     
-    async def send_afro_message(self,address:list[str],message:str):
+    async def sendAfroMessage(self,address:list[str],message:str):
             base_url = os.getenv("AFROMESSAGE_BASEURL", "https://api.afromessage.com/api")
             token = os.getenv("AFROMESSAGE_APIKEY", "")
             url = f"{base_url}/send"

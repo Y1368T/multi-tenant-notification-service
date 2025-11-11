@@ -20,39 +20,39 @@ class NotificationRabbitMQConsumer:
     
     def __init__(
         self,
-        rabbitmq_consumer: RabbitMQConsumer,  # infrastructure client
-        tenant_service: TenantService
+        rabbitmqConsumer: RabbitMQConsumer,  # infrastructure client
+        tenantService: TenantService
     ):
-        self.rabbitmq_consumer = rabbitmq_consumer
-        self.tenant_service = tenant_service
+        self.rabbitmqConsumer = rabbitmqConsumer
+        self.tenantService = tenantService
         
 
-    async def start_consuming(self) -> None:
+    async def startConsuming(self) -> None:
         """Start consuming messages from all notification queues."""
         
         # Connect to RabbitMQ
-        await self.rabbitmq_consumer.connect()
+        await self.rabbitmqConsumer.connect()
         logger.info("Started consuming notification messages from RabbitMQ")
         
-        active_tenants = await self.tenant_service.get_tenants_for_rabbitmq()
+        activeTenants = await self.tenantService.getTenantsForRabbitmq()
         
-        for tenant in active_tenants:
-            for channel in tenant.supported_channels:
-                queue_name = f"notification.{channel}.{tenant.prefix}"
+        for tenant in activeTenants:
+            for channel in tenant.supportedChannels:
+                queueName = f"notification.{channel}.{tenant.prefix}"
                 
                 try:
                     # Declare queue (creates if doesn't exist, idempotent operation)
-                    await self.rabbitmq_consumer.ensure_queue_exists_and_subscribe(queue_name, channel)
+                    await self.rabbitmqConsumer.ensureQueueExistsAndSubscribe(queueName, channel)
                     
                 except Exception as e:
-                    logger.error(f"Failed to setup queue {queue_name}: {e}")
+                    logger.error(f"Failed to setup queue {queueName}: {e}")
     
     
     
         
                   
     
-    async def stop_consuming(self) -> None:
+    async def stopConsuming(self) -> None:
         """Stop consuming and disconnect."""
-        await self.rabbitmq_consumer.disconnect()
+        await self.rabbitmqConsumer.disconnect()
         logger.info("Stopped consuming notification messages")

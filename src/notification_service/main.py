@@ -178,23 +178,23 @@ async def lifespan(app: FastAPI):
     tenantservice=get_service(app,tenant_service.TenantService)
     
     # Get ProcessMessageUseCase from DI container
-    process_message_usecase = get_service(app, ProcessMessageUseCase)
-    rabbit_client = get_service(app, IMessageConsumer)
-    tenantservice.rabbitmq_consumer = rabbit_client
+    processMessageUseCase = get_service(app, ProcessMessageUseCase)
+    rabbitClient = get_service(app, IMessageConsumer)
+    tenantservice.rabbitmqConsumer = rabbitClient
    # create rabbit client and adapter
-    adapter_consumer =NotificationRabbitMQConsumer(
-        rabbitmq_consumer=rabbit_client,
-        tenant_service=tenantservice
+    adapterConsumer =NotificationRabbitMQConsumer(
+        rabbitmqConsumer=rabbitClient,
+        tenantService=tenantservice
     )
 
     # connect, ensure queues for active tenants, subscribe and start consuming
-    task = asyncio.create_task(adapter_consumer.start_consuming())
+    task = asyncio.create_task(adapterConsumer.startConsuming())
 
     try:
         yield
     finally:
         # Shutdown actions
-        await adapter_consumer.stop_consuming()
+        await adapterConsumer.stopConsuming()
         db.disconnect()
         
         task.cancel()

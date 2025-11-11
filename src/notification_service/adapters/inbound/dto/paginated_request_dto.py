@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from enum import Enum
 from typing import Any, Dict, List
@@ -9,11 +9,13 @@ class SortDirection(str, Enum):
 
 class PaginatedRequestDTO(BaseModel):
     page: int = Field(1, ge=1, description="Page number (1-indexed)")
-    page_size: int = Field(10, ge=1, le=100, description="Number of items per page")
-    sort_by: Optional[str] = Field(None, description="Sort by field")
-    sort_direction: SortDirection = SortDirection.DESC
+    pageSize: int = Field(10, ge=1, le=100, alias="page_size", description="Number of items per page")
+    sortBy: Optional[str] = Field(None, alias="sort_by", description="Sort by field")
+    sortDirection: SortDirection = Field(SortDirection.DESC, alias="sort_direction")
     search: Optional[str] = Field(None, max_length=256, description="Search text")
-    tenant_id: Optional[str] = Field(None, description="Filter by tenant ID")
+    tenantId: Optional[str] = Field(None, alias="tenant_id", description="Filter by tenant ID")
+    
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class FilterOp(str, Enum):
@@ -29,18 +31,20 @@ class FilterOp(str, Enum):
 
 
 class RelatedFilter(BaseModel):
-    relationship_path: str
+    relationshipPath: str = Field(alias="relationship_path")
     field: str
     op: FilterOp = FilterOp.EQ
     value: Any
+    
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class PaginatedRequest(BaseModel):
     page: int = Field(1, ge=1)
-    page_size: int = Field(10, ge=1, le=100)
-    sort_by: Optional[str] = None
-    sort_direction: SortDirection = SortDirection.DESC
-    search_text: Optional[str] = None
-    search_fields: Optional[List[str]] = None
+    pageSize: int = Field(10, ge=1, le=100)
+    sortBy: Optional[str] = None
+    sortDirection: SortDirection = SortDirection.DESC
+    searchText: Optional[str] = None
+    searchFields: Optional[List[str]] = None
     filters: Dict[str, Any] = {}
-    related_filters: List[RelatedFilter] = []
+    relatedFilters: List[RelatedFilter] = []

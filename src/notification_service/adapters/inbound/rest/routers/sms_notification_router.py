@@ -19,102 +19,102 @@ logger = logging.getLogger(__name__)
 class SMSNotificationController(ControllerBase):
     
     
-    def __init__(self, sms_notification_service:SMSNotificationService = Depends()):
-        self.sms_notification_service = sms_notification_service
+    def __init__(self, smsNotificationService:SMSNotificationService = Depends()):
+        self.smsNotificationService = smsNotificationService
         
     @post("/send")
-    async def send_sms_notification(self, tenant_id: UUID, request_dto: NotificationRequest):
-        result = await self.sms_notification_service.prepare_and_send_sms(tenant_id, request_dto)
+    async def sendSmsNotification(self, tenant_id: UUID, requestDto: NotificationRequest):
+        result = await self.smsNotificationService.prepareAndSendSms(tenant_id, requestDto)
         return result
     
     @get("/status/{notification_id}")
-    async def get_sms_notification_status(self, notification_id: UUID):
-        status = await self.sms_notification_service.get_notification_status(notification_id)
+    async def getSmsNotificationStatus(self, notification_id: UUID):
+        status = await self.smsNotificationService.getNotificationStatus(notification_id)
         return status
     
     @put("/update-status/{notification_id}")
-    async def update_sms_notification_status(self, notification_id: UUID, status: str):
-        updated_status = await self.sms_notification_service.update_notification_status(notification_id, status)
-        return updated_status
+    async def updateSmsNotificationStatus(self, notification_id: UUID, status: str):
+        updatedStatus = await self.smsNotificationService.updateNotificationStatus(notification_id, status)
+        return updatedStatus
     
     @delete("/delete/{notification_id}")
-    async def delete_sms_notification(self, notification_id: UUID):
-        await self.sms_notification_service.delete_notification(notification_id)
+    async def deleteSmsNotification(self, notification_id: UUID):
+        await self.smsNotificationService.deleteNotification(notification_id)
         return {"message": "SMS Notification deleted successfully"}
     
     
     
     @get("/all")
-    async def get_all(
+    async def getAll(
         self,
         status: Optional[str] = Query(None, description="Filter by notification status"),
         params: PaginatedRequestDTO = Depends(),
     ):
-        default_search_fields = [
-            "recipient_number",
-            "template.template_name",
+        defaultSearchFields = [
+            "recipientNumber",
+            "template.templateName",
             "template.tenant.name",
             "template.tenant.prefix",
         ]
 
-        root_filters = {"status": status} if status else {}
-        related_filters: list[RelatedFilter] = []
-        if params.tenant_id:
-            related_filters.append(
+        rootFilters = {"status": status} if status else {}
+        relatedFilters: list[RelatedFilter] = []
+        if params.tenantId:
+            relatedFilters.append(
                 RelatedFilter(
-                    relationship_path="template",
-                    field="tenant_id",
+                    relationshipPath="template",
+                    field="tenantId",
                     op=FilterOp.EQ,
-                    value=params.tenant_id
+                    value=params.tenantId
                 )
             )
 
         req = PaginatedRequest(
             page=params.page,
-            page_size=params.page_size,
-            sort_by=params.sort_by or "created_at",
-            sort_direction=params.sort_direction,
-            search_text=params.search,
-            search_fields=default_search_fields,
-            filters=root_filters,
-            related_filters=related_filters if related_filters else [],
+            pageSize=params.pageSize,
+            sortBy=params.sortBy or "createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=defaultSearchFields,
+            filters=rootFilters,
+            relatedFilters=relatedFilters if relatedFilters else [],
         )
 
-        result = await self.sms_notification_service.get_all_notifications_advanced(req)
+        result = await self.smsNotificationService.getAllNotificationsAdvanced(req)
         return result
         
     @get("/get_sms_by_tenant")
-    async def get_all_query(
+    async def getAllQuery(
         self,
         params: PaginatedRequestDTO = Depends()
     ) -> PaginatedResponseDTO[SMSNotificationResponseDTO]:
         # Predefined search fields and related filters for SMS notifications
 
         logger.info(f"params: {params}")
-        logger.info(f"params.tenant_id: {params.tenant_id}")
-        default_search_fields = [
-            "recipient_number",
-            "template.template_name",
+        logger.info(f"params.tenantId: {params.tenantId}")
+        defaultSearchFields = [
+            "recipientNumber",
+            "template.templateName",
             "template.tenant.name",
             "template.tenant.prefix"
         ]
-        default_related_filters: list[RelatedFilter] = []
-        if params.tenant_id:
-            default_related_filters.append(
-                RelatedFilter(relationship_path="template", field="tenant_id", op="eq", value=params.tenant_id)
+        defaultRelatedFilters: list[RelatedFilter] = []
+        if params.tenantId:
+            defaultRelatedFilters.append(
+                RelatedFilter(relationshipPath="template", field="tenantId", op="eq", value=params.tenantId)
             )
 
         req = PaginatedRequest(
             page=params.page,
-            page_size=params.page_size,
-            sort_by="created_at",
-            sort_direction=params.sort_direction,
-            search=params.search,
-            search_fields=default_search_fields,
-            filters={},                    # add fixed root filters here if needed
-            related_filters=default_related_filters
+            pageSize=params.pageSize,
+            sortBy="createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=defaultSearchFields,
+            filters={},
+            relatedFilters=defaultRelatedFilters
         )
-        return await self.sms_notification_service.get_all_notifications_advanced(req)
+        return await self.smsNotificationService.getAllNotificationsAdvanced(req)
         
     
     

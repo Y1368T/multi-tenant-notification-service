@@ -1,73 +1,74 @@
 from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from uuid import UUID, uuid4
 from datetime import datetime
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 
 class TenantSMSConfigurationRequestDto(BaseModel):
-    tenant_id: UUID
-    provider_name: str
+    tenantId: UUID = Field(alias="tenant_id")
+    providerName: str = Field(alias="provider_name")
     priority: int
-    is_active: bool = True
-    rate_limit_per_minute: int = 30
-    rate_limit_per_hour: int = 500
-    rate_limit_per_day: int = 5000
+    isActive: bool = Field(default=True, alias="is_active")
+    rateLimitPerMinute: int = Field(default=30, alias="rate_limit_per_minute")
+    rateLimitPerHour: int = Field(default=500, alias="rate_limit_per_hour")
+    rateLimitPerDay: int = Field(default=5000, alias="rate_limit_per_day")
     config: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TenantSMSConfigurationRequestDto":
+    def fromDict(cls, data: Dict[str, Any]) -> "TenantSMSConfigurationRequestDto":
         return cls(
-            tenant_id=data["tenant_id"],
-            provider_name=data["provider_name"],
+            tenantId=data["tenant_id"],
+            providerName=data["provider_name"],
             priority=int(data.get("priority", 1)),
-            is_active=bool(data.get("is_active", True)),
-            rate_limit_per_minute=int(data.get("rate_limit_per_minute", 30)),
-            rate_limit_per_hour=int(data.get("rate_limit_per_hour", 500)),
-            rate_limit_per_day=int(data.get("rate_limit_per_day", 5000)),
+            isActive=bool(data.get("is_active", True)),
+            rateLimitPerMinute=int(data.get("rate_limit_per_minute", 30)),
+            rateLimitPerHour=int(data.get("rate_limit_per_hour", 500)),
+            rateLimitPerDay=int(data.get("rate_limit_per_day", 5000)),
             config=data.get("config", {}),
         )
 
-    def to_entity(self) -> TenantSMSConfiguration:
+    def toEntity(self) -> TenantSMSConfiguration:
         return TenantSMSConfiguration(
             id=uuid4(),
-            tenant_id=self.tenant_id,
-            provider_name=self.provider_name,
-            priority=self.priority,
-            is_active=self.is_active,
-            rate_limit_per_minute=self.rate_limit_per_minute,
-            rate_limit_per_hour=self.rate_limit_per_hour,
-            rate_limit_per_day=self.rate_limit_per_day,
+            tenantId=self.tenantId,
+            providerName=self.providerName,
+            priroty=self.priority,
+            isActive=self.isActive,
+            rateLimitPerMinute=self.rateLimitPerMinute,
+            rateLimitPerHour=self.rateLimitPerHour,
+            rateLimitPerDay=self.rateLimitPerDay,
             config=self.config,
         )
 
 class TenantSMSConfigurationResponseDTO(BaseModel):
     id: UUID
-    tenant_id: UUID
-    provider_name: str
+    tenantId: UUID = Field(alias="tenant_id")
+    providerName: str = Field(alias="provider_name")
     priority: int
-    is_active: bool
-    rate_limit_per_minute: int
-    rate_limit_per_hour: int
-    rate_limit_per_day: int
+    isActive: bool = Field(alias="is_active")
+    rateLimitPerMinute: int = Field(alias="rate_limit_per_minute")
+    rateLimitPerHour: int = Field(alias="rate_limit_per_hour")
+    rateLimitPerDay: int = Field(alias="rate_limit_per_day")
     config: Dict[str, Any] = Field(default_factory=dict)
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    createdAt: Optional[datetime] = Field(default=None, alias="created_at")
+    updatedAt: Optional[datetime] = Field(default=None, alias="updated_at")
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
 
     @classmethod
-    def from_entity_with_relations(cls, config: TenantSMSConfiguration):
+    def fromEntityWithRelations(cls, config: TenantSMSConfiguration):
         return cls(
             id=config.id,
-            tenant_id=config.tenant_id,
-            provider_name=config.provider_name,
-            priority=getattr(config, "priority", 1),
-            is_active=config.is_active,
-            rate_limit_per_minute=config.rate_limit_per_minute,
-            rate_limit_per_hour=config.rate_limit_per_hour,
-            rate_limit_per_day=config.rate_limit_per_day,
+            tenantId=config.tenantId,
+            providerName=config.providerName,
+            priority=getattr(config, "priroty", 1),
+            isActive=config.isActive,
+            rateLimitPerMinute=config.rateLimitPerMinute,
+            rateLimitPerHour=config.rateLimitPerHour,
+            rateLimitPerDay=config.rateLimitPerDay,
             config=getattr(config, "config", {}) or {},
-            created_at=getattr(config, "created_at", None),
-            updated_at=getattr(config, "updated_at", None),
+            createdAt=getattr(config, "createdAt", None),
+            updatedAt=getattr(config, "updatedAt", None),
         )

@@ -14,63 +14,63 @@ from typing import Optional
 @api_controller(prefix="/tenants", tags=["Tenants"])
 class TenantController(ControllerBase):
     """Controller for tenant-related endpoints."""
-    def __init__(self, tenant_service: TenantService):
-        self.tenant_service = tenant_service
-        
+    def __init__(self, tenantService: TenantService):
+        self.tenantService = tenantService
         
 
+    
 
-    @get("/get_by_id/{tenant_id}")
-    async def get_tenant(self, tenant_id: UUID):
-        tenant = await self.tenant_service.get_tenant_by_id(tenant_id)
+    @get("/getById/{tenant_id}")
+    async def getTenant(self, tenant_id: UUID):
+        tenant = await self.tenantService.getTenantById(tenant_id)
         return tenant
 
     @post("/create")
-    async def create_tenant(self,tenant_data: TenantRequestDTO):
-        if(tenant_data.prefered_communication_method not in ["rest", "kafka", "rabbitmq", "grpc"]):
+    async def createTenant(self,tenantData: TenantRequestDTO):
+        if(tenantData.preferedCommunicationMethod not in ["rest", "kafka", "rabbitmq", "grpc"]):
             raise ValueError("Invalid preferred communication method")
         
-        tenantentity=Tenant(
-            name=tenant_data.name,
-            prefix=tenant_data.prefix,
-            is_active=tenant_data.is_active,
-            supported_channels=tenant_data.supported_channels,
-            prefered_communication_method=tenant_data.prefered_communication_method,
+        tenantEntity=Tenant(
+            name=tenantData.name,
+            prefix=tenantData.prefix,
+            isActive=tenantData.isActive,
+            supportedChannels=tenantData.supportedChannels,
+            preferedCommunicationMethod=tenantData.preferedCommunicationMethod,
             id=uuid4()
         )
-        tenantentity = await self.tenant_service.create_tenant(tenantentity)
-        return tenantentity
+        tenantEntity = await self.tenantService.createTenant(tenantEntity)
+        return tenantEntity
     
     @get("/getall")
-    async def get_all_tenants(self,status: Optional[str] = Query(None, description="Filter by tenant status"),params: PaginatedRequestDTO = Depends()):   
-        default_search_fields = [
+    async def getAllTenants(self,status: Optional[str] = Query(None, description="Filter by tenant status"),params: PaginatedRequestDTO = Depends()):   
+        defaultSearchFields = [
             "name",
             "prefix",
         ]
 
-        root_filters = {"status": status} if status else {}
-        related_filters: list[RelatedFilter] = []
-        if params.tenant_id:
-           root_filters["tenant_id"] = params.tenant_id
+        rootFilters = {"status": status} if status else {}
+        relatedFilters: list[RelatedFilter] = []
+        if params.tenantId:
+           rootFilters["tenantId"] = params.tenantId
         req = PaginatedRequest(
             page=params.page,
-            page_size=params.page_size,
-            sort_by=params.sort_by or "created_at",
-            sort_direction=params.sort_direction,
-            search_text=params.search,
-            search_fields=default_search_fields,
-            filters=root_filters,
-            related_filters=related_filters if related_filters else []
+            pageSize=params.pageSize,
+            sortBy=params.sortBy or "createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=defaultSearchFields,
+            filters=rootFilters,
+            relatedFilters=relatedFilters if relatedFilters else []
         )
-        tenants = await self.tenant_service.get_all_tenants_advanced(req)
+        tenants = await self.tenantService.getAllTenantsAdvanced(req)
         return tenants
     
     @put("/update/{tenant_id}")
     async def update(self,tenant_id:UUID, tenant:Tenant):
-        tenant=await self.tenant_service.update_tenant(tenant_id,tenant)
+        tenant=await self.tenantService.updateTenant(tenant_id,tenant)
         return tenant
 
     @delete("/delete/{tenant_id}")
-    async def delete_tenant(self, tenant_id: UUID):
-        await self.tenant_service.delete_tenant(tenant_id)
+    async def deleteTenant(self, tenant_id: UUID):
+        await self.tenantService.deleteTenant(tenant_id)
         return {"message": "Tenant deleted successfully"}

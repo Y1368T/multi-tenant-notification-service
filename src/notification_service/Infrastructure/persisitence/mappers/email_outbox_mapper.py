@@ -8,7 +8,7 @@ class EmailOutboxMapper:
     """Mapper for converting between EmailOutbox entity and EmailOutboxModel."""
     
     @staticmethod
-    def to_entity(model: EmailOutboxModel) -> EmailOutbox:
+    def toEntity(model: EmailOutboxModel) -> EmailOutbox:
         """Convert database model to domain entity.
         
         Args:
@@ -22,25 +22,25 @@ class EmailOutboxMapper:
         
         return EmailOutbox(
             id=model.id,
-            recipient_email=model.recipient_email,
-            message_content=model.message_content,
-            idempotency_key=model.idempotency_key,
-            template_id=model.template_id,
-            retry_count=model.retry_count,
-            last_retry_at=model.last_retry_at,
-            last_error_message=model.last_error_message,
-            next_retry_at=model.next_retry_at,
-            provider_attempted=model.provider_attempted,
-            is_sent=model.is_sent,
-            sent_at=model.sent_at,
+            recipientEmail=model.recipientEmail,
+            messageContent=model.messageContent,
+            idempotencyKey=model.idempotencyKey,
+            templateId=model.templateId,
+            retryCount=model.retryCount,
+            lastRetryAt=model.lastRetryAt,
+            lastErrorMessage=model.lastErrorMessage,
+            nextRetryAt=model.nextRetryAt,
+            providerAttempted=model.providerAttempted,
+            isSent=model.isSent,
+            sentAt=model.sentAt,
             status=model.status,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
         
     
     @staticmethod
-    def to_model(entity: EmailOutbox) -> EmailOutboxModel:
+    def toModel(entity: EmailOutbox) -> EmailOutboxModel:
         """Convert domain entity to database model.
         
         Args:
@@ -54,24 +54,24 @@ class EmailOutboxMapper:
         
         return EmailOutboxModel(
             id=entity.id,
-            recipient_email=entity.recipient_email,
-            message_content=entity.message_content,
-            idempotency_key=entity.idempotency_key,
-            template_id=entity.template_id,
-            retry_count=entity.retry_count,
-            last_retry_at=entity.last_retry_at,
-            last_error_message=entity.last_error_message,
-            next_retry_at=entity.next_retry_at,
-            provider_attempted=entity.provider_attempted,
-            is_sent=entity.is_sent,
-            sent_at=entity.sent_at,
+            recipientEmail=entity.recipientEmail,
+            messageContent=entity.messageContent,
+            idempotencyKey=entity.idempotencyKey,
+            templateId=entity.templateId,
+            retryCount=entity.retryCount,
+            lastRetryAt=entity.lastRetryAt,
+            lastErrorMessage=entity.lastErrorMessage,
+            nextRetryAt=entity.nextRetryAt,
+            providerAttempted=entity.providerAttempted,
+            isSent=entity.isSent,
+            sentAt=entity.sentAt,
             status=entity.status,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[EmailOutboxModel]) -> list[EmailOutbox]:
+    def toListOfEntities(models: list[EmailOutboxModel]) -> list[EmailOutbox]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -80,10 +80,10 @@ class EmailOutboxMapper:
         Returns:
             List of EmailOutbox domain entities
         """
-        return [EmailOutboxMapper.to_entity(model) for model in models]
+        return [EmailOutboxMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[EmailOutbox]) -> list[EmailOutboxModel]:
+    def toListOfModels(entities: list[EmailOutbox]) -> list[EmailOutboxModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -92,10 +92,10 @@ class EmailOutboxMapper:
         Returns:
             List of EmailOutboxModel for database
         """
-        return [EmailOutboxMapper.to_model(entity) for entity in entities]
+        return [EmailOutboxMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: EmailOutboxModel, entity: EmailOutbox) -> EmailOutboxModel:
+    def updateModelFromEntity(model: EmailOutboxModel, entity: EmailOutbox) -> EmailOutboxModel:
         """Update existing model with entity data.
         
         Args:
@@ -105,18 +105,18 @@ class EmailOutboxMapper:
         Returns:
             Updated EmailOutboxModel
         """
-        model.recipient_email = entity.recipient_email
-        model.message_content = entity.message_content
-        model.idempotency_key = entity.idempotency_key
-        model.template_id = entity.template_id
-        model.retry_count = entity.retry_count
-        model.last_retry_at = entity.last_retry_at
-        model.last_error_message = entity.last_error_message
-        model.next_retry_at = entity.next_retry_at
-        model.provider_attempted = entity.provider_attempted
-        model.is_sent = entity.is_sent
-        model.sent_at = entity.sent_at
+        model.recipientEmail = entity.recipientEmail
+        model.messageContent = entity.messageContent
+        model.idempotencyKey = entity.idempotencyKey
+        model.templateId = entity.templateId
+        model.retryCount = entity.retryCount
+        model.lastRetryAt = entity.lastRetryAt
+        model.lastErrorMessage = entity.lastErrorMessage
+        model.nextRetryAt = entity.nextRetryAt
+        model.providerAttempted = entity.providerAttempted
+        model.isSent = entity.isSent
+        model.sentAt = entity.sentAt
         model.status = entity.status
-        model.updated_at = entity.updated_at
+        model.updatedAt = entity.updatedAt
         
         return model

@@ -8,7 +8,7 @@ class TenantEmailConfigurationMapper:
     """Mapper for converting between TenantEmailConfiguration entity and TenantEmailConfigurationModel."""
     
     @staticmethod
-    def to_entity(model: TenantEmailConfigurationModel) -> TenantEmailConfiguration:
+    def toEntity(model: TenantEmailConfigurationModel) -> TenantEmailConfiguration:
         """Convert database model to domain entity.
         
         Args:
@@ -22,20 +22,20 @@ class TenantEmailConfigurationMapper:
         
         return TenantEmailConfiguration(
             id=model.id,
-            tenant_id=model.tenant_id,
-            provider_name=model.provider_name,
+            tenantId=model.tenantId,
+            providerName=model.providerName,
             config=model.config,
             priority=model.priority,
-            is_active=model.is_active,
-            rate_limit_per_minute=model.rate_limit_per_minute,
-            rate_limit_per_hour=model.rate_limit_per_hour,
-            rate_limit_per_day=model.rate_limit_per_day,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            isActive=model.isActive,
+            rateLimitPerMinute=model.rateLimitPerMinute,
+            rateLimitPerHour=model.rateLimitPerHour,
+            rateLimitPerDay=model.rateLimitPerDay,
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: TenantEmailConfiguration) -> TenantEmailConfigurationModel:
+    def toModel(entity: TenantEmailConfiguration) -> TenantEmailConfigurationModel:
         """Convert domain entity to database model.
         
         Args:
@@ -49,20 +49,20 @@ class TenantEmailConfigurationMapper:
         
         return TenantEmailConfigurationModel(
             id=entity.id,
-            tenant_id=entity.tenant_id,
-            provider_name=entity.provider_name,
+            tenantId=entity.tenantId,
+            providerName=entity.providerName,
             config=entity.config,
             priority=entity.priority,
-            is_active=entity.is_active,
-            rate_limit_per_minute=entity.rate_limit_per_minute,
-            rate_limit_per_hour=entity.rate_limit_per_hour,
-            rate_limit_per_day=entity.rate_limit_per_day,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            isActive=entity.isActive,
+            rateLimitPerMinute=entity.rateLimitPerMinute,
+            rateLimitPerHour=entity.rateLimitPerHour,
+            rateLimitPerDay=entity.rateLimitPerDay,
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[TenantEmailConfigurationModel]) -> list[TenantEmailConfiguration]:
+    def toListOfEntities(models: list[TenantEmailConfigurationModel]) -> list[TenantEmailConfiguration]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -71,10 +71,10 @@ class TenantEmailConfigurationMapper:
         Returns:
             List of TenantEmailConfiguration domain entities
         """
-        return [TenantEmailConfigurationMapper.to_entity(model) for model in models]
+        return [TenantEmailConfigurationMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[TenantEmailConfiguration]) -> list[TenantEmailConfigurationModel]:
+    def toListOfModels(entities: list[TenantEmailConfiguration]) -> list[TenantEmailConfigurationModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -83,10 +83,10 @@ class TenantEmailConfigurationMapper:
         Returns:
             List of TenantEmailConfigurationModel for database
         """
-        return [TenantEmailConfigurationMapper.to_model(entity) for entity in entities]
+        return [TenantEmailConfigurationMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: TenantEmailConfigurationModel, entity: TenantEmailConfiguration) -> TenantEmailConfigurationModel:
+    def updateModelFromEntity(model: TenantEmailConfigurationModel, entity: TenantEmailConfiguration) -> TenantEmailConfigurationModel:
         """Update existing model with entity data.
         
         Args:
@@ -96,14 +96,14 @@ class TenantEmailConfigurationMapper:
         Returns:
             Updated TenantEmailConfigurationModel
         """
-        model.tenant_id = entity.tenant_id
-        model.provider_name = entity.provider_name
+        model.tenantId = entity.tenantId
+        model.providerName = entity.providerName
         model.config = entity.config
         model.priority = entity.priority
-        model.is_active = entity.is_active
-        model.rate_limit_per_minute = entity.rate_limit_per_minute
-        model.rate_limit_per_hour = entity.rate_limit_per_hour
-        model.rate_limit_per_day = entity.rate_limit_per_day
-        model.updated_at = entity.updated_at
+        model.isActive = entity.isActive
+        model.rateLimitPerMinute = entity.rateLimitPerMinute
+        model.rateLimitPerHour = entity.rateLimitPerHour
+        model.rateLimitPerDay = entity.rateLimitPerDay
+        model.updatedAt = entity.updatedAt
         
         return model

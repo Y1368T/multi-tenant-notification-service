@@ -20,24 +20,24 @@ class IProviderService(ABC):
     @abstractmethod
     async def send(
         self,
-        request_object: Dict[str, Any],
-        message_to_send: str,
-        template_id:UUID
+        requestObject: Dict[str, Any],
+        messageToSend: str,
+        templateId:UUID
     ) -> Dict[str, Any]:
         """
         Send notification via provider API.
         
         Args:
-            request_object: Provider-specific request payload
-            notification_id: Internal notification ID for tracking
+            requestObject: Provider-specific request payload
+            notificationId: Internal notification ID for tracking
             
         Returns:
-            Provider response dict with status, message_id, etc.
+            Provider response dict with status, messageId, etc.
             
         Example response:
         {
             "success": true,
-            "provider_message_id": "SM1234567890",
+            "providerMessageId": "SM1234567890",
             "status": "sent",
             "timestamp": "2024-01-15T10:30:00Z"
         }
@@ -47,41 +47,41 @@ class IProviderService(ABC):
     @abstractmethod
     async def callback(
         self,
-        provider_callback: Dict[str, Any]
+        providerCallback: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Process delivery status callback from provider.
         
         Args:
-            provider_callback: Webhook payload from provider
+            providerCallback: Webhook payload from provider
             
         Returns:
             Normalized callback data:
             {
-                "notification_id": "uuid",
+                "notificationId": "uuid",
                 "status": "delivered",
-                "delivered_at": "2024-01-15T10:30:05Z",
-                "error_message": null
+                "deliveredAt": "2024-01-15T10:30:05Z",
+                "errorMessage": null
             }
         """
         pass
     
     @abstractmethod
-    async def save_to_outbox(
+    async def saveToOutbox(
         self,
-        notification_id: str,
-        request_object: Dict[str, Any],
-        retry_count: int = 0,
-        next_retry_at: Optional[datetime] = None
+        notificationId: str,
+        requestObject: Dict[str, Any],
+        retryCount: int = 0,
+        nextRetryAt: Optional[datetime] = None
     ) -> None:
         """
         Save notification to outbox for guaranteed delivery.
         
         Args:
-            notification_id: Internal notification ID
-            request_object: Provider request payload
-            retry_count: Current retry attempt number
-            next_retry_at: Scheduled time for next retry
+            notificationId: Internal notification ID
+            requestObject: Provider request payload
+            retryCount: Current retry attempt number
+            nextRetryAt: Scheduled time for next retry
             
         The outbox pattern ensures:
         1. Notifications are persisted before sending

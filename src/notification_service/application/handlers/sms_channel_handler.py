@@ -24,80 +24,80 @@ class SMSChannelHandler(IChannelHandler):
         }
         logger.info('SMSChannelHandler initialized')
         
-    async def receive_message(self, tenantPrefix: str, message: NotificationRequest) -> NotificationResponse:
+    async def receiveMessage(self, tenantPrefix: str, message: NotificationRequest) -> NotificationResponse:
         """Receive a message from the message router."""
-        logger.info(f"Receiving SMS message for tenant {tenantPrefix} with template {message.template_name}")
+        logger.info(f"Receiving SMS message for tenant {tenantPrefix} with template {message.templateName}")
         # Implementation for receiving SMS message
         tenantdb: Tenant = None
         async with self.unitofWork:
-            tenantdb= await self.unitofWork.tenants.first_or_default(lambda t: t.prefix == tenantPrefix)
+            tenantdb= await self.unitofWork.tenants.firstOrDefault(lambda t: t.prefix == tenantPrefix)
             if not tenantdb:
                 logger.error(f"Tenant with prefix {tenantPrefix} not found")
                 return NotificationResponse(success=False, error_message=f"Tenant with prefix {tenantPrefix} not found")
-            if message.idempotency_key is None:
+            if message.idempotencyKey is None:
                 logger.warning(f"Message for tenant {tenantPrefix} is missing idempotency key. Generating a new one.")
                 return NotificationResponse(success=False, error_message="Idempotency key is required")
-            check_idempotency=await self.unitofWork.sms_notifications.first_or_default(lambda n: n.idempotency_key == message.idempotency_key and n.tenant_id==tenantdb.id)
+            checkIdempotency=await self.unitofWork.smsNotifications.firstOrDefault(lambda n: n.idempotencyKey == message.idempotencyKey and n.tenantId==tenantdb.id)
             
-            if check_idempotency:
-                logger.info(f"Duplicate message detected for tenant {tenantPrefix} with idempotency key {message.idempotency_key}")
+            if checkIdempotency:
+                logger.info(f"Duplicate message detected for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
                 return NotificationResponse(success=True, message="Duplicate message ignored")
-            elif check_idempotency is None:
-                logger.info(f"Processing new message for tenant {tenantPrefix} with idempotency key {message.idempotency_key}")
-                check_outbox_idempotency=await self.unitofWork.sms_outbox.first_or_default(lambda n: n.idempotency_key == message.idempotency_key and n.tenant_id==tenantdb.id and n.status!=NotificationStatus.FAILED)
-                if check_outbox_idempotency:
-                    logger.info(f"Duplicate message detected in outbox for tenant {tenantPrefix} with idempotency key {message.idempotency_key}")
+            elif checkIdempotency is None:
+                logger.info(f"Processing new message for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
+                checkOutboxIdempotency=await self.unitofWork.smsOutbox.firstOrDefault(lambda n: n.idempotencyKey == message.idempotencyKey and n.tenantId==tenantdb.id and n.status!=NotificationStatus.FAILED)
+                if checkOutboxIdempotency:
+                    logger.info(f"Duplicate message detected in outbox for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
                     return NotificationResponse(success=True, message="Duplicate message ignored")
-        tenant_config = await self.load_tenant_config(tenantdb.id)
-        if not tenant_config:
+        tenantConfig = await self.loadTenantConfig(tenantdb.id)
+        if not tenantConfig:
             logger.error(f"No SMS channel config for tenant {tenantdb.id}")
             return
         # send grpc request to customer management service to get customer language preference for Qena system
         language = message.lang if message.lang else "en"
-        template = await self.load_template(tenantdb.id, message.template_name,message.service_name)
+        template = await self.loadTemplate(tenantdb.id, message.templateName,message.serviceName)
         if not template:
-            logger.error(f"Template {message.template_name} not found for tenant {tenantdb.id}")
+            logger.error(f"Template {message.templateName} not found for tenant {tenantdb.id}")
             return
         
-        template_text= template.content.get(language, {})
-        return await self.route_to_provider(message, tenantdb, tenant_config, template.id,template_text)
+        templateText= template.content.get(language, {})
+        return await self.routeToProvider(message, tenantdb, tenantConfig, template.id,templateText)
 
-    async def load_tenant_config(self, tenant_id: UUID) -> list[TenantSMSConfiguration]:
+    async def loadTenantConfig(self, tenantId: UUID) -> list[TenantSMSConfiguration]:
         """Load the SMS channel configuration for a given tenant."""
-        logger.info(f"Loading SMS channel config for tenant {tenant_id}")
+        logger.info(f"Loading SMS channel config for tenant {tenantId}")
         # Implementation for loading tenant config
         async with self.unitofWork:
-            config:list[TenantSMSConfiguration]= await self.unitofWork.tenant_sms_configurations.find(lambda t:t.tenant_id==tenant_id and t.priroty==1)
+            config:list[TenantSMSConfiguration]= await self.unitofWork.tenantSmsConfigurations.find(lambda t:t.tenantId==tenantId and t.priroty==1)
             if config:
                 return config
 
     
 
-    async def load_template(self, tenant_id: str, template_name: str,service_name:str) -> dict:
+    async def loadTemplate(self, tenantId: str, templateName: str,serviceName:str) -> dict:
         """Load the SMS message template for a given tenant and template name."""
         # Implementation for loading template
         
         async with self.unitofWork:
-            template = await self.unitofWork.sms_templates.first_or_default(lambda t: t.tenant_id == tenant_id and t.template_name == template_name  and t.service_name==service_name)
+            template = await self.unitofWork.smsTemplates.firstOrDefault(lambda t: t.tenantId == tenantId and t.templateName == templateName  and t.serviceName==serviceName)
             if not template:
-                logger.error(f"Template {template_name} not found for tenant {tenant_id}")
+                logger.error(f"Template {templateName} not found for tenant {tenantId}")
                 return {}
             return template
 
-    async def route_to_provider(
+    async def routeToProvider(
         self,
         request: NotificationRequest,
         tenant: Tenant,
         configs: list[TenantSMSConfiguration],
-        template_id:UUID,
-        template_text: str
+        templateId:UUID,
+        templateText: str
     ) -> NotificationResponse:
         """Route SMS notification to the appropriate provider for delivery."""
         # Implementation for routing to SMS provider
         
         logger.info(f"Routing SMS notification for tenant {tenant.name} to provider")
         config=configs[0]
-        match config.provider_name.lower():
+        match config.providerName.lower():
             case SMSProvider.ETHIOTELECOM.value:
                 # Implementation for routing to EThioTelecom
                 # replace the message payload in the template with actual values from request. and give me example
@@ -115,7 +115,7 @@ class SMSChannelHandler(IChannelHandler):
                 response= await self.__handlers[SMSProvider.KIFIYA].send(request, config, message_body,template_id)
                 return response
             case _:
-                logger.error(f"Unsupported SMS provider: {config.provider_name}")
+                logger.error(f"Unsupported SMS provider: {config.providerName}")
                 
-                return NotificationResponse(success=False, error_message=f"Unsupported SMS provider: {config.provider_name}")
+                return NotificationResponse(success=False, error_message=f"Unsupported SMS provider: {config.providerName}")
         

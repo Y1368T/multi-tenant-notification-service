@@ -62,9 +62,9 @@ class QueryableExtensions:
         column = getattr(model_class, sort_by)
         
         if sort_direction == SortDirection.DESC:
-            return query.order_by(column.desc())
+            return query.orderBy(column.desc())
         else:
-            return query.order_by(column)
+            return query.orderBy(column)
     
     @staticmethod
     async def to_paged_response_async(
@@ -93,7 +93,7 @@ class QueryableExtensions:
             )
         """
         # Count total records
-        count_query = query.with_only_columns(func.count()).order_by(None)
+        count_query = query.with_only_columns(func.count()).orderBy(None)
         total_count = await session.scalar(count_query)
         
         # Apply sorting if specified
@@ -117,7 +117,7 @@ class QueryableExtensions:
         models = result.scalars().all()
         
         # Convert to entities
-        entities = [mapper.to_entity(model) for model in models]
+        entities = [mapper.toEntity(model) for model in models]
         
         # Calculate metadata
         total_pages = (total_count + paged_request.page_size - 1) // paged_request.page_size
@@ -138,13 +138,13 @@ class QueryableExtensions:
         
         Args:
             obj: Object to get property from
-            property_path: Dot-separated property path (e.g., "template.tenant_id")
+            property_path: Dot-separated property path (e.g., "template.tenantId")
             
         Returns:
             Property value
             
         Example:
-            value = QueryableExtensions._get_property(notification, "template.tenant_id")
+            value = QueryableExtensions._get_property(notification, "template.tenantId")
         """
         parts = property_path.split('.')
         current = obj

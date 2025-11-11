@@ -9,10 +9,10 @@ class InAppNotification:
     """Domain entity for in-app notifications"""
     
     id: UUID
-    recipient_user_id: str
-    message_content: str
+    recipientUserId: str
+    messageContent: str
     status: str = "unread"
-    idempotency_key: Optional[str] = None
-    template_id: Optional[UUID] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    idempotencyKey: Optional[str] = None
+    templateId: Optional[UUID] = None
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)

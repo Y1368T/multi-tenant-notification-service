@@ -9,7 +9,7 @@ class SmsNotificationMapper:
     """Mapper for converting between SMSNotification entity and SMSNotificationModel."""
     
     @staticmethod
-    def to_entity(model: SMSNotificationModel) -> SMSNotification:
+    def toEntity(model: SMSNotificationModel) -> SMSNotification:
         """Convert database model to domain entity.
         
         Args:
@@ -33,23 +33,23 @@ class SmsNotificationMapper:
             template_model = model.__dict__.get('template')
             if template_model is not None:
                 # Map the template model to entity
-                template_entity = SmsTemplateMapper.to_entity(template_model)
+                template_entity = SmsTemplateMapper.toEntity(template_model)
         
         return SMSNotification(
             id=model.id,
-            recipient_number=model.recipient_number,
-            message_content=model.message_content,
+            recipientNumber=model.recipientNumber,
+            messageContent=model.messageContent,
             status=model.status,
-            idempotency_key=model.idempotency_key,
-            template_id=model.template_id,
+            idempotencyKey=model.idempotencyKey,
+            templateId=model.templateId,
             template=template_entity,
             templateName=None,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: SMSNotification) -> SMSNotificationModel:
+    def toModel(entity: SMSNotification) -> SMSNotificationModel:
         """Convert domain entity to database model.
         
         Args:
@@ -63,17 +63,17 @@ class SmsNotificationMapper:
         
         return SMSNotificationModel(
             id=entity.id,
-            recipient_number=entity.recipient_number,
-            message_content=entity.message_content,
+            recipientNumber=entity.recipientNumber,
+            messageContent=entity.messageContent,
             status=entity.status,
-            idempotency_key=entity.idempotency_key,
-            template_id=entity.template_id,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            idempotencyKey=entity.idempotencyKey,
+            templateId=entity.templateId,
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[SMSNotificationModel]) -> list[SMSNotification]:
+    def toListOfEntities(models: list[SMSNotificationModel]) -> list[SMSNotification]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -82,10 +82,10 @@ class SmsNotificationMapper:
         Returns:
             List of SMSNotification domain entities
         """
-        return [SmsNotificationMapper.to_entity(model) for model in models]
+        return [SmsNotificationMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[SMSNotification]) -> list[SMSNotificationModel]:
+    def toListOfModels(entities: list[SMSNotification]) -> list[SMSNotificationModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -94,10 +94,10 @@ class SmsNotificationMapper:
         Returns:
             List of SMSNotificationModel for database
         """
-        return [SmsNotificationMapper.to_model(entity) for entity in entities]
+        return [SmsNotificationMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: SMSNotificationModel, entity: SMSNotification) -> SMSNotificationModel:
+    def updateModelFromEntity(model: SMSNotificationModel, entity: SMSNotification) -> SMSNotificationModel:
         """Update existing model with entity data.
         
         Args:
@@ -107,11 +107,11 @@ class SmsNotificationMapper:
         Returns:
             Updated SMSNotificationModel
         """
-        model.recipient_number = entity.recipient_number
-        model.message_content = entity.message_content
+        model.recipientNumber = entity.recipientNumber
+        model.messageContent = entity.messageContent
         model.status = entity.status
-        model.idempotency_key = entity.idempotency_key
-        model.template_id = entity.template_id
-        model.updated_at = entity.updated_at
+        model.idempotencyKey = entity.idempotencyKey
+        model.templateId = entity.templateId
+        model.updatedAt = entity.updatedAt
         
         return model

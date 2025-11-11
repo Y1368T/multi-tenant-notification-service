@@ -8,7 +8,7 @@ class SmsOutboxMapper:
     """Mapper for converting between SMSOutbox entity and SmsOutboxModel."""
     
     @staticmethod
-    def to_entity(model: SmsOutboxModel) -> SMSOutbox:
+    def toEntity(model: SmsOutboxModel) -> SMSOutbox:
         """Convert database model to domain entity.
         
         Args:
@@ -22,24 +22,24 @@ class SmsOutboxMapper:
         
         return SMSOutbox(
             id=model.id,
-            recipient_number=model.recipient_number,
-            message_content=model.message_content,
-            idempotency_key=model.idempotency_key,
-            template_id=model.template_id,
-            retry_count=model.retry_count,
-            last_retry_at=model.last_retry_at,
-            last_error_message=model.last_error_message,
-            next_retry_at=model.next_retry_at,
-            provider_attempted=model.provider_attempted,
-            is_sent=model.is_sent,
-            sent_at=model.sent_at,
+            recipientNumber=model.recipientNumber,
+            messageContent=model.messageContent,
+            idempotencyKey=model.idempotencyKey,
+            templateId=model.templateId,
+            retryCount=model.retryCount,
+            lastRetryAt=model.lastRetryAt,
+            lastErrorMessage=model.lastErrorMessage,
+            nextRetryAt=model.nextRetryAt,
+            providerAttempted=model.providerAttempted,
+            isSent=model.isSent,
+            sentAt=model.sentAt,
             status=model.status,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            createdAt=model.createdAt,
+            updatedAt=model.updatedAt
         )
     
     @staticmethod
-    def to_model(entity: SMSOutbox) -> SmsOutboxModel:
+    def toModel(entity: SMSOutbox) -> SmsOutboxModel:
         """Convert domain entity to database model.
         
         Args:
@@ -53,24 +53,24 @@ class SmsOutboxMapper:
         
         return SmsOutboxModel(
             id=entity.id,
-            recipient_number=entity.recipient_number,
-            message_content=entity.message_content,
-            idempotency_key=entity.idempotency_key,
-            template_id=entity.template_id,
-            retry_count=entity.retry_count,
-            last_retry_at=entity.last_retry_at,
-            last_error_message=entity.last_error_message,
-            next_retry_at=entity.next_retry_at,
-            provider_attempted=entity.provider_attempted,
-            is_sent=entity.is_sent,
-            sent_at=entity.sent_at,
+            recipientNumber=entity.recipientNumber,
+            messageContent=entity.messageContent,
+            idempotencyKey=entity.idempotencyKey,
+            templateId=entity.templateId,
+            retryCount=entity.retryCount,
+            lastRetryAt=entity.lastRetryAt,
+            lastErrorMessage=entity.lastErrorMessage,
+            nextRetryAt=entity.nextRetryAt,
+            providerAttempted=entity.providerAttempted,
+            isSent=entity.isSent,
+            sentAt=entity.sentAt,
             status=entity.status,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            createdAt=entity.createdAt,
+            updatedAt=entity.updatedAt
         )
     
     @staticmethod
-    def to_list_of_entities(models: list[SmsOutboxModel]) -> list[SMSOutbox]:
+    def toListOfEntities(models: list[SmsOutboxModel]) -> list[SMSOutbox]:
         """Convert list of database models to list of domain entities.
         
         Args:
@@ -79,10 +79,10 @@ class SmsOutboxMapper:
         Returns:
             List of SMSOutbox domain entities
         """
-        return [SmsOutboxMapper.to_entity(model) for model in models]
+        return [SmsOutboxMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def to_list_of_models(entities: list[SMSOutbox]) -> list[SmsOutboxModel]:
+    def toListOfModels(entities: list[SMSOutbox]) -> list[SmsOutboxModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
@@ -91,10 +91,10 @@ class SmsOutboxMapper:
         Returns:
             List of SmsOutboxModel for database
         """
-        return [SmsOutboxMapper.to_model(entity) for entity in entities]
+        return [SmsOutboxMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def update_model_from_entity(model: SmsOutboxModel, entity: SMSOutbox) -> SmsOutboxModel:
+    def updateModelFromEntity(model: SmsOutboxModel, entity: SMSOutbox) -> SmsOutboxModel:
         """Update existing model with entity data.
         
         Args:
@@ -104,18 +104,18 @@ class SmsOutboxMapper:
         Returns:
             Updated SmsOutboxModel
         """
-        model.recipient_number = entity.recipient_number
-        model.message_content = entity.message_content
-        model.idempotency_key = entity.idempotency_key
-        model.template_id = entity.template_id
-        model.retry_count = entity.retry_count
-        model.last_retry_at = entity.last_retry_at
-        model.last_error_message = entity.last_error_message
-        model.next_retry_at = entity.next_retry_at
-        model.provider_attempted = entity.provider_attempted
-        model.is_sent = entity.is_sent
-        model.sent_at = entity.sent_at
+        model.recipientNumber = entity.recipientNumber
+        model.messageContent = entity.messageContent
+        model.idempotencyKey = entity.idempotencyKey
+        model.templateId = entity.templateId
+        model.retryCount = entity.retryCount
+        model.lastRetryAt = entity.lastRetryAt
+        model.lastErrorMessage = entity.lastErrorMessage
+        model.nextRetryAt = entity.nextRetryAt
+        model.providerAttempted = entity.providerAttempted
+        model.isSent = entity.isSent
+        model.sentAt = entity.sentAt
         model.status = entity.status
-        model.updated_at = entity.updated_at
+        model.updatedAt = entity.updatedAt
         
         return model
