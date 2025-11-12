@@ -1,28 +1,28 @@
-"""Mapper for SMSOutbox entity and model."""
+"""Mapper for EmailOutbox entity and model."""
 from typing import Optional
-from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
-from notification_service.infrastructure.persisitence.models.sms.sms_outbox import SmsOutboxModel
+from notification_service.domain.entities.email.email_outbox import EmailOutbox
+from notification_service.infrastructure.persistence.models.email.email_outbox import EmailOutboxModel
 
 
-class SmsOutboxMapper:
-    """Mapper for converting between SMSOutbox entity and SmsOutboxModel."""
+class EmailOutboxMapper:
+    """Mapper for converting between EmailOutbox entity and EmailOutboxModel."""
     
     @staticmethod
-    def toEntity(model: SmsOutboxModel) -> SMSOutbox:
+    def toEntity(model: EmailOutboxModel) -> EmailOutbox:
         """Convert database model to domain entity.
         
         Args:
-            model: SmsOutboxModel from database
+            model: EmailOutboxModel from database
             
         Returns:
-            SMSOutbox domain entity
+            EmailOutbox domain entity
         """
         if model is None:
             return None
         
-        return SMSOutbox(
+        return EmailOutbox(
             id=model.id,
-            recipientNumber=model.recipientNumber,
+            recipientEmail=model.recipientEmail,
             messageContent=model.messageContent,
             idempotencyKey=model.idempotencyKey,
             templateId=model.templateId,
@@ -37,23 +37,24 @@ class SmsOutboxMapper:
             createdAt=model.createdAt,
             updatedAt=model.updatedAt
         )
+        
     
     @staticmethod
-    def toModel(entity: SMSOutbox) -> SmsOutboxModel:
+    def toModel(entity: EmailOutbox) -> EmailOutboxModel:
         """Convert domain entity to database model.
         
         Args:
-            entity: SMSOutbox domain entity
+            entity: EmailOutbox domain entity
             
         Returns:
-            SmsOutboxModel for database
+            EmailOutboxModel for database
         """
         if entity is None:
             return None
         
-        return SmsOutboxModel(
+        return EmailOutboxModel(
             id=entity.id,
-            recipientNumber=entity.recipientNumber,
+            recipientEmail=entity.recipientEmail,
             messageContent=entity.messageContent,
             idempotencyKey=entity.idempotencyKey,
             templateId=entity.templateId,
@@ -70,41 +71,41 @@ class SmsOutboxMapper:
         )
     
     @staticmethod
-    def toListOfEntities(models: list[SmsOutboxModel]) -> list[SMSOutbox]:
+    def toListOfEntities(models: list[EmailOutboxModel]) -> list[EmailOutbox]:
         """Convert list of database models to list of domain entities.
         
         Args:
-            models: List of SmsOutboxModel from database
+            models: List of EmailOutboxModel from database
             
         Returns:
-            List of SMSOutbox domain entities
+            List of EmailOutbox domain entities
         """
-        return [SmsOutboxMapper.toEntity(model) for model in models]
+        return [EmailOutboxMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def toListOfModels(entities: list[SMSOutbox]) -> list[SmsOutboxModel]:
+    def toListOfModels(entities: list[EmailOutbox]) -> list[EmailOutboxModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
-            entities: List of SMSOutbox domain entities
+            entities: List of EmailOutbox domain entities
             
         Returns:
-            List of SmsOutboxModel for database
+            List of EmailOutboxModel for database
         """
-        return [SmsOutboxMapper.toModel(entity) for entity in entities]
+        return [EmailOutboxMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def updateModelFromEntity(model: SmsOutboxModel, entity: SMSOutbox) -> SmsOutboxModel:
+    def updateModelFromEntity(model: EmailOutboxModel, entity: EmailOutbox) -> EmailOutboxModel:
         """Update existing model with entity data.
         
         Args:
-            model: Existing SmsOutboxModel
-            entity: SMSOutbox with updated data
+            model: Existing EmailOutboxModel
+            entity: EmailOutbox with updated data
             
         Returns:
-            Updated SmsOutboxModel
+            Updated EmailOutboxModel
         """
-        model.recipientNumber = entity.recipientNumber
+        model.recipientEmail = entity.recipientEmail
         model.messageContent = entity.messageContent
         model.idempotencyKey = entity.idempotencyKey
         model.templateId = entity.templateId

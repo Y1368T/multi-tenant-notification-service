@@ -6,7 +6,7 @@ from uuid import UUID
 from notification_service.domain.interfaces.igeneric_repository import IGenericRepository
 import logging
 from notification_service.domain.value_objects.paginated_result import PaginatedResult
-from notification_service.infrastructure.persisitence.extensions.linq_extensions import LinqQuery
+from notification_service.infrastructure.persistence.extensions.linq_extensions import LinqQuery
 
 logger = logging.getLogger(__name__)
 

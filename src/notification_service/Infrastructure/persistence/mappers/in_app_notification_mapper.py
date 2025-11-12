@@ -1,7 +1,7 @@
 """Mapper for InAppNotification entity and model."""
 from typing import Optional
 from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
-from notification_service.infrastructure.persisitence.models.in_app.in_app_notification import InAppNotificationModel
+from notification_service.infrastructure.persistence.models.in_app.in_app_notification import InAppNotificationModel
 
 
 class InAppNotificationMapper:

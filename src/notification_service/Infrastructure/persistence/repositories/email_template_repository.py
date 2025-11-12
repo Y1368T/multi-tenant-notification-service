@@ -1,10 +1,10 @@
 """Email template repository implementation."""
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from notification_service.infrastructure.persisitence.repositories.generic_repository import GenericRepository
-from notification_service.infrastructure.persisitence.models.email.email_template import EmailTemplateModel
+from notification_service.infrastructure.persistence.repositories.generic_repository import GenericRepository
+from notification_service.infrastructure.persistence.models.email.email_template import EmailTemplateModel
 from notification_service.domain.entities.email.email_template import EmailTemplate
-from notification_service.infrastructure.persisitence.mappers.email_template_mapper import EmailTemplateMapper
+from notification_service.infrastructure.persistence.mappers.email_template_mapper import EmailTemplateMapper
 
 class EmailTemplateRepository(GenericRepository[EmailTemplateModel, EmailTemplate]):
     """Repository for email templates."""

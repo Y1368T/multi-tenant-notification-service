@@ -1,6 +1,6 @@
 from typing import TypeVar, Generic
 from notification_service.domain.interfaces.igeneric_repository import IGenericRepository
-from notification_service.infrastructure.persisitence.models import TenantModel as Tenant
+from notification_service.infrastructure.persistence.models import TenantModel as Tenant
 
 T = TypeVar('T')
 

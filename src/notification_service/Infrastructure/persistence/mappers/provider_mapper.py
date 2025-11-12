@@ -1,5 +1,5 @@
 from notification_service.domain.entities.providers_supported import Provider
-from notification_service.infrastructure.persisitence.models.providers_supported import ProviderModel
+from notification_service.infrastructure.persistence.models.providers_supported import ProviderModel
 
 class ProviderMapper:
     

@@ -1,30 +1,31 @@
-"""Mapper for TenantSMSConfiguration entity and model."""
+"""Mapper for TenantEmailConfiguration entity and model."""
 from typing import Optional
-from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
-from notification_service.infrastructure.persisitence.models.tenant.tenant_sms_configuration import TenantSMSConfigurationModel
+from notification_service.domain.entities.tenant.tenant_email_configuration import TenantEmailConfiguration
+from notification_service.infrastructure.persistence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel
 
 
-class TenantSmsConfigurationMapper:
-    """Mapper for converting between TenantSMSConfiguration entity and TenantSMSConfigurationModel."""
+class TenantEmailConfigurationMapper:
+    """Mapper for converting between TenantEmailConfiguration entity and TenantEmailConfigurationModel."""
     
     @staticmethod
-    def toEntity(model: TenantSMSConfigurationModel) -> TenantSMSConfiguration:
+    def toEntity(model: TenantEmailConfigurationModel) -> TenantEmailConfiguration:
         """Convert database model to domain entity.
         
         Args:
-            model: TenantSMSConfigurationModel from database
+            model: TenantEmailConfigurationModel from database
             
         Returns:
-            TenantSMSConfiguration domain entity
+            TenantEmailConfiguration domain entity
         """
         if model is None:
             return None
         
-        return TenantSMSConfiguration(
+        return TenantEmailConfiguration(
             id=model.id,
             tenantId=model.tenantId,
             providerName=model.providerName,
             config=model.config,
+            priority=model.priority,
             isActive=model.isActive,
             rateLimitPerMinute=model.rateLimitPerMinute,
             rateLimitPerHour=model.rateLimitPerHour,
@@ -34,23 +35,24 @@ class TenantSmsConfigurationMapper:
         )
     
     @staticmethod
-    def toModel(entity: TenantSMSConfiguration) -> TenantSMSConfigurationModel:
+    def toModel(entity: TenantEmailConfiguration) -> TenantEmailConfigurationModel:
         """Convert domain entity to database model.
         
         Args:
-            entity: TenantSMSConfiguration domain entity
+            entity: TenantEmailConfiguration domain entity
             
         Returns:
-            TenantSMSConfigurationModel for database
+            TenantEmailConfigurationModel for database
         """
         if entity is None:
             return None
         
-        return TenantSMSConfigurationModel(
+        return TenantEmailConfigurationModel(
             id=entity.id,
             tenantId=entity.tenantId,
             providerName=entity.providerName,
             config=entity.config,
+            priority=entity.priority,
             isActive=entity.isActive,
             rateLimitPerMinute=entity.rateLimitPerMinute,
             rateLimitPerHour=entity.rateLimitPerHour,
@@ -60,43 +62,44 @@ class TenantSmsConfigurationMapper:
         )
     
     @staticmethod
-    def toListOfEntities(models: list[TenantSMSConfigurationModel]) -> list[TenantSMSConfiguration]:
+    def toListOfEntities(models: list[TenantEmailConfigurationModel]) -> list[TenantEmailConfiguration]:
         """Convert list of database models to list of domain entities.
         
         Args:
-            models: List of TenantSMSConfigurationModel from database
+            models: List of TenantEmailConfigurationModel from database
             
         Returns:
-            List of TenantSMSConfiguration domain entities
+            List of TenantEmailConfiguration domain entities
         """
-        return [TenantSmsConfigurationMapper.toEntity(model) for model in models]
+        return [TenantEmailConfigurationMapper.toEntity(model) for model in models]
     
     @staticmethod
-    def toListOfModels(entities: list[TenantSMSConfiguration]) -> list[TenantSMSConfigurationModel]:
+    def toListOfModels(entities: list[TenantEmailConfiguration]) -> list[TenantEmailConfigurationModel]:
         """Convert list of domain entities to list of database models.
         
         Args:
-            entities: List of TenantSMSConfiguration domain entities
+            entities: List of TenantEmailConfiguration domain entities
             
         Returns:
-            List of TenantSMSConfigurationModel for database
+            List of TenantEmailConfigurationModel for database
         """
-        return [TenantSmsConfigurationMapper.toModel(entity) for entity in entities]
+        return [TenantEmailConfigurationMapper.toModel(entity) for entity in entities]
     
     @staticmethod
-    def updateModelFromEntity(model: TenantSMSConfigurationModel, entity: TenantSMSConfiguration) -> TenantSMSConfigurationModel:
+    def updateModelFromEntity(model: TenantEmailConfigurationModel, entity: TenantEmailConfiguration) -> TenantEmailConfigurationModel:
         """Update existing model with entity data.
         
         Args:
-            model: Existing TenantSMSConfigurationModel
-            entity: TenantSMSConfiguration with updated data
+            model: Existing TenantEmailConfigurationModel
+            entity: TenantEmailConfiguration with updated data
             
         Returns:
-            Updated TenantSMSConfigurationModel
+            Updated TenantEmailConfigurationModel
         """
         model.tenantId = entity.tenantId
         model.providerName = entity.providerName
         model.config = entity.config
+        model.priority = entity.priority
         model.isActive = entity.isActive
         model.rateLimitPerMinute = entity.rateLimitPerMinute
         model.rateLimitPerHour = entity.rateLimitPerHour

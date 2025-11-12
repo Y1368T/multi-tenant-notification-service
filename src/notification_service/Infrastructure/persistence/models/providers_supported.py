@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Boolean, DateTime, JSON
 from sqlalchemy.dialects.postgresql import UUID
-from notification_service.infrastructure.persisitence.models.base import Base
+from notification_service.infrastructure.persistence.models.base import Base
 import uuid
 from datetime import datetime
 from .base import BaseModel

@@ -1,9 +1,9 @@
 """In-app template repository implementation."""
 from sqlalchemy.ext.asyncio import AsyncSession
-from notification_service.infrastructure.persisitence.repositories.generic_repository import GenericRepository
-from notification_service.infrastructure.persisitence.models.in_app.in_app_template import InAppTemplateModel
+from notification_service.infrastructure.persistence.repositories.generic_repository import GenericRepository
+from notification_service.infrastructure.persistence.models.in_app.in_app_template import InAppTemplateModel
 from notification_service.domain.entities.in_app.in_app_template import InAppTemplate
-from notification_service.infrastructure.persisitence.mappers.in_app_template_mapper import InAppTemplateMapper
+from notification_service.infrastructure.persistence.mappers.in_app_template_mapper import InAppTemplateMapper
 
 class InAppTemplateRepository(GenericRepository[InAppTemplateModel, InAppTemplate]):
     """Repository for in-app templates."""

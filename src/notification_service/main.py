@@ -1,15 +1,15 @@
 from contextlib import asynccontextmanager
 import logging
 from qena_shared_lib.application import Builder
-from notification_service.infrastructure.persisitence.db_session.session import Database
+from notification_service.infrastructure.persistence.db_session.session import Database
 from notification_service.infrastructure.messaging.rabbitmq import RabbitMQConsumer
 from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
 from notification_service.application.services import tenant_service
 from notification_service.adapters.inbound.rabbitmq.rabbitmq_consumer import NotificationRabbitMQConsumer
-from notification_service.infrastructure.persisitence.unit_of_work import UnitOfWork
+from notification_service.infrastructure.persistence.unit_of_work import UnitOfWork
 from  notification_service.config.settings import settings
-from notification_service.infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
-from notification_service.infrastructure.persisitence.repositories.tenant_repository import TenantRepository
+from notification_service.infrastructure.persistence.mappers.tenant_mapper import TenantMapper
+from notification_service.infrastructure.persistence.repositories.tenant_repository import TenantRepository
 import asyncio
 import types
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork

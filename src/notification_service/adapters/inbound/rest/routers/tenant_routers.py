@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 from fastapi import Depends, Query
 from notification_service.application.services.tenant_service import TenantService
-from notification_service.infrastructure.persisitence.db_session.session import Database
-from notification_service.infrastructure.persisitence.unit_of_work import UnitOfWork
+from notification_service.infrastructure.persistence.db_session.session import Database
+from notification_service.infrastructure.persistence.unit_of_work import UnitOfWork
 from uuid import UUID, uuid4
 from notification_service.domain.entities.tenant.tenant import Tenant
 from notification_service.adapters.inbound.dto.tenant_request_dto import TenantRequestDTO

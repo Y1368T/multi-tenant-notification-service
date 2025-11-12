@@ -3,12 +3,12 @@ import json
 import logging
 from select import select
 from typing import Callable, Awaitable, Dict, Any, Optional
-from notification_service.infrastructure.persisitence.models.tenant.tenant import TenantModel
+from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
 from sqlalchemy.ext.asyncio import AsyncSession
 import aio_pika
 from aio_pika import Message, DeliveryMode, ExchangeType
 from aio_pika.abc import AbstractRobustConnection, AbstractChannel, AbstractQueue, AbstractIncomingMessage
-from notification_service.infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
+from notification_service.infrastructure.persistence.mappers.tenant_mapper import TenantMapper
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.value_objects.notification_types import NotificationChannel
 from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase

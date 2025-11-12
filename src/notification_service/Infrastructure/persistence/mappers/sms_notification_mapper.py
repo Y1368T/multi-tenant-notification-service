@@ -2,7 +2,7 @@
 from typing import Optional
 from sqlalchemy import inspect
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
-from notification_service.infrastructure.persisitence.models.sms.sms_notification import SMSNotificationModel
+from notification_service.infrastructure.persistence.models.sms.sms_notification import SMSNotificationModel
 
 
 class SmsNotificationMapper:
@@ -22,7 +22,7 @@ class SmsNotificationMapper:
             return None
         
         # Import here to avoid circular dependency
-        from notification_service.infrastructure.persisitence.mappers.sms_template_mapper import SmsTemplateMapper
+        from notification_service.infrastructure.persistence.mappers.sms_template_mapper import SmsTemplateMapper
         
         # Extract template if loaded
         template_entity = None

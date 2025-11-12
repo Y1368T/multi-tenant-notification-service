@@ -1,7 +1,7 @@
 """Mapper for Tenant entity and model."""
 from typing import Optional
 from notification_service.domain.entities.tenant.tenant import Tenant
-from notification_service.infrastructure.persisitence.models.tenant.tenant import TenantModel
+from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
 
 
 class TenantMapper:

@@ -52,20 +52,20 @@ sys.modules['notification_service.infrastructure.cache.redis_cache'] = type(sys)
 sys.modules['notification_service.infrastructure.cache.redis_cache'].RedisCache = None
 
 # Now we can import from the proper package structure
-from notification_service.infrastructure.persisitence.models.base import Base
+from notification_service.infrastructure.persistence.models.base import Base
 
 # Import all model files - they must be imported to register with Base.metadata
-from notification_service.infrastructure.persisitence.models.email.email_notification import EmailNotificationModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.email.email_outbox import EmailOutboxModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.email.email_template import EmailTemplateModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.sms.sms_notification import SMSNotificationModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.sms.sms_outbox import SmsOutboxModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.sms.sms_template import SmsTemplateModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.in_app.in_app_notification import InAppNotificationModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.in_app.in_app_template import InAppTemplateModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.tenant.tenant import TenantModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel  # noqa: F401
-from notification_service.infrastructure.persisitence.models.tenant.tenant_sms_configuration import TenantSMSConfigurationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.email.email_notification import EmailNotificationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.email.email_outbox import EmailOutboxModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.email.email_template import EmailTemplateModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.sms.sms_notification import SMSNotificationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.sms.sms_outbox import SmsOutboxModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.sms.sms_template import SmsTemplateModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.in_app.in_app_notification import InAppNotificationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.in_app.in_app_template import InAppTemplateModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.tenant.tenant_sms_configuration import TenantSMSConfigurationModel  # noqa: F401
 
 # Set sqlalchemy url from settings (use sync URL for Alembic)
 sync_db_url = os.getenv('DATABASE_URL_SYNC') or settings.database_url.replace('+asyncpg', '')

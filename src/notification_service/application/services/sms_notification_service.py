@@ -14,8 +14,8 @@ from notification_service.domain.value_objects.paginated_result import Paginated
 from notification_service.adapters.inbound.dto.sms_notification_response_dto import SMSNotificationResponseDTO
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from sqlalchemy.orm import joinedload, selectinload
-from notification_service.infrastructure.persisitence.models.sms.sms_notification import SMSNotificationModel
-from notification_service.infrastructure.persisitence.models.sms.sms_template import SmsTemplateModel
+from notification_service.infrastructure.persistence.models.sms.sms_notification import SMSNotificationModel
+from notification_service.infrastructure.persistence.models.sms.sms_template import SmsTemplateModel
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
 class SMSNotificationService:
     def __init__(self, uow:IUnitOfWork, processMessageUseCase: ProcessMessageUseCase,messageRouter:IMessageHandler):

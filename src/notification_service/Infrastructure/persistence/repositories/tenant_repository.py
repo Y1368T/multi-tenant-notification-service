@@ -1,11 +1,11 @@
 """Tenant repository implementation."""
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from notification_service.infrastructure.persisitence.repositories.generic_repository import GenericRepository
+from notification_service.infrastructure.persistence.repositories.generic_repository import GenericRepository
 from notification_service.domain.interfaces.custom_repositories.itenant_repository import ITenantRepository
-from notification_service.infrastructure.persisitence.models.tenant.tenant import TenantModel
+from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
 from notification_service.domain.entities.tenant import Tenant
-from notification_service.infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
+from notification_service.infrastructure.persistence.mappers.tenant_mapper import TenantMapper
 
 class TenantRepository(GenericRepository[TenantModel, Tenant], ITenantRepository):
     """Repository for tenants with custom methods."""
