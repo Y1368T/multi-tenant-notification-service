@@ -1,4 +1,4 @@
-from typing import List,Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant import Tenant
 from notification_service.domain.interfaces import IUnitOfWork
@@ -6,12 +6,22 @@ from notification_service.infrastructure.messaging.rabbitmq import RabbitMQConsu
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.adapters.inbound.dto.tenant_request_dto import TenantResponseDTO
-from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    PaginatedRequestDTO,
+    RelatedFilter,
+    FilterOp
+)
+from notification_service.application.services.base_service import BaseService
 
-class TenantService:
-    def __init__(self, uow: IUnitOfWork,rabbitmqConsumer:IMessageConsumer):
-        self.uow = uow
-        self.rabbitmqConsumer=rabbitmqConsumer
+class TenantService(BaseService[Tenant, TenantResponseDTO]):
+    def __init__(self, uow: IUnitOfWork, rabbitmqConsumer: IMessageConsumer):
+        super().__init__(uow, Tenant, TenantResponseDTO)
+        self.rabbitmqConsumer = rabbitmqConsumer
+    
+    def _get_repository(self):
+        """Get tenants repository."""
+        return self.uow.tenants
     
         
         
@@ -36,8 +46,8 @@ class TenantService:
         async with self.uow:
             tenants = await self.uow.tenants.list()
             return tenants
-    async def createTenant(self, tenant: Tenant) -> Tenant:
-        """Create a new tenant.
+    async def create(self, tenant: Tenant) -> Tenant:
+        """Create a new tenant with RabbitMQ queue setup.
         
         Args:
             tenant: Tenant entity to create
@@ -57,29 +67,21 @@ class TenantService:
                     pass
                 
             return createdTenant
+    
+    # Keep old method for backward compatibility during migration
+    async def createTenant(self, tenant: Tenant) -> Tenant:
+        """Create a new tenant (deprecated - use create() instead)."""
+        return await self.create(tenant)
+    # Keep old methods for backward compatibility during migration
     async def updateTenant(self, tenantId: UUID, tenant: Tenant) -> Tenant:
-        """Update an existing tenant.
-        
-        Args:
-            tenantId: Tenant identifier
-            tenant: Tenant entity with updated values
-            
-        Returns:
-            Updated Tenant entity
-        """
-        async with self.uow:
-            updatedTenant = await self.uow.tenants.update(tenant)
-            await self.uow.commit()
-            return updatedTenant
+        """Update an existing tenant (deprecated - use update() instead)."""
+        tenant.id = tenantId
+        return await self.update(tenant)
+    
     async def deleteTenant(self, tenantId: UUID) -> None:
-        """Delete a tenant by its ID.
-        
-        Args:
-            tenantId: Tenant identifier
-        """
-        async with self.uow:
-            await self.uow.tenants.delete(tenantId)
-            await self.uow.commit()
+        """Delete a tenant by its ID (deprecated - use delete() instead)."""
+        await self.delete(tenantId)
+    
     async def getTenantById(self, tenantId: UUID) -> Optional[Tenant]:
         """Retrieve tenant by its ID.
         
@@ -121,43 +123,28 @@ class TenantService:
                                                   and t.isActive)
             return tenants
     
+    # Keep old method for backward compatibility during migration
     async def getAllTenantsAdvanced(
         self,
         req: PaginatedRequest
     ) -> PaginatedResponseDTO[TenantResponseDTO]:
         """
         SQL-only filtering, deep relationship filtering, sorting and multi-field search.
+        (Deprecated - use get() instead)
         """
-        async with self.uow:
-            
-            relatedFiltersTuples = [
-            (rf.relationshipPath, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
-            for rf in (req.relatedFilters or [])
-            ]
-            result = await self.uow.tenants.listAdvancedPaginated(
-                page=req.page,
-                pageSize=req.pageSize,
-                rootFilters=req.filters or {},
-                relatedFilters=relatedFiltersTuples,
-                includes=[],
-                sortBy=req.sortBy,
-                sortDirection=req.sortDirection.value,
-                searchText=req.searchText,
-                searchFields=req.searchFields or []
-            )
-
-            dtoItems = [
-                TenantResponseDTO.fromEntityWithRelations(notification)
-                for notification in result.items
-            ]
-
-            return PaginatedResponseDTO(
-                items=dtoItems,
-                page=result.page,
-                pageSize=result.pageSize,
-                totalCount=result.totalCount,
-                totalPages=result.totalPages,
-                hasNext=result.hasNext,
-                hasPrevious=result.hasPrevious
-            )
+        # Convert PaginatedRequest to PaginatedRequestDTO
+        from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO, SortDirection
+        params = PaginatedRequestDTO(
+            page=req.page,
+            pageSize=req.pageSize,
+            sortBy=req.sortBy,
+            sortDirection=req.sortDirection,
+            search=req.searchText,
+            tenantId=None
+        )
+        # Manually set filters from req.filters
+        if req.filters:
+            if 'status' in req.filters:
+                params.status = req.filters['status']
+        return await self.get(params)
     

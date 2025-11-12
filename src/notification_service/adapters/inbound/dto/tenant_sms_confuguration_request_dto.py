@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from uuid import UUID, uuid4
 from datetime import datetime
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
+from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO
 
 class TenantSMSConfigurationRequestDto(BaseModel):
     tenantId: UUID = Field(alias="tenant_id")
@@ -72,3 +73,8 @@ class TenantSMSConfigurationResponseDTO(BaseModel):
             createdAt=getattr(config, "createdAt", None),
             updatedAt=getattr(config, "updatedAt", None),
         )
+
+
+class TenantSMSConfigurationFilterDTO(PaginatedRequestDTO):
+    """Filter DTO for tenant SMS configuration queries with custom filters."""
+    isActive: Optional[bool] = Field(None, alias="is_active", description="Filter by active status")

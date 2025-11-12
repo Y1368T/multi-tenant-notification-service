@@ -1,9 +1,10 @@
 from pydantic import BaseModel,ConfigDict,Field
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from uuid import uuid4
 from datetime import datetime
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from uuid import UUID
+from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO
 class SMSTemplateRequestDTO(BaseModel):
     templateName: str = Field(alias="template_name")
     tenantId: UUID = Field(alias="tenant_id")
@@ -66,18 +67,8 @@ class SMSTemplateResponseDTO(BaseModel):
             createdAt=template.createdAt,
             updatedAt=template.updatedAt
         )
-class SMSTemplateFilters(BaseModel):
-    tenantId:UUID = Field(alias="tenant_id")
-    templateName:str = Field(alias="template_name")
-    serviceName: str = Field(alias="service_name")
-    
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "tenant_id": "123e4567-e89b-12d3-a456-426614174000",
-                "template_name": "WelcomeTemplate",
-                "service_name": "UserOnboarding"
-            }
-        }
+class SMSTemplateFilterDTO(PaginatedRequestDTO):
+    """Filter DTO for SMS template queries with custom filters."""
+    isActive: Optional[bool] = Field(None,  description="Filter by active status")
+    tenantId: Optional[UUID] = Field(None, description="Filter by tenant ID")
 

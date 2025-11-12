@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Any
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.value_objects.providers import SMSProvider
@@ -7,16 +7,39 @@ from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.adapters.inbound.dto.tenant_sms_confuguration_request_dto import TenantSMSConfigurationResponseDTO
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
+from notification_service.application.services.base_service import BaseService
 
 
-class TenantSMSConfigurationService:
+class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSMSConfigurationResponseDTO]):
 
-
-    def __init__(self, uow:IUnitOfWork, ethio_service:EthioTelecomShortcodeSMSProvider):
+    def __init__(self, uow: IUnitOfWork, ethio_service: EthioTelecomShortcodeSMSProvider):
+        super().__init__(uow, TenantSMSConfiguration, TenantSMSConfigurationResponseDTO)
         self.uow = uow
         self._handlers = {
             SMSProvider.ETHIOTELECOM: ethio_service
         }
+    
+    def _get_repository(self):
+        """Get tenant SMS configurations repository."""
+        return self.uow.tenantSmsConfigurations
+    
+    def _get_default_search_fields(self) -> List[str]:
+        """Get default search fields for tenant SMS configurations."""
+        return ["providerName"]
+    
+    def _build_related_filters(self, params) -> List:
+        """Build related filters for tenant SMS configurations."""
+        # Tenant SMS configurations don't have related filters by default
+        return []
+    
+    def _extract_custom_filters(self, params) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        if hasattr(params, 'providerName') and params.providerName:
+            filters["providerName"] = params.providerName
+        if hasattr(params, 'isActive') and params.isActive is not None:
+            filters["isActive"] = params.isActive
+        return filters
 
     async def getConfigurationByTenantId(self, tenantId: UUID) -> TenantSMSConfiguration:
         """Retrieve SMS configuration for a given tenant.
@@ -30,7 +53,7 @@ class TenantSMSConfigurationService:
         async with self.uow:
             config = await self.uow.tenantSmsConfigurations.find(lambda x:x.tenantId==tenantId)
             return config
-    async def createConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
+    async def create(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
         """Create a new SMS configuration for a tenant.
         
         Args:
@@ -43,40 +66,23 @@ class TenantSMSConfigurationService:
             createdConfig = await self.uow.tenantSmsConfigurations.add(config)
             await self.uow.commit()
             return createdConfig
-        
+    
+    # Keep old methods for backward compatibility
+    async def createConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
+        """Create a new SMS configuration (deprecated - use create() instead)."""
+        return await self.create(config)
+    
+    # Keep old methods for backward compatibility
     async def updateConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
-        """Update an existing SMS configuration for a tenant.
-
-        Args:
-            config: TenantSMSConfiguration entity with updated values
-
-        Returns:
-            Updated TenantSMSConfiguration entity
-        """
-        async with self.uow:
-            updatedConfig = await self.uow.tenantSmsConfigurations.update(config)
-            await self.uow.commit()
-            return updatedConfig
-        
+        """Update an existing SMS configuration (deprecated - use update() instead)."""
+        return await self.update(config)
+    
     async def deleteConfiguration(self, configId: UUID) -> None:
-        """Delete an existing SMS configuration for a tenant.
-
-        Args:
-            configId: TenantSMSConfiguration identifier
-        """
-        async with self.uow:
-            await self.uow.tenantSmsConfigurations.delete(configId)
-            await self.uow.commit()
+        """Delete an existing SMS configuration (deprecated - use delete() instead)."""
+        await self.delete(configId)
             
     async def getConfigurationById(self, configId: UUID) -> Optional[TenantSMSConfiguration]:
-        """Retrieve SMS configuration by its ID.
-        
-        Args:
-            configId: TenantSMSConfiguration identifier
-
-        Returns:
-            TenantSMSConfiguration entity if found, None otherwise
-        """
+        """Retrieve SMS configuration by its ID (custom method)."""
         async with self.uow:
             config = await self.uow.tenantSmsConfigurations.getById(configId)
             return config
@@ -98,42 +104,13 @@ class TenantSMSConfigurationService:
             case _:
                 return False
         return False
+    # Keep old method for backward compatibility
     async def getAllConfigurationsAdvanced(
         self,
         req: PaginatedRequest
     ) -> PaginatedResponseDTO[TenantSMSConfigurationResponseDTO]:
         """
         SQL-only filtering, deep relationship filtering, sorting and multi-field search.
+        (Deprecated - use get() instead)
         """
-        async with self.uow:
-            
-            relatedFiltersTuples = [
-            (rf.relationshipPath, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
-            for rf in (req.relatedFilters or [])
-            ]
-            result = await self.uow.tenantSmsConfigurations.listAdvancedPaginated(
-                page=req.page,
-                pageSize=req.pageSize,
-                rootFilters=req.filters or {},
-                relatedFilters=relatedFiltersTuples,
-                includes=[],
-                sortBy=req.sortBy,
-                sortDirection=req.sortDirection.value,
-                searchText=req.searchText,
-                searchFields=req.searchFields or []
-            )
-
-            dtoItems = [
-                TenantSMSConfigurationResponseDTO.fromEntityWithRelations(config)
-                for config in result.items
-            ]
-
-            return PaginatedResponseDTO(
-                items=dtoItems,
-                page=result.page,
-                pageSize=result.pageSize,
-                totalCount=result.totalCount,
-                totalPages=result.totalPages,
-                hasNext=result.hasNext,
-                hasPrevious=result.hasPrevious
-            )
+        return await self.get(req)

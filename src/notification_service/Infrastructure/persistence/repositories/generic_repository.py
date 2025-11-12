@@ -567,9 +567,16 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
                 stmt = stmt.options(opt)
 
         if rootFilters:
+            import logging
+            repo_logger = logging.getLogger(__name__)
             for key, value in rootFilters.items():
+                repo_logger.info(f"[DEBUG REPO] Processing root filter - key: {key}, value: {value}, value_type: {type(value)}")
                 if hasattr(Model, key):
-                    stmt = stmt.where(getattr(Model, key) == value)
+                    model_attr = getattr(Model, key)
+                    repo_logger.info(f"[DEBUG REPO] Model has attribute '{key}': {model_attr}, applying filter")
+                    stmt = stmt.where(model_attr == value)
+                else:
+                    repo_logger.warning(f"[DEBUG REPO] Model does NOT have attribute '{key}'. Available attributes: {[attr for attr in dir(Model) if not attr.startswith('_')]}")
 
         if relatedFilters:
             for rf in relatedFilters:

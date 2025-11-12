@@ -30,10 +30,17 @@ from notification_service.infrastructure.providers.sms.kifiya_sms_gateway import
 from notification_service.application.services.provider_service import ProviderService
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 from typing import Any, Dict
+from notification_service.shared.exceptions.application_exceptions import (
+    ApplicationException,
+    EntityNotFoundError,
+    ValidationError,
+    ConflictError
+)
 
 def custom_openapi(app: FastAPI) -> Dict[str, Any]:
     """Custom OpenAPI schema generator that fixes anyOf null type issues."""
@@ -121,6 +128,37 @@ def custom_openapi(app: FastAPI) -> Dict[str, Any]:
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
+def register_exception_handlers(app: FastAPI):
+    """Register global exception handlers."""
+    
+    @app.exception_handler(EntityNotFoundError)
+    async def entity_not_found_handler(request: Request, exc: EntityNotFoundError):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": str(exc), "type": "EntityNotFoundError"}
+        )
+    
+    @app.exception_handler(ValidationError)
+    async def validation_error_handler(request: Request, exc: ValidationError):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": str(exc), "type": "ValidationError", "field": exc.field}
+        )
+    
+    @app.exception_handler(ConflictError)
+    async def conflict_error_handler(request: Request, exc: ConflictError):
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": str(exc), "type": "ConflictError"}
+        )
+    
+    @app.exception_handler(ApplicationException)
+    async def application_exception_handler(request: Request, exc: ApplicationException):
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": str(exc), "type": "ApplicationException"}
+        )
+
 def main()->FastAPI:
     builder=(Builder()
     .with_title("Notification Service")
@@ -155,6 +193,9 @@ def main()->FastAPI:
 )
     
     app=builder.build()
+    
+    # Register global exception handlers
+    register_exception_handlers(app)
     
     # Override OpenAPI schema generation to fix version and anyOf issues
     app.openapi = lambda: custom_openapi(app)

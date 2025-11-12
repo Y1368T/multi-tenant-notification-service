@@ -13,7 +13,7 @@ class PaginatedRequestDTO(BaseModel):
     sortBy: Optional[str] = Field(None, alias="sort_by", description="Sort by field")
     sortDirection: SortDirection = Field(SortDirection.DESC, alias="sort_direction")
     search: Optional[str] = Field(None, max_length=256, description="Search text")
-    tenantId: Optional[str] = Field(None, alias="tenant_id", description="Filter by tenant ID")
+    id: Optional[str] = Field(None, description="Filter by entity ID (for single entity retrieval)")
     
     model_config = ConfigDict(populate_by_name=True)
 

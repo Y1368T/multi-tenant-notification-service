@@ -15,7 +15,7 @@ class PaginatedResult(Generic[TEntity]):
     hasNext: bool
     hasPrevious: bool
     
-class PaginatedResponseDTO(Generic[TEntity], BaseModel):
+class PaginatedResponseDTO(BaseModel, Generic[TEntity]):
     """Generic paginated response DTO."""
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)

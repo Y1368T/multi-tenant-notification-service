@@ -1,5 +1,5 @@
 from uuid import UUID
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
 from notification_service.domain.value_objects.providers import SMSProvider
@@ -13,15 +13,54 @@ from notification_service.domain.value_objects.notification_status import Notifi
 from notification_service.domain.value_objects.paginated_result import PaginatedResult
 from notification_service.adapters.inbound.dto.sms_notification_response_dto import SMSNotificationResponseDTO
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
-from sqlalchemy.orm import joinedload, selectinload
-from notification_service.infrastructure.persistence.models.sms.sms_notification import SMSNotificationModel
-from notification_service.infrastructure.persistence.models.sms.sms_template import SmsTemplateModel
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
-class SMSNotificationService:
-    def __init__(self, uow:IUnitOfWork, processMessageUseCase: ProcessMessageUseCase,messageRouter:IMessageHandler):
+from notification_service.application.services.base_service import BaseService
+from notification_service.adapters.inbound.dto.paginated_request_dto import RelatedFilter, FilterOp
+        
+class SMSNotificationService(BaseService[SMSNotification, SMSNotificationResponseDTO]):
+    def __init__(self, uow: IUnitOfWork, processMessageUseCase: ProcessMessageUseCase, messageRouter: IMessageHandler):
+        super().__init__(uow, SMSNotification, SMSNotificationResponseDTO)
         self.uow = uow
         self.processMessageUseCase = processMessageUseCase
-        self.messageRouter=messageRouter
+        self.messageRouter = messageRouter
+    
+    def _get_repository(self):
+        """Get SMS notifications repository."""
+        return self.uow.smsNotifications
+    
+    def _get_default_search_fields(self) -> Optional[List[str]]:
+        """Get default search fields for SMS notifications."""
+        return [
+            "recipientNumber",
+            "template.templateName",
+            "template.tenant.name",
+            "template.tenant.prefix"
+        ]
+    
+    def _build_related_filters(self, params) -> List:
+        """Build related filters for SMS notifications."""
+        related_filters: List[RelatedFilter] = []
+        if hasattr(params, 'tenantId') and params.tenantId:
+            related_filters.append(
+                RelatedFilter(
+                    relationshipPath="template",
+                    field="tenantId",
+                    op=FilterOp.EQ,
+                    value=UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
+                )
+            )
+        return related_filters
+    
+    def _extract_custom_filters(self, params) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        if hasattr(params, 'status') and params.status:
+            filters["status"] = params.status
+        return filters
+    
+    def _get_includes(self) -> List[str]:
+        """Get relationship paths to eager load for SMS notifications."""
+        return ["template", "template.tenant"]
 
 
     async def prepareAndSendSms(
@@ -58,44 +97,40 @@ class SMSNotificationService:
             )
             return response
     
+    async def getNotificationStatus(self, notification_id: UUID) -> str:
+        """Get notification status by ID."""
+        async with self.uow:
+            notification = await self.uow.smsNotifications.getById(notification_id)
+            if not notification:
+                from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
+                raise EntityNotFoundError("SMSNotification", str(notification_id))
+            return notification.status
+    
+    async def updateNotificationStatus(self, notification_id: UUID, status: str) -> SMSNotification:
+        """Update notification status."""
+        async with self.uow:
+            notification = await self.uow.smsNotifications.getById(notification_id)
+            if not notification:
+                from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
+                raise EntityNotFoundError("SMSNotification", str(notification_id))
+            notification.status = status
+            updated = await self.uow.smsNotifications.update(notification)
+            await self.uow.commit()
+            return updated
+    
+    async def deleteNotification(self, notification_id: UUID):
+        """Delete notification by ID."""
+        await self.delete(notification_id)
+    
+    # Keep old method for backward compatibility
     async def getAllNotificationsAdvanced(
         self,
         req: PaginatedRequest
     ) -> PaginatedResponseDTO[SMSNotificationResponseDTO]:
         """
         SQL-only filtering, deep relationship filtering, sorting and multi-field search.
+        (Deprecated - use get() instead)
         """
-        async with self.uow:
-            
-            relatedFiltersTuples = [
-            (rf.relationshipPath, rf.field, rf.op.value if hasattr(rf.op, 'value') else str(rf.op), rf.value)
-            for rf in (req.relatedFilters or [])
-            ]
-            result = await self.uow.smsNotifications.listAdvancedPaginated(
-                page=req.page,
-                pageSize=req.pageSize,
-                rootFilters=req.filters or {},
-                relatedFilters=relatedFiltersTuples,
-                includes=[],
-                sortBy=req.sortBy,
-                sortDirection=req.sortDirection.value,
-                searchText=req.searchText,
-                searchFields=req.searchFields or []
-            )
-
-            dtoItems = [
-                SMSNotificationResponseDTO.fromEntityWithRelations(notification)
-                for notification in result.items
-            ]
-
-            return PaginatedResponseDTO(
-                items=dtoItems,
-                page=result.page,
-                pageSize=result.pageSize,
-                totalCount=result.totalCount,
-                totalPages=result.totalPages,
-                hasNext=result.hasNext,
-                hasPrevious=result.hasPrevious
-            )
+        return await self.get(req)
     
     
