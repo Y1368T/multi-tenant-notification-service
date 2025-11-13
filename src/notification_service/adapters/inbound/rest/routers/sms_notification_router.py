@@ -12,7 +12,7 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
 from notification_service.adapters.inbound.dto.sms_notification_response_dto import SMSNotificationResponseDTO
 from notification_service.adapters.inbound.dto.sms_notification_request_dto import SMSNotificationFilterDTO
 from notification_service.adapters.inbound.rest.routers.base_crud_router import BaseCRUDRouter
-from notification_service.shared.exceptions.application_exceptions import ApplicationException
+from notification_service.shared.exceptions.application_exceptions import ApplicationException, ValidationError
 from uuid import UUID
 from typing import Optional, List, Dict, Any
 from fastapi import Depends, Query
@@ -21,18 +21,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 @api_controller(prefix="/sms-notifications", tags=["SMS Notifications"])
-class SMSNotificationController(BaseCRUDRouter[SMSNotification, SMSNotificationFilterDTO, SMSNotificationResponseDTO, SMSNotificationService]):
+class SMSNotificationController(ControllerBase):
     
     def __init__(self, smsNotificationService: SMSNotificationService = Depends()):
-        super().__init__(
-            service=smsNotificationService,
-            prefix="/sms-notifications",
-            tags=["SMS Notifications"],
-            request_dto_class=SMSNotificationFilterDTO,
-            response_dto_class=SMSNotificationResponseDTO,
-            entity_class=SMSNotification,
-            create_dto_class=None  # SMS notifications are created via send endpoint, not standard create
-        )
+        
         self.smsNotificationService = smsNotificationService
         
     def _extract_custom_filters(self, params: SMSNotificationFilterDTO) -> Dict[str, Any]:
@@ -77,8 +69,8 @@ class SMSNotificationController(BaseCRUDRouter[SMSNotification, SMSNotificationF
             relatedFilters=related_filters
         )
         return paginated_request
-    @get("/get")
-    async def get(self, params: SMSNotificationFilterDTO = Depends()):
+    @get("/get", response_model=PaginatedResponseDTO[SMSNotificationResponseDTO])
+    async def get(self, params: SMSNotificationFilterDTO = Depends()) -> PaginatedResponseDTO[SMSNotificationResponseDTO]:
         """Get SMS notifications by filters."""
         try:
             paginated_request = self._build_paginated_request(params)
@@ -86,6 +78,8 @@ class SMSNotificationController(BaseCRUDRouter[SMSNotification, SMSNotificationF
             return result
         except ApplicationException as e:
             raise self._handle_error(e)
+    
+   
     
     # Custom endpoints (not standard CRUD)
     @post("/send")

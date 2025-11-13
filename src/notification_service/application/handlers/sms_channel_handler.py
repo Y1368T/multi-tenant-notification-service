@@ -4,7 +4,7 @@ from notification_service.domain.interfaces.ichannel_handler import IChannelHand
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
-from notification_service.infrastructure.providers.sms.ethiotelecom_shortcode  import EthioTelecomShortcodeSMSProvider
+from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.infrastructure.providers.sms.kifiya_sms_gateway  import KifiyaSMSGateway
 from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.value_objects.notification_response import NotificationResponse
@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 class SMSChannelHandler(IChannelHandler):
     """Concrete implementation of IChannelHandler for SMS channel"""
 
-    def __init__(self, unitofWork: IUnitOfWork, ethio_service: EthioTelecomShortcodeSMSProvider,kifiya_service:KifiyaSMSGateway):
+    def __init__(self, unitofWork: IUnitOfWork, afro_service: AfromessageSMSProvider, kifiya_service: KifiyaSMSGateway):
         self.unitofWork = unitofWork
         self.__handlers = {
-            SMSProvider.ETHIOTELECOM: ethio_service,
+            SMSProvider.AFROMESSAGE: afro_service,
             SMSProvider.KIFIYA: kifiya_service
         }
         logger.info('SMSChannelHandler initialized')
@@ -32,17 +32,25 @@ class SMSChannelHandler(IChannelHandler):
         async with self.unitofWork:
             tenantdb= await self.unitofWork.tenants.firstOrDefault(lambda t: t.prefix == tenantPrefix)
             if not tenantdb:
-                logger.error(f"Tenant with prefix {tenantPrefix} not found")
+                logger.error(f"Tenant with prefix {tenantPrefix} not found")  # pyright: ignore[reportUnreachable]
                 return NotificationResponse(success=False, error_message=f"Tenant with prefix {tenantPrefix} not found")
-            if message.idempotencyKey is None:
-                logger.warning(f"Message for tenant {tenantPrefix} is missing idempotency key. Generating a new one.")
-                return NotificationResponse(success=False, error_message="Idempotency key is required")
-            checkIdempotency=await self.unitofWork.smsNotifications.firstOrDefault(lambda n: n.idempotencyKey == message.idempotencyKey and n.tenantId==tenantdb.id)
+            template = await self.unitofWork.smsTemplates.firstOrDefault(
+                lambda t: t.tenantId == tenantdb.id 
+                and t.templateName == message.templateName 
+                and t.serviceName == message.serviceName
+            )
+            if not template:
+                logger.error(f"Template {message.templateName} not found for tenant {tenantdb.id}")
+                return NotificationResponse(success=False, errorMessage=f"Template {message.templateName} not found for tenant {tenantdb.id}")
+            checkIdempotency=await self.unitofWork.smsNotifications.firstOrDefault(
+                lambda n: n.idempotencyKey == message.idempotencyKey 
+                and n.templateId==template.id
+            )
             
             if checkIdempotency:
-                logger.info(f"Duplicate message detected for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
+                logger.error(f"Duplicate message detected for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
                 return NotificationResponse(success=True, message="Duplicate message ignored")
-            elif checkIdempotency is None:
+            else:
                 logger.info(f"Processing new message for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
                 checkOutboxIdempotency=await self.unitofWork.smsOutbox.firstOrDefault(lambda n: n.idempotencyKey == message.idempotencyKey and n.tenantId==tenantdb.id and n.status!=NotificationStatus.FAILED)
                 if checkOutboxIdempotency:
@@ -98,21 +106,21 @@ class SMSChannelHandler(IChannelHandler):
         logger.info(f"Routing SMS notification for tenant {tenant.name} to provider")
         config=configs[0]
         match config.providerName.lower():
-            case SMSProvider.ETHIOTELECOM.value:
-                # Implementation for routing to EThioTelecom
+            case SMSProvider.AFROMESSAGE.value:
+                # Implementation for routing to Afromessage
                 # replace the message payload in the template with actual values from request. and give me example
                 # e.g., Hello {name}, your code is {code} -> Hello John, your code is 1234 and the payload is {'name': 'John', 'code': '1234'}
                 
-                message_body= template_text.format(**request.payload)
-                response= await self.__handlers[SMSProvider.ETHIOTELECOM].send(request, config, message_body,template_id)
+                message_body= templateText.format(**request.payload)
+                response= await self.__handlers[SMSProvider.AFROMESSAGE].send(request, config, message_body,templateId)
                 return response
             case SMSProvider.KIFIYA.value:
-                # Implementation for routing to EThioTelecom
+                # Implementation for routing to Kifiya
                 # replace the message payload in the template with actual values from request. and give me example
                 # e.g., Hello {name}, your code is {code} -> Hello John, your code is 1234 and the payload is {'name': 'John', 'code': '1234'}
                 
-                message_body= template_text.format(**request.payload)
-                response= await self.__handlers[SMSProvider.KIFIYA].send(request, config, message_body,template_id)
+                message_body= templateText.format(**request.payload)
+                response= await self.__handlers[SMSProvider.KIFIYA].send(request, config, message_body,templateId)
                 return response
             case _:
                 logger.error(f"Unsupported SMS provider: {config.providerName}")

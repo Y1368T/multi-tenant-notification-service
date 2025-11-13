@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from typing import Generic, TypeVar, Type, Dict, Any, Optional
 from uuid import UUID
 
@@ -18,17 +19,19 @@ from notification_service.shared.exceptions.application_exceptions import (
     ValidationError,
     ConflictError
 )
-
+from pydantic import BaseModel
 TEntity = TypeVar('TEntity')
 TRequestDTO = TypeVar('TRequestDTO', bound=PaginatedRequestDTO)
 TResponseDTO = TypeVar('TResponseDTO')
 TService = TypeVar('TService')
+TCreateDTO = TypeVar('TCreateDTO', bound=BaseModel)
 
+TUpdateDTO = TypeVar('TUpdateDTO', bound=BaseModel)
 
-class BaseCRUDRouter(ControllerBase, Generic[TEntity, TRequestDTO, TResponseDTO, TService]):
+class BaseCRUDRouter(ControllerBase, ABC, Generic[TEntity, TRequestDTO, TResponseDTO, TService, TCreateDTO, TUpdateDTO]):
     """
-    Base CRUD router providing standard REST endpoints.
-    Entity routers should inherit from this and configure it.
+    Abstract base CRUD router providing standard REST endpoints.
+    Entity routers must inherit from this and implement abstract methods.
     """
     
     def __init__(
@@ -39,7 +42,8 @@ class BaseCRUDRouter(ControllerBase, Generic[TEntity, TRequestDTO, TResponseDTO,
         request_dto_class: Type[TRequestDTO],
         response_dto_class: Type[TResponseDTO],
         entity_class: Type[TEntity],
-        create_dto_class: Optional[Type] = None
+        create_dto_class: Optional[Type[TCreateDTO]] = None,
+        update_dto_class: Optional[Type[TUpdateDTO]] = None
     ):
         """
         Initialize base CRUD router.
@@ -61,18 +65,19 @@ class BaseCRUDRouter(ControllerBase, Generic[TEntity, TRequestDTO, TResponseDTO,
         self.response_dto_class = response_dto_class
         self.entity_class = entity_class
     
-    def _extract_custom_filters(self, params: Any) -> Dict[str, Any]:
+    @abstractmethod
+    def _extract_custom_filters(self, params: TRequestDTO) -> Dict[str, Any]:
         """
         Extract custom filters from request DTO.
-        Override in entity routers to extract entity-specific filters.
+        Must be implemented by entity routers to extract entity-specific filters.
         
         Args:
-            params: Request DTO
+            params: Request DTO (filter DTO)
             
         Returns:
             Dictionary of custom filters
         """
-        return {}
+        pass
     
     def _handle_error(self, error: Exception) -> HTTPException:
         """
@@ -108,55 +113,11 @@ class BaseCRUDRouter(ControllerBase, Generic[TEntity, TRequestDTO, TResponseDTO,
             # Re-raise unknown exceptions
             raise error
     
-    @post("/create",response_model=TResponseDTO)
-    async def create(self, request_dto: Any)->TResponseDTO:
-        """
-        Create a new entity.
-        POST /entity
-        """
-        try:
-            # Convert DTO to entity (assuming DTO has toEntity method)
-            if hasattr(request_dto, 'toEntity'):
-                entity = request_dto.toEntity()
-            else:
-                raise ValidationError("Request DTO must have toEntity() method")
-            
-            # Call service
-            created_entity = await self.service.create(entity)
-            
-            # Convert entity to response DTO
-            if hasattr(self.response_dto_class, 'fromEntityWithRelations'):
-                return self.response_dto_class.fromEntityWithRelations(created_entity)
-            else:
-                return created_entity
-        except ApplicationException as e:
-            raise self._handle_error(e)
-    
-    @get("/get", response_model=PaginatedResponseDTO[TResponseDTO])
-    async def get(self, params: PaginatedRequestDTO = Depends())->PaginatedResponseDTO[TResponseDTO]:
-        """
-        Unified get endpoint supporting single entity (by id) or filtered list.
-        GET /entity?id={uuid}  → single entity (paginated with 1 item)
-        GET /entity?status=active  → filtered list (paginated)
-        
-        Note: Child classes should override this method to build PaginatedRequest with
-        searchFields, relatedFilters, and filters.
-        """
-        try:
-            # Build PaginatedRequest - child classes should override this method
-            # to provide searchFields, relatedFilters, and filters
-            paginated_request = self._build_paginated_request(params)
-            
-            # Call service with PaginatedRequest
-            result = await self.service.get(paginated_request)
-            return result
-        except ApplicationException as e:
-            raise self._handle_error(e)
-    
-    def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
+    @abstractmethod
+    def _build_paginated_request(self, params: TRequestDTO) -> PaginatedRequest:
         """
         Build PaginatedRequest from PaginatedRequestDTO.
-        Override this method in child classes to provide:
+        Must be implemented by entity routers to provide:
         - searchFields: List of fields to search
         - relatedFilters: List of RelatedFilter objects
         - filters: Dictionary of root filters (including custom filters)
@@ -167,92 +128,61 @@ class BaseCRUDRouter(ControllerBase, Generic[TEntity, TRequestDTO, TResponseDTO,
         Returns:
             PaginatedRequest object with all filters, search fields, and related filters
         """
-        # Build root filters
-        root_filters = {}
-        if hasattr(params, 'id') and params.id:
-            # Convert string UUID to UUID if needed
-            try:
-                from uuid import UUID
-                if isinstance(params.id, str):
-                    root_filters['id'] = UUID(params.id)
-                else:
-                    root_filters['id'] = params.id
-            except (ValueError, AttributeError):
-                root_filters['id'] = params.id
-        
-        if hasattr(params, 'tenantId') and params.tenantId:
-            root_filters['tenantId'] = params.tenantId
-        
-        # Extract custom filters (override in child classes)
-        custom_filters = self._extract_custom_filters(params)
-        root_filters.update(custom_filters)
-        
-        # Build PaginatedRequest with default values
-        # Child classes should override this method to provide searchFields and relatedFilters
-        return PaginatedRequest(
-            page=params.page,
-            pageSize=params.pageSize,
-            sortBy=params.sortBy or "createdAt",
-            sortDirection=params.sortDirection,
-            searchText=params.search,
-            searchFields=None,  # Override in child classes
-            filters=root_filters,
-            relatedFilters=[]  # Override in child classes
-        )
+        pass
     
+    @abstractmethod
+    @post("/create", response_model=TResponseDTO)
+    async def create(self, request_dto: TCreateDTO) -> TResponseDTO:
+        """
+        Create a new entity.
+        POST /entity/create
+        
+        Must be implemented by entity routers with concrete DTO types for proper Swagger documentation.
+        """
+        pass
+    
+    @abstractmethod
+    @get("/get", response_model=PaginatedResponseDTO[TResponseDTO])
+    async def get(self, params: TRequestDTO = Depends()) -> PaginatedResponseDTO[TResponseDTO]:
+        """
+        Unified get endpoint supporting single entity (by id) or filtered list.
+        GET /entity/get?id={uuid}  → single entity (paginated with 1 item)
+        GET /entity/get?status=active  → filtered list (paginated)
+        
+        Must be implemented by entity routers with concrete DTO types for proper Swagger documentation.
+        """
+        pass
+    
+    @abstractmethod
     @put("/{id}", response_model=TResponseDTO)
-    async def update(self, id: UUID, request_dto: Any)->TResponseDTO:
+    async def update(self, id: UUID, request_dto: TUpdateDTO) -> TResponseDTO:
         """
         Full update of an entity.
         PUT /entity/{id}
+        
+        Must be implemented by entity routers with concrete DTO types for proper Swagger documentation.
         """
-        try:
-            # Convert DTO to entity
-            if hasattr(request_dto, 'toEntity'):
-                entity = request_dto.toEntity()
-                # Ensure entity has the correct ID
-                entity.id = id
-            else:
-                raise ValidationError("Request DTO must have toEntity() method")
-            
-            # Call service
-            updated_entity = await self.service.update(entity)
-            
-            # Convert to response DTO
-            if hasattr(self.response_dto_class, 'fromEntityWithRelations'):
-                return self.response_dto_class.fromEntityWithRelations(updated_entity)
-            else:
-                return updated_entity
-        except ApplicationException as e:
-            raise self._handle_error(e)
+        pass
     
+    @abstractmethod
     @patch("/{id}", response_model=TResponseDTO)
-    async def partial_update(self, id: UUID, updates: Dict[str, Any])->TResponseDTO:
+    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> TResponseDTO:
         """
         Partial update of an entity.
         PATCH /entity/{id}
+        
+        Must be implemented by entity routers.
         """
-        try:
-            # Call service
-            updated_entity = await self.service.partial_update(id, updates)
-            
-            # Convert to response DTO
-            if hasattr(self.response_dto_class, 'fromEntityWithRelations'):
-                return self.response_dto_class.fromEntityWithRelations(updated_entity)
-            else:
-                return updated_entity
-        except ApplicationException as e:
-            raise self._handle_error(e)
+        pass
     
+    @abstractmethod
     @delete("/{id}", response_model=Dict[str, str])
-    async def delete(self, id: UUID)->Dict[str, str]:
+    async def delete(self, id: UUID) -> Dict[str, str]:
         """
         Delete an entity.
         DELETE /entity/{id}
+        
+        Must be implemented by entity routers.
         """
-        try:
-            await self.service.delete(id)
-            return {"message": f"{self.entity_class.__name__} deleted successfully"}
-        except ApplicationException as e:
-            raise self._handle_error(e)
+        pass
 

@@ -1,2 +1,2 @@
-from .ethiotelecom_shortcode import EthioTelecomShortcodeSMSProvider
-__all__ = ["EthioTelecomShortcodeSMSProvider"]
+from .afromessage_provider import AfromessageSMSProvider
+__all__ = ["AfromessageSMSProvider"]

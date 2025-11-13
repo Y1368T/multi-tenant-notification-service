@@ -40,30 +40,32 @@ class ProviderSupportedDTO(BaseModel):
         serialize_by_alias=False,
         json_schema_extra={
             "example": {
-                "provider_name": "ethiotelecom_shortcode",
-                "display_name": "EthioTelecom Shortcode",
+                "provider_name": "afromessage",
+                "display_name": "Afromessage",
                 "channel": "sms",
                 "is_active": True,
-                "description": "Send SMS via EthioTelecom shortcode.",
-                "docs_url": "https://example.com/docs/ethiotelecom",
-                "test_endpoint": "/api/providers/sms/ethiotelecom_shortcode/test",
+                "description": "Send SMS via Afromessage API.",
+                "docs_url": "https://example.com/docs/afromessage",
+                "test_endpoint": "/api/providers/sms/afromessage/test",
                 "config_schema": {
-                    "title": "EthioTelecom Shortcode Configuration",
+                    "title": "Afromessage Configuration",
                     "type": "object",
-                    "required": ["apiKey", "shortCode", "senderName", "apiUrl"],
+                    "required": ["baseUrl", "apiKey", "sender", "from"],
                     "properties": {
+                        "baseUrl": {"type": "string", "title": "Base URL", "format": "uri", "default": "https://api.afromessage.com/api"},
                         "apiKey": {"type": "string", "title": "API Key", "minLength": 1},
-                        "shortCode": {"type": "string", "title": "Short Code", "minLength": 3},
-                        "senderName": {"type": "string", "title": "Sender Name", "minLength": 1},
-                        "apiUrl": {"type": "string", "title": "API URL", "format": "uri"}
+                        "sender": {"type": "string", "title": "Sender Name", "minLength": 1},
+                        "from": {"type": "string", "title": "From ID", "minLength": 1},
+                        "callbackUrl": {"type": "string", "title": "Callback URL", "format": "uri"}
                     }
                 },
                 "ui_schema": {
-                    "apiKey": {"ui:widget": "password","ui:help": "Enter your API key here.", "ui:placeholder": "API Key"},
-                    "shortCode": {"ui:placeholder": "Short Code","ui:help": "Enter the shortcode provided by EthioTelecom.","ui:widget": "text"},
-                    "senderName": {"ui:placeholder": "Sender Name","ui:help": "EthioTelecom","ui:widget": "text"},
-                    "apiUrl": {"ui:widget": "uri"},
-                    "ui:order": ["apiKey", "shortCode", "senderName", "apiUrl"]
+                    "baseUrl": {"ui:widget": "uri", "ui:help": "Enter the Afromessage API base URL.", "ui:placeholder": "https://api.afromessage.com/api"},
+                    "apiKey": {"ui:widget": "password", "ui:help": "Enter your Afromessage API key here.", "ui:placeholder": "API Key"},
+                    "sender": {"ui:placeholder": "Sender Name", "ui:help": "Enter the sender name for SMS.", "ui:widget": "text"},
+                    "from": {"ui:placeholder": "From ID", "ui:help": "Enter the from ID provided by Afromessage.", "ui:widget": "text"},
+                    "callbackUrl": {"ui:widget": "uri", "ui:help": "Optional callback URL for delivery status.", "ui:placeholder": "https://your-domain.com/callback"},
+                    "ui:order": ["baseUrl", "apiKey", "sender", "from", "callbackUrl"]
                 }
             }
         }

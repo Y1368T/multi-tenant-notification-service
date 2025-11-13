@@ -2,37 +2,32 @@ from typing import Optional, Dict, List, Any
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.value_objects.providers import SMSProvider
-from notification_service.infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomShortcodeSMSProvider
+from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.adapters.inbound.dto.tenant_sms_confuguration_request_dto import TenantSMSConfigurationResponseDTO
-from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    PaginatedRequestDTO,
+    RelatedFilter
+)
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.application.services.base_service import BaseService
 
 
 class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSMSConfigurationResponseDTO]):
 
-    def __init__(self, uow: IUnitOfWork, ethio_service: EthioTelecomShortcodeSMSProvider):
+    def __init__(self, uow: IUnitOfWork, afro_service: AfromessageSMSProvider):
         super().__init__(uow, TenantSMSConfiguration, TenantSMSConfigurationResponseDTO)
         self.uow = uow
         self._handlers = {
-            SMSProvider.ETHIOTELECOM: ethio_service
+            SMSProvider.AFROMESSAGE: afro_service
         }
     
     def _get_repository(self):
         """Get tenant SMS configurations repository."""
         return self.uow.tenantSmsConfigurations
     
-    def _get_default_search_fields(self) -> List[str]:
-        """Get default search fields for tenant SMS configurations."""
-        return ["providerName"]
-    
-    def _build_related_filters(self, params) -> List:
-        """Build related filters for tenant SMS configurations."""
-        # Tenant SMS configurations don't have related filters by default
-        return []
-    
-    def _extract_custom_filters(self, params) -> Dict[str, Any]:
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
         """Extract custom filters from request DTO."""
         filters = {}
         if hasattr(params, 'providerName') and params.providerName:
@@ -40,6 +35,11 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
         if hasattr(params, 'isActive') and params.isActive is not None:
             filters["isActive"] = params.isActive
         return filters
+    
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
+        """Build related filters for tenant SMS configurations."""
+        # Tenant SMS configurations don't have related filters by default
+        return []
 
     async def getConfigurationByTenantId(self, tenantId: UUID) -> TenantSMSConfiguration:
         """Retrieve SMS configuration for a given tenant.
@@ -53,20 +53,6 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
         async with self.uow:
             config = await self.uow.tenantSmsConfigurations.find(lambda x:x.tenantId==tenantId)
             return config
-    async def create(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
-        """Create a new SMS configuration for a tenant.
-        
-        Args:
-            config: TenantSMSConfiguration entity to create
-
-        Returns:
-            Created TenantSMSConfiguration entity
-        """
-        async with self.uow:
-            createdConfig = await self.uow.tenantSmsConfigurations.add(config)
-            await self.uow.commit()
-            return createdConfig
-    
     # Keep old methods for backward compatibility
     async def createConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
         """Create a new SMS configuration (deprecated - use create() instead)."""
@@ -96,11 +82,9 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
         # Placeholder implementation for circuit breaker logic
         
         match provider:
-            case SMSProvider.ETHIOTELECOM:
-                # Implement EthioTelecom-specific circuit breaker logic
-               return self._handlers[provider].circuit_breaker_check(config)
             case SMSProvider.AFROMESSAGE:
-               return self._handlers[provider].circuit_breaker_check(config)
+                # Implement Afromessage-specific circuit breaker logic
+                return await self._handlers[provider].circuit_breaker_check(config)
             case _:
                 return False
         return False

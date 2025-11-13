@@ -8,14 +8,14 @@ from notification_service.adapters.inbound.dto.tenant_sms_confuguration_request_
 )
 from notification_service.adapters.inbound.rest.routers.base_crud_router import BaseCRUDRouter
 from notification_service.domain.value_objects.paginated_result import PaginatedResponseDTO
-from notification_service.shared.exceptions.application_exceptions import ApplicationException
+from notification_service.shared.exceptions.application_exceptions import ApplicationException, ValidationError
 from qena_shared_lib.http import api_controller, get, post, put, patch, delete
 from fastapi import Depends
 from uuid import UUID
 from typing import Dict, Any, List
 
 @api_controller(prefix="/tenant-sms-configurations", tags=["Tenant SMS Configurations"])
-class TenantSMSConfigurationController(BaseCRUDRouter[TenantSMSConfiguration, TenantSMSConfigurationFilterDTO, TenantSMSConfigurationResponseDTO, TenantSMSConfigurationService]):
+class TenantSMSConfigurationController(BaseCRUDRouter[TenantSMSConfiguration, TenantSMSConfigurationFilterDTO, TenantSMSConfigurationResponseDTO, TenantSMSConfigurationService, TenantSMSConfigurationRequestDto, TenantSMSConfigurationRequestDto]):
     
     def __init__(self, tenantSmsConfigurationService: TenantSMSConfigurationService = Depends()):
         super().__init__(
@@ -25,7 +25,8 @@ class TenantSMSConfigurationController(BaseCRUDRouter[TenantSMSConfiguration, Te
             request_dto_class=TenantSMSConfigurationFilterDTO,
             response_dto_class=TenantSMSConfigurationResponseDTO,
             entity_class=TenantSMSConfiguration,
-            create_dto_class=TenantSMSConfigurationRequestDto
+            create_dto_class=TenantSMSConfigurationRequestDto,
+            update_dto_class=TenantSMSConfigurationRequestDto
         )
         self.tenantSmsConfigurationService = tenantSmsConfigurationService
     
@@ -89,6 +90,85 @@ class TenantSMSConfigurationController(BaseCRUDRouter[TenantSMSConfiguration, Te
             paginated_request = self._build_paginated_request(params)
             result = await self.service.get(paginated_request)
             return result
+        except ApplicationException as e:
+            raise self._handle_error(e)
+    
+    @post("/create", response_model=TenantSMSConfigurationResponseDTO)
+    async def create(self, request_dto: TenantSMSConfigurationRequestDto) -> TenantSMSConfigurationResponseDTO:
+        """
+        Create a new tenant SMS configuration.
+        POST /tenant-sms-configurations/create
+        """
+        try:
+            # Convert DTO to entity
+            if hasattr(request_dto, 'toEntity'):
+                entity = request_dto.toEntity()
+            else:
+                raise ValidationError("Request DTO must have toEntity() method")
+            
+            # Call service
+            created_entity = await self.service.create(entity)
+            
+            # Convert entity to response DTO
+            if hasattr(TenantSMSConfigurationResponseDTO, 'fromEntityWithRelations'):
+                return TenantSMSConfigurationResponseDTO.fromEntityWithRelations(created_entity)
+            else:
+                return created_entity
+        except ApplicationException as e:
+            raise self._handle_error(e)
+    
+    @put("/{id}", response_model=TenantSMSConfigurationResponseDTO)
+    async def update(self, id: UUID, request_dto: TenantSMSConfigurationRequestDto) -> TenantSMSConfigurationResponseDTO:
+        """
+        Full update of a tenant SMS configuration.
+        PUT /tenant-sms-configurations/{id}
+        """
+        try:
+            # Convert DTO to entity
+            if hasattr(request_dto, 'toEntity'):
+                entity = request_dto.toEntity()
+                entity.id = id
+            else:
+                raise ValidationError("Request DTO must have toEntity() method")
+            
+            # Call service
+            updated_entity = await self.service.update(entity)
+            
+            # Convert to response DTO
+            if hasattr(TenantSMSConfigurationResponseDTO, 'fromEntityWithRelations'):
+                return TenantSMSConfigurationResponseDTO.fromEntityWithRelations(updated_entity)
+            else:
+                return updated_entity
+        except ApplicationException as e:
+            raise self._handle_error(e)
+    
+    @patch("/{id}", response_model=TenantSMSConfigurationResponseDTO)
+    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> TenantSMSConfigurationResponseDTO:
+        """
+        Partial update of a tenant SMS configuration.
+        PATCH /tenant-sms-configurations/{id}
+        """
+        try:
+            # Call service
+            updated_entity = await self.service.partial_update(id, updates)
+            
+            # Convert to response DTO
+            if hasattr(TenantSMSConfigurationResponseDTO, 'fromEntityWithRelations'):
+                return TenantSMSConfigurationResponseDTO.fromEntityWithRelations(updated_entity)
+            else:
+                return updated_entity
+        except ApplicationException as e:
+            raise self._handle_error(e)
+    
+    @delete("/{id}", response_model=Dict[str, str])
+    async def delete(self, id: UUID) -> Dict[str, str]:
+        """
+        Delete a tenant SMS configuration.
+        DELETE /tenant-sms-configurations/{id}
+        """
+        try:
+            await self.service.delete(id)
+            return {"message": "Tenant SMS configuration deleted successfully"}
         except ApplicationException as e:
             raise self._handle_error(e)
     

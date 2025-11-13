@@ -5,6 +5,10 @@ from typing import List, Optional, Dict, Any
 from notification_service.adapters.inbound.dto.provider_supported_dto import TestRequestDto, ProviderResponseDTO
 from notification_service.infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequestDTO,
+    RelatedFilter
+)
 from notification_service.application.services.base_service import BaseService
 
 
@@ -19,16 +23,7 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         """Get providers repository."""
         return self.uow.providers
     
-    def _get_default_search_fields(self) -> Optional[List[str]]:
-        """Get default search fields for providers."""
-        return ["providerName", "displayName", "channel"]
-    
-    def _build_related_filters(self, params) -> List:
-        """Build related filters for providers."""
-        # Providers don't have related filters by default
-        return []
-    
-    def _extract_custom_filters(self, params) -> Dict[str, Any]:
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
         """Extract custom filters from request DTO."""
         filters = {}
         if hasattr(params, 'channel') and params.channel:
@@ -36,13 +31,11 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         if hasattr(params, 'isActive') and params.isActive is not None:
             filters["isActive"] = params.isActive
         return filters
-    async def create(self, provider: Provider) -> Provider:
-        """Create a new provider."""
-        async with self.uow:
-            created_provider = await self.uow.providers.add(provider)
-            await self.uow.commit()
-            return created_provider
     
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
+        """Build related filters for providers."""
+        # Providers don't have related filters by default
+        return []
     # Keep old method for backward compatibility
     async def create_provider(self, provider: Provider) -> Provider:
         """Create a new provider (deprecated - use create() instead)."""

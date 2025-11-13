@@ -18,8 +18,8 @@ TResponseDTO = TypeVar('TResponseDTO')
 
 class BaseService(ABC, Generic[TEntity, TResponseDTO]):
     """
-    Base service providing generic CRUD operations.
-    Entity services should inherit from this and override methods as needed.
+    Abstract base service providing generic CRUD operations.
+    Entity services must inherit from this and implement abstract methods.
     """
     
     def __init__(self, uow: IUnitOfWork, entity_class: Type[TEntity], response_dto_class: Type[TResponseDTO]):
@@ -43,6 +43,34 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
         
         Returns:
             Repository instance (e.g., self.uow.tenants)
+        """
+        pass
+    
+    @abstractmethod
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
+        """
+        Extract custom filters from request DTO.
+        Must be implemented by entity services to extract entity-specific filters.
+        
+        Args:
+            params: PaginatedRequestDTO from query parameters
+            
+        Returns:
+            Dictionary of custom filters (e.g., {"status": "active", "isActive": True})
+        """
+        pass
+    
+    @abstractmethod
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
+        """
+        Build related filters for entity queries.
+        Must be implemented by entity services to filter by related entities.
+        
+        Args:
+            params: PaginatedRequestDTO from query parameters
+            
+        Returns:
+            List of RelatedFilter objects (e.g., [RelatedFilter(relationshipPath="tenant", field="id", ...)])
         """
         pass
     

@@ -20,7 +20,7 @@ from notification_service.shared.exceptions.application_exceptions import Valida
 from qena_shared_lib.http import api_controller, get, post, put, patch, delete
 
 @api_controller(prefix="/tenants", tags=["Tenants"])
-class TenantController(BaseCRUDRouter[Tenant, TenantFilterDTO, TenantResponseDTO, TenantService]):
+class TenantController(BaseCRUDRouter[Tenant, TenantFilterDTO, TenantResponseDTO, TenantService, TenantRequestDTO, TenantRequestDTO]):
     """Controller for tenant-related endpoints."""
     
     def __init__(self, tenantService: TenantService = Depends()):
@@ -31,7 +31,8 @@ class TenantController(BaseCRUDRouter[Tenant, TenantFilterDTO, TenantResponseDTO
             request_dto_class=TenantFilterDTO,
             response_dto_class=TenantResponseDTO,
             entity_class=Tenant,
-            create_dto_class=TenantRequestDTO
+            create_dto_class=TenantRequestDTO,
+            update_dto_class=TenantRequestDTO
         )
     
     def _extract_custom_filters(self, params: TenantFilterDTO) -> Dict[str, Any]:
@@ -106,47 +107,95 @@ class TenantController(BaseCRUDRouter[Tenant, TenantFilterDTO, TenantResponseDTO
             raise self._handle_error(e)
     
     @post("/create", response_model=TenantResponseDTO)
-    async def create(self, request_dto: TenantRequestDTO)->TenantResponseDTO:
+    async def create(self, request_dto: TenantRequestDTO) -> TenantResponseDTO:
         """
         Create a new tenant with validation.
         POST /tenants/create
         
         Override this method to add custom validation or business logic.
         """
-        # Validate preferred communication method
-        if request_dto.preferedCommunicationMethod not in ["rest", "kafka", "rabbitmq", "grpc"]:
-            raise ValidationError("Invalid preferred communication method. Must be one of: rest, kafka, rabbitmq, grpc")
-        
-        # Call parent create method
-        return await super().create(request_dto)
+        try:
+            # Validate preferred communication method
+            if request_dto.preferedCommunicationMethod not in ["rest", "kafka", "rabbitmq", "grpc"]:
+                raise ValidationError("Invalid preferred communication method. Must be one of: rest, kafka, rabbitmq, grpc")
+            
+            # Convert DTO to entity
+            if hasattr(request_dto, 'toEntity'):
+                entity = request_dto.toEntity()
+            else:
+                raise ValidationError("Request DTO must have toEntity() method")
+            
+            # Call service
+            created_entity = await self.service.create(entity)
+            
+            # Convert entity to response DTO
+            if hasattr(TenantResponseDTO, 'fromEntityWithRelations'):
+                return TenantResponseDTO.fromEntityWithRelations(created_entity)
+            else:
+                return created_entity
+        except ApplicationException as e:
+            raise self._handle_error(e)
     
-    @put("/update/{id}", response_model=TenantResponseDTO)
-    async def update(self, id: UUID, request_dto: TenantRequestDTO)->TenantResponseDTO:
+    @put("/{id}", response_model=TenantResponseDTO)
+    async def update(self, id: UUID, request_dto: TenantRequestDTO) -> TenantResponseDTO:
         """
         Full update of a tenant.
-        PUT /tenants/update/{id}
+        PUT /tenants/{id}
         
         Override this method to add custom validation or business logic.
         """
-        # Add any custom validation here
-        # For example: check if tenant exists, validate business rules, etc.
-        
-        # Call parent update method
-        return await super().update(id, request_dto)
+        try:
+            # Convert DTO to entity
+            if hasattr(request_dto, 'toEntity'):
+                entity = request_dto.toEntity()
+                entity.id = id
+            else:
+                raise ValidationError("Request DTO must have toEntity() method")
+            
+            # Call service
+            updated_entity = await self.service.update(entity)
+            
+            # Convert to response DTO
+            if hasattr(TenantResponseDTO, 'fromEntityWithRelations'):
+                return TenantResponseDTO.fromEntityWithRelations(updated_entity)
+            else:
+                return updated_entity
+        except ApplicationException as e:
+            raise self._handle_error(e)
     
-    @patch("/update/{id}", response_model=TenantResponseDTO)
-    async def partial_update(self, id: UUID, updates: Dict[str, Any])->TenantResponseDTO:
+    @patch("/{id}", response_model=TenantResponseDTO)
+    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> TenantResponseDTO:
         """
         Partial update of a tenant.
-        PATCH /tenants/update/{id}
+        PATCH /tenants/{id}
         
         Override this method to add custom validation for partial updates.
         """
-        # Add custom validation for partial updates
-        # For example: validate specific fields, check business rules, etc.
-        if "preferedCommunicationMethod" in updates:
-            if updates["preferedCommunicationMethod"] not in ["rest", "kafka", "rabbitmq", "grpc"]:
-                raise ValidationError("Invalid preferred communication method. Must be one of: rest, kafka, rabbitmq, grpc")
-        
-        # Call parent partial_update method
-        return await super().partial_update(id, updates)
+        try:
+            # Add custom validation for partial updates
+            if "preferedCommunicationMethod" in updates:
+                if updates["preferedCommunicationMethod"] not in ["rest", "kafka", "rabbitmq", "grpc"]:
+                    raise ValidationError("Invalid preferred communication method. Must be one of: rest, kafka, rabbitmq, grpc")
+            
+            # Call service
+            updated_entity = await self.service.partial_update(id, updates)
+            
+            # Convert to response DTO
+            if hasattr(TenantResponseDTO, 'fromEntityWithRelations'):
+                return TenantResponseDTO.fromEntityWithRelations(updated_entity)
+            else:
+                return updated_entity
+        except ApplicationException as e:
+            raise self._handle_error(e)
+    
+    @delete("/{id}", response_model=Dict[str, str])
+    async def delete(self, id: UUID) -> Dict[str, str]:
+        """
+        Delete a tenant.
+        DELETE /tenants/{id}
+        """
+        try:
+            await self.service.delete(id)
+            return {"message": "Tenant deleted successfully"}
+        except ApplicationException as e:
+            raise self._handle_error(e)

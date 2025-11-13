@@ -13,9 +13,13 @@ from notification_service.domain.value_objects.notification_status import Notifi
 from notification_service.domain.value_objects.paginated_result import PaginatedResult
 from notification_service.adapters.inbound.dto.sms_notification_response_dto import SMSNotificationResponseDTO
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
-from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    PaginatedRequestDTO,
+    RelatedFilter,
+    FilterOp
+)
 from notification_service.application.services.base_service import BaseService
-from notification_service.adapters.inbound.dto.paginated_request_dto import RelatedFilter, FilterOp
         
 class SMSNotificationService(BaseService[SMSNotification, SMSNotificationResponseDTO]):
     def __init__(self, uow: IUnitOfWork, processMessageUseCase: ProcessMessageUseCase, messageRouter: IMessageHandler):
@@ -28,16 +32,14 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
         """Get SMS notifications repository."""
         return self.uow.smsNotifications
     
-    def _get_default_search_fields(self) -> Optional[List[str]]:
-        """Get default search fields for SMS notifications."""
-        return [
-            "recipientNumber",
-            "template.templateName",
-            "template.tenant.name",
-            "template.tenant.prefix"
-        ]
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        if hasattr(params, 'status') and params.status:
+            filters["status"] = params.status
+        return filters
     
-    def _build_related_filters(self, params) -> List:
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
         """Build related filters for SMS notifications."""
         related_filters: List[RelatedFilter] = []
         if hasattr(params, 'tenantId') and params.tenantId:
@@ -50,13 +52,6 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
                 )
             )
         return related_filters
-    
-    def _extract_custom_filters(self, params) -> Dict[str, Any]:
-        """Extract custom filters from request DTO."""
-        filters = {}
-        if hasattr(params, 'status') and params.status:
-            filters["status"] = params.status
-        return filters
     
     def _get_includes(self) -> List[str]:
         """Get relationship paths to eager load for SMS notifications."""
@@ -97,30 +92,30 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
             )
             return response
     
-    async def getNotificationStatus(self, notification_id: UUID) -> str:
+    async def getNotificationStatus(self, notificationId: UUID) -> str:
         """Get notification status by ID."""
         async with self.uow:
-            notification = await self.uow.smsNotifications.getById(notification_id)
+            notification = await self.uow.smsNotifications.getById(notificationId)
             if not notification:
                 from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
-                raise EntityNotFoundError("SMSNotification", str(notification_id))
+                raise EntityNotFoundError("SMSNotification", str(notificationId))
             return notification.status
     
-    async def updateNotificationStatus(self, notification_id: UUID, status: str) -> SMSNotification:
+    async def updateNotificationStatus(self, notificationId: UUID, status: str) -> SMSNotification:
         """Update notification status."""
         async with self.uow:
-            notification = await self.uow.smsNotifications.getById(notification_id)
+            notification = await self.uow.smsNotifications.getById(notificationId)
             if not notification:
                 from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
-                raise EntityNotFoundError("SMSNotification", str(notification_id))
+                raise EntityNotFoundError("SMSNotification", str(notificationId))
             notification.status = status
             updated = await self.uow.smsNotifications.update(notification)
             await self.uow.commit()
             return updated
     
-    async def deleteNotification(self, notification_id: UUID):
+    async def deleteNotification(self, notificationId: UUID):
         """Delete notification by ID."""
-        await self.delete(notification_id)
+        await self.delete(notificationId)
     
     # Keep old method for backward compatibility
     async def getAllNotificationsAdvanced(

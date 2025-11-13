@@ -1,4 +1,9 @@
-from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    PaginatedRequestDTO,
+    RelatedFilter,
+    FilterOp
+)
 from notification_service.adapters.inbound.dto.sms_template_request_dto import SMSTemplateResponseDTO
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
@@ -17,15 +22,16 @@ class SMSTemplateService(BaseService[SmsTemplate, SMSTemplateResponseDTO]):
         """Get SMS templates repository."""
         return self.uow.smsTemplates
     
-    def _get_default_search_fields(self) -> List[str]:
-        """Get default search fields for SMS templates."""
-        return ["templateName", "serviceName", "content"]
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        if hasattr(params, 'isActive') and params.isActive is not None:
+            filters["isActive"] = params.isActive
+        return filters
     
-    def _build_related_filters(self, params) -> List:
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
         """Build related filters for SMS templates."""
-        from notification_service.adapters.inbound.dto.paginated_request_dto import RelatedFilter, FilterOp
-        from uuid import UUID
-        related_filters = []
+        related_filters: List[RelatedFilter] = []
         if hasattr(params, 'tenantId') and params.tenantId:
             related_filters.append(
                 RelatedFilter(
@@ -36,27 +42,6 @@ class SMSTemplateService(BaseService[SmsTemplate, SMSTemplateResponseDTO]):
                 )
             )
         return related_filters
-    
-    def _extract_custom_filters(self, params) -> Dict[str, Any]:
-        """Extract custom filters from request DTO."""
-        filters = {}
-        if hasattr(params, 'isActive') and params.isActive is not None:
-            filters["isActive"] = params.isActive
-        return filters
-    
-    async def create(self, template: SmsTemplate) -> SmsTemplate:
-        """Create a new SMS template.
-        
-        Args:
-            template: SmsTemplate entity to create
-            
-        Returns:
-            Created SmsTemplate entity with generated ID
-        """
-        async with self.uow:
-            createdTemplate = await self.uow.smsTemplates.add(template)
-            await self.uow.commit()
-            return createdTemplate
     
     # Keep old method for backward compatibility
     async def createSmsTemplate(self, template: SmsTemplate):

@@ -23,6 +23,19 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         """Get tenants repository."""
         return self.uow.tenants
     
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        # Check if params has status attribute (TenantFilterDTO extends PaginatedRequestDTO)
+        if hasattr(params, 'status') and params.status:
+            filters["status"] = params.status
+        return filters
+    
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
+        """Build related filters for tenants."""
+        # Tenants don't have related filters by default
+        return []
+    
         
         
     async def getTenantByPrefix(self, prefix: str ) -> Optional[Tenant]:
@@ -55,18 +68,18 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         Returns:
             Created Tenant entity with generated ID
         """
-        async with self.uow:
-            createdTenant: Tenant = await self.uow.tenants.add(tenant)
-            await self.uow.commit()
-            if(createdTenant.preferedCommunicationMethod == "rabbitmq" and createdTenant.isActive and createdTenant.supportedChannels and self.rabbitmqConsumer):
-                # Additional logic for rabbitmq preferred communication method can be added here
-                for channel in createdTenant.supportedChannels:
-                    queueName = f"notification.{channel}.{createdTenant.prefix}"
-                    # Here you might want to initialize or configure the queue for the tenant
-                    await self.rabbitmqConsumer.ensureQueueExistsAndSubscribe(queueName=queueName,channel=channel)
-                    pass
-                
-            return createdTenant
+        # Call base create method to handle the standard creation logic
+        createdTenant = await super().create(tenant)
+        
+        # Add custom RabbitMQ queue setup logic
+        if(createdTenant.preferedCommunicationMethod == "rabbitmq" and createdTenant.isActive and createdTenant.supportedChannels and self.rabbitmqConsumer):
+            # Additional logic for rabbitmq preferred communication method can be added here
+            for channel in createdTenant.supportedChannels:
+                queueName = f"notification.{channel}.{createdTenant.prefix}"
+                # Here you might want to initialize or configure the queue for the tenant
+                await self.rabbitmqConsumer.ensureQueueExistsAndSubscribe(queueName=queueName,channel=channel)
+        
+        return createdTenant
     
     # Keep old method for backward compatibility during migration
     async def createTenant(self, tenant: Tenant) -> Tenant:

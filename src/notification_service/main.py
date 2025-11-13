@@ -23,7 +23,7 @@ from notification_service.application.handlers.message_router import MessageRout
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
 from notification_service.application.handlers.sms_channel_handler import SMSChannelHandler
 from notification_service.domain.interfaces.iprovider_service import IProviderService
-from notification_service.infrastructure.providers.sms.ethiotelecom_shortcode import EthioTelecomShortcodeSMSProvider
+from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.application.services.sms_template_service import SMSTemplateService
 from notification_service.infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
 # from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
@@ -41,6 +41,19 @@ from notification_service.shared.exceptions.application_exceptions import (
     ValidationError,
     ConflictError
 )
+import logging
+import sys
+
+# Configure logging FIRST, before anything else
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # Explicitly use stdout
+    ],
+    force=True  # Override any existing configuration
+)
+logging.getLogger(__name__).setLevel(logging.INFO)
 
 def custom_openapi(app: FastAPI) -> Dict[str, Any]:
     """Custom OpenAPI schema generator that fixes anyOf null type issues."""
@@ -172,7 +185,7 @@ def main()->FastAPI:
     builder.with_singleton(Database)
     
     builder.with_transient(IUnitOfWork,UnitOfWork)
-    builder.with_transient(EthioTelecomShortcodeSMSProvider)
+    builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSGateway)
     builder.with_transient(ProcessMessageUseCase)
     builder.with_transient(IMessageHandler,MessageRouter)
