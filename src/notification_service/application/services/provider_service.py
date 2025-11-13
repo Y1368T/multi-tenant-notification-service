@@ -3,22 +3,25 @@ from notification_service.domain.entities.providers_supported import Provider
 from uuid import UUID
 from typing import List, Optional, Dict, Any
 from notification_service.adapters.inbound.dto.provider_supported_dto import TestRequestDto, ProviderResponseDTO
-from notification_service.infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
+from notification_service.infrastructure.providers.sms.kifiyaSmsProvider import KifiyaSMSProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
+from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
     PaginatedRequestDTO,
     RelatedFilter
 )
 from notification_service.application.services.base_service import BaseService
+from pydantic import ValidationError
 
 
 class ProviderService(BaseService[Provider, ProviderResponseDTO]):
     
-    def __init__(self, uow: IUnitOfWork, kifiya_sms_gateway: KifiyaSMSGateway):
+    def __init__(self, uow: IUnitOfWork, kifiyaSmsProvider: KifiyaSMSProvider, afromessageSmsProvider: AfromessageSMSProvider):
         super().__init__(uow, Provider, ProviderResponseDTO)
         self.uow = uow
-        self.kifiya_sms_gateway = kifiya_sms_gateway
-    
+        self.kifiyaSmsProvider = kifiyaSmsProvider
+        self.afromessageSmsProvider = afromessageSmsProvider
     def _get_repository(self):
         """Get providers repository."""
         return self.uow.providers
@@ -36,12 +39,48 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         """Build related filters for providers."""
         # Providers don't have related filters by default
         return []
+    
+    def _get_search_fields(self) -> Optional[List[str]]:
+        """Get search fields for providers."""
+        return ["providerName", "displayName", "channel"]
+    
+    def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
+        """Build PaginatedRequest for providers."""
+        # Build root filters
+        root_filters = {}
+        if hasattr(params, 'id') and params.id:
+            try:
+                root_filters['id'] = UUID(params.id) if isinstance(params.id, str) else params.id
+            except (ValueError, AttributeError):
+                root_filters['id'] = params.id
+        
+        # Extract custom filters
+        custom_filters = self._extract_custom_filters(params)
+        root_filters.update(custom_filters)
+        
+        # Build related filters
+        related_filters = self._build_related_filters(params)
+        
+        # Get search fields
+        search_fields = self._get_search_fields()
+        
+        # Build and return PaginatedRequest
+        return PaginatedRequest(
+            page=params.page,
+            pageSize=params.pageSize,
+            sortBy=params.sortBy or "createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=search_fields,
+            filters=root_filters,
+            relatedFilters=related_filters
+        )
+    
     # Keep old method for backward compatibility
     async def create_provider(self, provider: Provider) -> Provider:
         """Create a new provider (deprecated - use create() instead)."""
         return await self.create(provider)
     
-    # Keep old methods for backward compatibility
     async def get_all(self) -> list[Provider]:
         """Get all providers (deprecated - use get() instead)."""
         async with self.uow:
@@ -64,13 +103,13 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         match dto.channel:
             case "sms":
                 # Add SMS provider testing logic here
-                return await self.kifiya_sms_gateway.test(dto.config, dto.address)
-                pass
-            case "email":
-                # Add Email provider testing logic here
-                pass
+                match dto.provider_name:
+                    case "kifiya":
+                        return await self.kifiyaSmsProvider.test(dto.config, dto.address)
+                    case "afromessage":
+                        return await self.afromessageSmsProvider.test(dto.config, dto.address)
+                    case _:
+                        raise ValueError(message=f"Unsupported provider: {dto.provider_name}",field="provider_name")
             case _:
-                raise ValueError(f"Unsupported channel: {dto.channel}")
-                pass
-        return False
+                raise ValueError(message=f"Unsupported channel: {dto.channel}",field="channel")
             

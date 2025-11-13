@@ -11,7 +11,7 @@ class TenantSMSConfiguration:
     id: UUID
     tenantId: UUID
     providerName: str
-    priroty: int=1
+    priority: int=1
     isActive: bool = True
     rateLimitPerMinute: int = 30
     rateLimitPerHour: int = 500

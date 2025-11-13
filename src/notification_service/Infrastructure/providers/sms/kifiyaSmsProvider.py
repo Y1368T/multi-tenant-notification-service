@@ -42,7 +42,7 @@ class KifiyaSMSConfig(BaseModel):
             "url": self.url
         }
     
-class KifiyaSMSGateway(IProviderService):
+class KifiyaSMSProvider(IProviderService):
     def __init__(self, uow:IUnitOfWork):
         self.uow = uow
         self.client = httpx.AsyncClient(timeout=30.0)

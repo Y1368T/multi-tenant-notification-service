@@ -37,7 +37,7 @@ class Database:
             logger.info("Initializing database...")
             
             #create async engine
-            self.engine = create_async_engine(self.database_url, echo=True)
+            self.engine = create_async_engine(self.database_url, echo=False)
             
             #create session maker
             self.session_maker = async_sessionmaker(
