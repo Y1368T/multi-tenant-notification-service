@@ -1,0 +1,24 @@
+from dataclasses import dataclass, field
+from typing import Dict, Any
+from uuid import UUID
+from ..base import BaseModel
+from sqlalchemy import Column, String, Boolean, Integer, JSONB, ForeignKey,UniqueConstraint
+from sqlalchemy.orm import relationship
+
+
+
+class TenantInAppConfigurationModel(BaseModel):
+    __tablename__ = "tenant_inapp_configurations"
+    
+    tenantId = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), name="tenant_id", primary_key=True)
+    providerName = Column(String, name="provider_name", nullable=False)
+    config = Column(JSONB, nullable=False, default=dict)
+    priority = Column(Integer, nullable=False, default=1)
+    isActive = Column(Boolean, name="is_active", default=True)
+    rateLimitPerMinute = Column(Integer, name="rate_limit_per_minute", default=50)
+    rateLimitPerHour = Column(Integer, name="rate_limit_per_hour", default=800)
+    rateLimitPerDay = Column(Integer, name="rate_limit_per_day", default=8000)
+    tenant = relationship("TenantModel", back_populates="inAppConfigurations")
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'provider_name', name='uix_tenant_inapp_provider'),
+    )

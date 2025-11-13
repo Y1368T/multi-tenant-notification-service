@@ -11,36 +11,36 @@ from notification_service.domain.value_objects.notification_response import Noti
 class ProcessMessageUseCase:
     """Use case for processing incoming messages"""
 
-    def __init__(self, message_router:IMessageHandler):
-        self.message_router = message_router
+    def __init__(self, messageRouter:IMessageHandler):
+        self.messageRouter = messageRouter
 
     async def execute(self, channel, tenant:str, message:NotificationRequest) -> NotificationResponse:
         """Process the incoming message"""
         logger.info(f"Processing message: {message}")
         
-        validated = self.validate_message(message, channel)
+        validated = self.validateMessage(message, channel)
         if not validated:
             logger.warning(f"Message validation failed for channel {channel}. Skipping processing.")
             return
-        return  await self.message_router.do_route(channel, tenant, message)
+        return  await self.messageRouter.doRoute(channel, tenant, message)
     
     
-    def validate_message(self, message:NotificationRequest, channel:str) -> dict:
+    def validateMessage(self, message:NotificationRequest, channel:str) -> dict:
         """Validate the incoming message format"""
         # Implement validation logic here
         logger.info(f"Validating message: {message}")
         
-        if not message.service_name:
+        if not message.serviceName:
             
             return {"success": False, "error": "serviceName is required"}
         if not message.recipients:
             
             return {"success": False, "error": "At least one recipient is required"}
-        if not message.template_name:
+        if not message.templateName:
             return {"success": False, "error": "templateName is required"} 
         if not message.payload:
             return {"success": False, "error": "payload is required"}
-        if not message.idempotency_key:
+        if not message.idempotencyKey:
             return {"success": False, "error": "idempotencyKey is required"}
         
         if message.recipients:
@@ -51,10 +51,10 @@ class ProcessMessageUseCase:
             # Validate address based on channel type
                 match channel.lower():
                     case "sms":
-                        if not self._is_valid_phone_number(recipient.address):
+                        if not self.isValidPhoneNumber(recipient.address):
                             raise ValueError(f"Invalid phone number: {recipient.address}")
                     case "email":
-                        if not self._is_valid_email(recipient.address):
+                        if not self.isValidEmail(recipient.address):
                             return {"success": False, "error": f"Invalid email address: {recipient.address}"}
                     case _:
                         # Default case for unknown channels
@@ -62,13 +62,13 @@ class ProcessMessageUseCase:
                 # Add more channel validations as needed
         
         return {"success": True, "message": "Validation passed"}
-    def _is_valid_phone_number(self, phone: str) -> bool:
+    def isValidPhoneNumber(self, phone: str) -> bool:
         """Validate phone number format"""
         # Basic phone number validation (adjust regex as needed)
         phone_pattern = r'^\+?[1-9]\d{1,14}$'
         return bool(re.match(phone_pattern, phone.strip()))
         
-    def _is_valid_email(self, email: str) -> bool:
+    def isValidEmail(self, email: str) -> bool:
         """Validate email address format"""
         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return bool(re.match(email_pattern, email.strip()))

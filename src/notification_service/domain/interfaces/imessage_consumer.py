@@ -25,14 +25,14 @@ class IMessageConsumer(ABC):
     @abstractmethod
     async def subscribe(
         self,
-        queue_name: str,
+        queueName: str,
         callback: Callable[[Dict[str, Any]], Awaitable[None]]
     ) -> None:
         """
         Subscribe to a queue and process messages with callback.
         
         Args:
-            queue_name: Queue pattern (e.g., "notification.sms.qena")
+            queueName: Queue pattern (e.g., "notification.sms.qena")
             callback: Async function to process each message
         """
         pass

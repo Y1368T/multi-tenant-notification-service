@@ -7,7 +7,7 @@ class IChannelHandler(ABC):
     """Interface for channel handler operations."""
     
     @abstractmethod
-    async def receive_message(self, tenantPrefix: str,message: NotificationRequest) -> NotificationRequest:
+    async def receiveMessage(self, tenantPrefix: str,message: NotificationRequest) -> NotificationRequest:
         """Receive a message from the message router.
 
         Returns:
@@ -16,11 +16,11 @@ class IChannelHandler(ABC):
         pass
 
     @abstractmethod
-    async def load_tenant_config(self, tenant_id: str) -> dict:
+    async def loadTenantConfig(self, tenantId: str) -> dict:
         """Load the channel configuration for a given tenant.
         
         Args:
-            tenant_id (str): The tenant identifier.
+            tenantId (str): The tenant identifier.
 
         Returns:
             dict: The channel configuration for the tenant.
@@ -28,12 +28,12 @@ class IChannelHandler(ABC):
         pass
     
     @abstractmethod
-    async def load_template(self, tenant_id: str, template_name: str, language: str) -> dict:
+    async def loadTemplate(self, tenantId: str, templateName: str, language: str) -> dict:
         """Load the message template for a given tenant and template name.
         
         Args:
-            tenant_id (str): The tenant identifier.
-            template_name (str): The name of the template to load.
+            tenantId (str): The tenant identifier.
+            templateName (str): The name of the template to load.
             language (str): The language code for the template.
 
         Returns:
@@ -42,12 +42,12 @@ class IChannelHandler(ABC):
         pass
 
     @abstractmethod
-    async def route_to_provider(
+    async def routeToProvider(
         self,
         request: NotificationRequest,
-        tenant_id: str,
+        tenantId: str,
         config: Dict[str, Any],
-        template_id:UUID,
+        templateId:UUID,
         template: str
        
     ) -> None:

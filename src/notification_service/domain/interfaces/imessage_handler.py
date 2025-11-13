@@ -15,7 +15,7 @@ class IMessageHandler(ABC):
     """
     
     @abstractmethod
-    async def do_route(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> NotificationResponse:
+    async def doRoute(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> NotificationResponse:
         """
         Route incoming message to appropriate channel handler.
         

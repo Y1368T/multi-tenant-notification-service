@@ -2,7 +2,6 @@
 from enum import Enum
 
 class SMSProvider(Enum):
-    ETHIOTELECOM = "ethiotelecom"
     AFROMESSAGE = "afromessage"
     KIFIYA = "kifiya"
 

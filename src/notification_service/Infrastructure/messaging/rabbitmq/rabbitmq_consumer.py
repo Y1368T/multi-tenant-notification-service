@@ -3,12 +3,12 @@ import json
 import logging
 from select import select
 from typing import Callable, Awaitable, Dict, Any, Optional
-from notification_service.Infrastructure.persisitence.models.tenant.tenant import TenantModel
+from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
 from sqlalchemy.ext.asyncio import AsyncSession
 import aio_pika
 from aio_pika import Message, DeliveryMode, ExchangeType
 from aio_pika.abc import AbstractRobustConnection, AbstractChannel, AbstractQueue, AbstractIncomingMessage
-from notification_service.Infrastructure.persisitence.mappers.tenant_mapper import TenantMapper
+from notification_service.infrastructure.persistence.mappers.tenant_mapper import TenantMapper
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.value_objects.notification_types import NotificationChannel
 from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
@@ -25,7 +25,7 @@ class RabbitMQConsumer(IMessageConsumer):
     """RabbitMQ consumer implementation with async support."""
     
     def __init__(self,settings:Settings,
-                 process_message_usecase:ProcessMessageUseCase
+                 processMessageUseCase:ProcessMessageUseCase
                  ):
         """Initialize RabbitMQ consumer.
         
@@ -33,7 +33,7 @@ class RabbitMQConsumer(IMessageConsumer):
             rabbitmq_url: RabbitMQ connection URL (e.g., amqp://guest:guest@localhost/)
         """
         self.rabbitmq_url = settings.rabbitmq_url
-        self.process_message_usecase = process_message_usecase
+        self.processMessageUseCase = processMessageUseCase
         self._connection: Optional[aio_pika.Connection] = None
         self._channel: Optional[AbstractChannel] = None
         self._subscriptions: Dict[str, Callable[[Dict[str, Any]], Awaitable[None]]] = {}
@@ -67,20 +67,20 @@ class RabbitMQConsumer(IMessageConsumer):
             logger.error(f"Error disconnecting from RabbitMQ: {e}")
     
     @property
-    def is_connected(self) -> bool:
+    def isConnected(self) -> bool:
         """Check if connected to RabbitMQ."""
         return self._connection is not None and self._channel is not None
     
         
     async def subscribe(
         self,
-        queue_name: str,
+        queueName: str,
         callback: Callable[[Dict[str, Any]], Awaitable[None]]
     ) -> None:
         """Subscribe to a queue and process messages with callback.
         
         Args:
-            queue_name: Queue name (e.g., "notification.email")
+            queueName: Queue name (e.g., "notification.email")
             callback: Async function to process each message
         """
         if not self._channel:
@@ -89,13 +89,13 @@ class RabbitMQConsumer(IMessageConsumer):
         try:
             # Declare queue (idempotent - will create if doesn't exist)
             queue = await self._channel.declare_queue(
-                queue_name,
+                queueName,
                 durable=True,  # Survive broker restarts
                 auto_delete=False
             )
             
             # Store callback for this queue
-            self._subscriptions[queue_name] = callback
+            self._subscriptions[queueName] = callback
             
             # Create message handler wrapper
             async def message_handler(message: AbstractIncomingMessage) -> None:
@@ -105,26 +105,26 @@ class RabbitMQConsumer(IMessageConsumer):
                         body = message.body.decode()
                         payload = json.loads(body)
                         
-                        logger.info(f"Received message from queue '{queue_name}': {payload}")
+                        logger.info(f"Received message from queue '{queueName}': {payload}")
                         
                         # Process message with callback
                         await callback(message)
                         
-                        logger.info(f"Successfully processed message from queue '{queue_name}'")
+                        logger.info(f"Successfully processed message from queue '{queueName}'")
                     except json.JSONDecodeError as e:
-                        logger.error(f"Invalid JSON in message from '{queue_name}': {e}")
+                        logger.error(f"Invalid JSON in message from '{queueName}': {e}")
                         # Message will be rejected (not requeued)
                     except Exception as e:
-                        logger.error(f"Error processing message from '{queue_name}': {e}")
+                        logger.error(f"Error processing message from '{queueName}': {e}")
                         # Message will be rejected and requeued for retry
                         raise
             
             # Start consuming messages
             await queue.consume(message_handler)
             
-            logger.info(f"Subscribed to queue '{queue_name}'")
+            logger.info(f"Subscribed to queue '{queueName}'")
         except Exception as e:
-            logger.error(f"Error subscribing to queue '{queue_name}': {e}")
+            logger.error(f"Error subscribing to queue '{queueName}': {e}")
             raise
     
     async def consume(self) -> None:
@@ -148,20 +148,20 @@ class RabbitMQConsumer(IMessageConsumer):
             raise
     
     
-    async def declare_queue(
+    async def declareQueue(
         self, 
-        queue_name: str, 
+        queueName: str, 
         durable: bool = True, 
-        auto_delete: bool = False,
+        autoDelete: bool = False,
         **kwargs
     ) -> AbstractQueue:
         """
         Declare a queue (creates if doesn't exist, idempotent).
         
         Args:
-            queue_name: Name of the queue
+            queueName: Name of the queue
             durable: Queue survives broker restart
-            auto_delete: Delete queue when no consumers
+            autoDelete: Delete queue when no consumers
             **kwargs: Additional queue arguments
             
         Returns:
@@ -172,55 +172,55 @@ class RabbitMQConsumer(IMessageConsumer):
         
         try:
             queue = await self._channel.declare_queue(
-                queue_name,
+                queueName,
                 durable=durable,
-                auto_delete=auto_delete,
+                auto_delete=autoDelete,
                 **kwargs
             )
             
-            self._queues[queue_name] = queue
-            logger.info(f"Queue declared: {queue_name} (durable={durable})")
+            self._queues[queueName] = queue
+            logger.info(f"Queue declared: {queueName} (durable={durable})")
             return queue
             
         except Exception as e:
-            logger.error(f"Failed to declare queue {queue_name}: {e}")
+            logger.error(f"Failed to declare queue {queueName}: {e}")
             raise
        
-    async def ensure_queue_exists_and_subscribe(self, queue_name: str, channel: str) -> None:
+    async def ensureQueueExistsAndSubscribe(self, queueName: str, channel: str) -> None:
         """
         Ensure queue exists (create if needed) and subscribe to it.
         
         Args:
-            queue_name: Name of the queue (e.g., "notification.sms.trucksload")
+            queueName: Name of the queue (e.g., "notification.sms.trucksload")
             channel: Notification channel type (sms, email, in_app)
         """
         try:
             # Step 1: Declare queue (idempotent - creates if doesn't exist, returns existing if exists)
-            queue = await self.declare_queue(
-                queue_name=queue_name,
+            queue = await self.declareQueue(
+                queueName=queueName,
                 durable=True,  # Survive broker restarts
-                auto_delete=False  # Don't delete when no consumers
+                autoDelete=False  # Don't delete when no consumers
             )
             
-            logger.info(f"Queue ensured: {queue_name}")
+            logger.info(f"Queue ensured: {queueName}")
             
             # Step 2: Subscribe to the queue based on channel type
-            handler = self._get_handler_for_channel(channel)
+            handler = self.getHandlerForChannel(channel)
             
-            await self.subscribe(queue_name, handler)
+            await self.subscribe(queueName, handler)
             
-            logger.info(f"Subscribed to queue: {queue_name} with {handler.__name__}")
+            logger.info(f"Subscribed to queue: {queueName} with {handler.__name__}")
             
         except Exception as e:
-            logger.error(f"Error ensuring queue {queue_name}: {e}")
+            logger.error(f"Error ensuring queue {queueName}: {e}")
             raise
     
-    def _get_handler_for_channel(self, channel: str):
+    def getHandlerForChannel(self, channel: str):
         """Get the appropriate message handler for the channel type."""
         handlers = {
-            "sms": self._handle_sms_message,
-            "email": self._handle_email_message,
-            "in_app": self._handle_in_app_message,
+            "sms": self.handleSmsMessage,
+            "email": self.handleEmailMessage,
+            "in_app": self.handleInAppMessage,
         }
         
         handler = handlers.get(channel.lower())
@@ -229,7 +229,7 @@ class RabbitMQConsumer(IMessageConsumer):
         
         return handler
     
-    async def _handle_email_message(self, message: AbstractIncomingMessage) -> None:
+    async def handleEmailMessage(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming email notification message."""
         try:
                 # Parse message body
@@ -243,10 +243,10 @@ class RabbitMQConsumer(IMessageConsumer):
                 
                 
                 # Convert to domain value object
-                notification_request = NotificationRequest.from_dict(payload)
+                notification_request = NotificationRequest.fromDict(payload)
                 
                 # Call use case to process notification
-                await self.process_message_usecase.execute(NotificationChannel.EMAIL, tenant=tenant_prefix, notification_request=notification_request)
+                await self.processMessageUseCase.execute(NotificationChannel.EMAIL, tenant_prefix, notification_request)
                 
                 logger.info(f"Successfully processed email notification")
                 
@@ -254,21 +254,21 @@ class RabbitMQConsumer(IMessageConsumer):
                 logger.error(f"Error processing email message: {e}")
                 raise  # Will be requeued
     
-    async def _handle_sms_message(self, message: AbstractIncomingMessage) -> None:
+    async def handleSmsMessage(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming SMS notification message."""
         try:
                 payload = json.loads(message.body.decode())
                 
                 logger.info(f"Received SMS notification: {payload}")
                 
-                notification_request = NotificationRequest.from_dict(payload)
+                notification_request = NotificationRequest.fromDict(payload)
                 queue_name = message.routing_key
                 
                 queue_parts = queue_name.split('.')
                 if len(queue_parts) != 3 or queue_parts[0] != "notification":
                     raise ValueError(f"Invalid queue name format: {queue_name}")
                 tenant_prefix = queue_parts[2]
-                await self.process_message_usecase.execute(NotificationChannel.SMS, tenant_prefix, notification_request)
+                await self.processMessageUseCase.execute(NotificationChannel.SMS, tenant_prefix, notification_request)
 
                 logger.info(f"Successfully processed SMS notification")
                 
@@ -276,14 +276,14 @@ class RabbitMQConsumer(IMessageConsumer):
                 logger.error(f"Error processing SMS message: {e}")
                 raise
     
-    async def _handle_in_app_message(self, message: AbstractIncomingMessage) -> None:
+    async def handleInAppMessage(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming in-app notification message."""
         try:
                 payload = json.loads(message.body.decode())
                 
                 logger.info(f"Received in-app notification: {payload}")
                 
-                notification_request = NotificationRequest.from_dict(payload)
+                notification_request = NotificationRequest.fromDict(payload)
                 queue_name = message.method.routing_key
                 
                 queue_parts = queue_name.split('.')
@@ -291,7 +291,7 @@ class RabbitMQConsumer(IMessageConsumer):
                     raise ValueError(f"Invalid queue name format: {queue_name}")
                 tenant_prefix = queue_parts[2]
 
-                await self.process_message_usecase.execute(NotificationChannel.IN_APP, tenant=tenant_prefix, notification_request=notification_request)
+                await self.processMessageUseCase.execute(NotificationChannel.IN_APP, tenant_prefix, notification_request)
 
                 logger.info(f"Successfully processed in-app notification")
                 

@@ -57,7 +57,7 @@ class ICachedRepository(ABC):
         """
         pass
     @abstractmethod
-    async def get_expiry_time(self, key: str) -> Optional[int]:
+    async def getExpiryTime(self, key: str) -> Optional[int]:
         """Get the expiration time for a cache key.
 
         Args:

@@ -9,13 +9,13 @@ class TenantSMSConfiguration:
     """Domain entity for tenant SMS configurations"""
     
     id: UUID
-    tenant_id: UUID
-    provider_name: str
+    tenantId: UUID
+    providerName: str
     priroty: int=1
-    is_active: bool = True
-    rate_limit_per_minute: int = 30
-    rate_limit_per_hour: int = 500
-    rate_limit_per_day: int = 5000
+    isActive: bool = True
+    rateLimitPerMinute: int = 30
+    rateLimitPerHour: int = 500
+    rateLimitPerDay: int = 5000
     config: Dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)

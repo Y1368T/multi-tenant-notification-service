@@ -9,11 +9,11 @@ class InAppTemplate:
     """Domain entity for in-app templates"""
     
     id: UUID
-    template_name: str
-    service_name: str
-    tenant_id: UUID
-    is_active: bool = True
+    templateName: str
+    serviceName: str
+    tenantId: UUID
+    isActive: bool = True
     version: int = 1
     body: Dict[str, str] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)

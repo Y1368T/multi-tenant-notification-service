@@ -38,15 +38,15 @@ class NotificationResponse:
         "deliveredAt": "2024-01-15T10:30:05Z"
     }
     """
-    notification_id: Optional[str]=None
-    tenant_id: Optional[str]=None
+    notificationId: Optional[str]=None
+    tenantId: Optional[str]=None
     channel: Optional[str]=None
     status: Optional[str]=None
     recipients: Optional[List[str]]=None # List of Phone/Email/DeviceToken addresses
-    created_at: Optional[datetime]=None
-    delivered_at: Optional[datetime] = None
+    createdAt: Optional[datetime]=None
+    deliveredAt: Optional[datetime] = None
     success: bool = True
-    error_message: Optional[str] = None
+    errorMessage: Optional[str] = None
     message: Optional[str] = None
 
 
@@ -71,9 +71,12 @@ class BulkNotificationResponse:
         ]
     }
     """
-    batch_id: str
-    total_submitted: int
-    successful_submissions: int
-    failed_submissions: int
-    notification_ids: List[str]
+    batchId: str
+    totalSubmitted: int
+    successfulSubmissions: int
+    failedSubmissions: int
+    notificationIds: List[str]
     failures: List[Dict[str, str]] = field(default_factory=list)
+    success: bool = True
+    errorMessage: Optional[str] = None
+    message: Optional[str] = None
