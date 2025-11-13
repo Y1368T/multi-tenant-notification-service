@@ -81,6 +81,10 @@ class UnitOfWork(IUnitOfWork):
     def tenantSmsConfigurations(self):
         return self._tenantSmsConfigurations
 
+    @property
+    def tenantInAppConfigurations(self):
+        return self._tenantInAppConfigurations
+
     async def __aenter__(self):
         """Enter async context manager."""
         self.session = self.database.get_session()
@@ -98,6 +102,9 @@ class UnitOfWork(IUnitOfWork):
         self._tenants = TenantRepository(self.session, TenantMapper())
         self._tenantEmailConfigurations = TenantEmailConfigurationRepository(self.session)
         self._tenantSmsConfigurations = TenantSmsConfigurationRepository(self.session)
+        # TODO: Create TenantInAppConfigurationRepository, Model, and Mapper
+        # For now, using SMS configuration repository as placeholder - needs to be replaced
+        self._tenantInAppConfigurations = TenantInAppConfigurationRepository(self.session)
         self._providers = ProviderRepository(self.session)
         return self
 

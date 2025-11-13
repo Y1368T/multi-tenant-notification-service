@@ -96,6 +96,12 @@ class IUnitOfWork(ABC):
         """Get tenant SMS configurations repository."""
         pass
     
+    @property
+    @abstractmethod
+    def tenantInAppConfigurations(self) -> IGenericRepository:
+        """Get tenant in-app configurations repository."""
+        pass
+    
     @abstractmethod
     async def __aenter__(self):
         """Enter async context manager."""

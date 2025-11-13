@@ -26,6 +26,8 @@ from notification_service.domain.interfaces.iprovider_service import IProviderSe
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.application.services.sms_template_service import SMSTemplateService
 from notification_service.infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
+from notification_service.infrastructure.providers.in_app.fcm_provider import FCMProvider
+from notification_service.application.handlers.in_app_channel_handler import InAppChannelHandler
 # from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
 from notification_service.application.services.provider_service import ProviderService
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
@@ -187,9 +189,11 @@ def main()->FastAPI:
     builder.with_transient(IUnitOfWork,UnitOfWork)
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSGateway)
+    builder.with_transient(FCMProvider)
     builder.with_transient(ProcessMessageUseCase)
     builder.with_transient(IMessageHandler,MessageRouter)
     builder.with_transient(IChannelHandler,SMSChannelHandler)
+    builder.with_transient(IChannelHandler,InAppChannelHandler)
     builder.with_singleton(IMessageConsumer, RabbitMQConsumer)
     builder.with_transient(tenant_service.TenantService)
     builder.with_transient(tenant_sms_configuration_service.TenantSMSConfigurationService)

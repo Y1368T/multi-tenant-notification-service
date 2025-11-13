@@ -43,7 +43,7 @@ class SMSNotificationController(ControllerBase):
         if hasattr(params, 'tenantId') and params.tenantId:
                 tenant_id_value = UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
                 root_filters['tenantId'] = tenant_id_value
-        custom_filters = self.service._extract_custom_filters(params)
+        custom_filters = self.smsNotificationService._extract_custom_filters(params)
         root_filters.update(custom_filters)
         
         # Build related filters
@@ -74,7 +74,7 @@ class SMSNotificationController(ControllerBase):
         """Get SMS notifications by filters."""
         try:
             paginated_request = self._build_paginated_request(params)
-            result = await self.service.get(paginated_request)
+            result = await self.smsNotificationService.get(paginated_request)
             return result
         except ApplicationException as e:
             raise self._handle_error(e)

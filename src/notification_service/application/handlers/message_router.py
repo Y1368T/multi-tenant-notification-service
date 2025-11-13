@@ -15,18 +15,18 @@ class MessageRouter(IMessageHandler):
 
     def __init__(
         self,
-        sms_handler: IChannelHandler,
+        smsHandler: IChannelHandler,
+        inAppHandler: IChannelHandler = None,
         # email_handler: IChannelHandler,
-        # push_handler: IChannelHandler,
         # whatsapp_handler: IChannelHandler
     ):
         self._handlers: Dict[NotificationChannel, IChannelHandler] = {
-            NotificationChannel.SMS: sms_handler
-            # NotificationChannel.EMAIL: email_handler,
-            # NotificationChannel.PUSH: push_handler,
-            # NotificationChannel.WHATSAPP: whatsapp_handler
+            NotificationChannel.SMS: smsHandler,
+            NotificationChannel.PUSH: inAppHandler,
+            # NotificationChannel.EMAIL: emailHandler,
+            # NotificationChannel.WHATSAPP: whatsappHandler,
         }
-        logger.info('MessageRouter initialized with 4 channel handlers')
+        logger.info('MessageRouter initialized with channel handlers')
 
     async def doRoute(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> NotificationResponse:
         """Route message to appropriate channel handler."""
