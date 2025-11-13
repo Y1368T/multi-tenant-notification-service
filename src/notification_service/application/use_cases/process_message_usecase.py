@@ -5,7 +5,6 @@ logger = logging.getLogger(__name__)
 from notification_service.domain.interfaces import IMessageHandler
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 import re
-from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 
 class ProcessMessageUseCase:
@@ -19,10 +18,14 @@ class ProcessMessageUseCase:
         logger.info(f"Processing message: {message}")
         
         validated = self.validateMessage(message, channel)
-        if not validated:
-            logger.warning(f"Message validation failed for channel {channel}. Skipping processing.")
-            return
-        return  await self.messageRouter.doRoute(channel, tenant, message)
+        if not validated.get("success", False):
+            error_msg = validated.get("error", "Validation failed")
+            logger.warning(f"Message validation failed for channel {channel}: {error_msg}")
+            return NotificationResponse(
+                success=False,
+                message=error_msg
+            )
+        return await self.messageRouter.doRoute(channel, tenant, message)
     
     
     def validateMessage(self, message:NotificationRequest, channel:str) -> dict:
@@ -52,16 +55,13 @@ class ProcessMessageUseCase:
                 match channel.lower():
                     case "sms":
                         if not self.isValidPhoneNumber(recipient.address):
-                            raise ValueError(f"Invalid phone number: {recipient.address}")
+                            raise ValueError(message=f"Invalid phone number: {recipient.address}",field="recipient.address")
                     case "email":
                         if not self.isValidEmail(recipient.address):
-                            return {"success": False, "error": f"Invalid email address: {recipient.address}"}
-                    case _:
-                        # Default case for unknown channels
-                        pass
+                            raise ValueError(message=f"Invalid email address: {recipient.address}",field="recipient.address")
                 # Add more channel validations as needed
         
-        return {"success": True, "message": "Validation passed"}
+        return True
     def isValidPhoneNumber(self, phone: str) -> bool:
         """Validate phone number format"""
         # Basic phone number validation (adjust regex as needed)

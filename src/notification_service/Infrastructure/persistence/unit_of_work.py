@@ -103,13 +103,29 @@ class UnitOfWork(IUnitOfWork):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context manager; rollback on error, close session."""
+        session_closed=False
         try:
             if exc_type:
                 await self.rollback()
             else:
                 await self.commit()
+        except Exception as e:
+            logger.exception("Error during commit or rollback.")
+            
+            if self.session and not exc_type:
+                try:
+                    await self.rollback()
+                except Exception as rollback_error:
+                    logger.exception("Error during rollback after commit failure.")
+                    raise rollback_error
+            
         finally:
-            await self.close()
+            if self.session:
+                try:
+                    await self.close()
+                    session_closed=True
+                except Exception as e:
+                    logger.exception("Error during session close.")
         # Re-raise exceptions so upper layers can handle them
         if exc_type:
             raise exc_val

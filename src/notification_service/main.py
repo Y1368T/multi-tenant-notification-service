@@ -25,12 +25,13 @@ from notification_service.application.handlers.sms_channel_handler import SMSCha
 from notification_service.domain.interfaces.iprovider_service import IProviderService
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.application.services.sms_template_service import SMSTemplateService
-from notification_service.infrastructure.providers.sms.kifiya_sms_gateway import KifiyaSMSGateway
+from notification_service.infrastructure.providers.sms.kifiyaSmsProvider import KifiyaSMSProvider
 # from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
 from notification_service.application.services.provider_service import ProviderService
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 
 from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -41,6 +42,7 @@ from notification_service.shared.exceptions.application_exceptions import (
     ValidationError,
     ConflictError
 )
+from sqlalchemy.exc import IntegrityError
 import logging
 import sys
 
@@ -142,34 +144,194 @@ def custom_openapi(app: FastAPI) -> Dict[str, Any]:
     return app.openapi_schema
 
 def register_exception_handlers(app: FastAPI):
-    """Register global exception handlers."""
+    """Register global exception handlers with standardized error format."""
+    
+    logger = logging.getLogger(__name__)
+    
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+        """
+        Handle FastAPI/Pydantic request validation errors.
+        Converts to standardized error format.
+        """
+        logger.error(f"RequestValidationError: {exc}", exc_info=True)
+        
+        # Extract validation errors from Pydantic format
+        errors = exc.errors()
+        
+        # Build a consolidated message and details
+        error_messages = []
+        field_errors = []
+        
+        for error in errors:
+            # Get field path (e.g., ["body", "prefered_communication_method"] -> "prefered_communication_method")
+            field_path = ".".join(str(loc) for loc in error.get("loc", []))
+            # Remove "body." prefix if present
+            if field_path.startswith("body."):
+                field_path = field_path[5:]
+            
+            error_type = error.get("type", "validation_error")
+            error_msg = error.get("msg", "Validation error")
+            error_input = error.get("input")
+            
+            # Create a user-friendly message
+            if field_path:
+                user_message = f"{field_path}: {error_msg}"
+            else:
+                user_message = error_msg
+            
+            error_messages.append(user_message)
+            
+            # Store field-specific error details
+            field_errors.append({
+                "field": field_path if field_path else None,
+                "message": error_msg,
+                "type": error_type,
+                "input": error_input
+            })
+        
+        # Create a consolidated message
+        if len(error_messages) == 1:
+            consolidated_message = error_messages[0]
+        else:
+            consolidated_message = f"Validation failed for {len(error_messages)} field(s): " + "; ".join(error_messages)
+        
+        # Create standardized error response
+        from notification_service.shared.exceptions.application_exceptions import ValidationError
+        validation_exc = ValidationError(
+            message=consolidated_message,
+            code="REQUEST_VALIDATION_ERROR",
+            details={
+                "errors": field_errors,
+                "field_count": len(field_errors)
+            }
+        )
+        
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content=validation_exc.to_error_response(status.HTTP_422_UNPROCESSABLE_ENTITY)
+        )
     
     @app.exception_handler(EntityNotFoundError)
     async def entity_not_found_handler(request: Request, exc: EntityNotFoundError):
+        logger.error(f"EntityNotFoundError: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": str(exc), "type": "EntityNotFoundError"}
+            content=exc.to_error_response(status.HTTP_404_NOT_FOUND)
         )
     
     @app.exception_handler(ValidationError)
     async def validation_error_handler(request: Request, exc: ValidationError):
+        logger.error(f"ValidationError: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": str(exc), "type": "ValidationError", "field": exc.field}
+            content=exc.to_error_response(status.HTTP_400_BAD_REQUEST)
         )
     
     @app.exception_handler(ConflictError)
     async def conflict_error_handler(request: Request, exc: ConflictError):
+        logger.error(f"ConflictError: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
-            content={"detail": str(exc), "type": "ConflictError"}
+            content=exc.to_error_response(status.HTTP_409_CONFLICT)
         )
+    
+    @app.exception_handler(IntegrityError)
+    async def integrity_error_handler(request: Request, exc: IntegrityError):
+        """
+        Handle database integrity constraint violations.
+        Converts SQLAlchemy IntegrityError to standardized format.
+        """
+        logger.error(f"Database integrity error: {exc}", exc_info=True)
+        
+        # Extract constraint name and details from the error
+        error_message = str(exc.orig) if hasattr(exc, 'orig') else str(exc)
+        
+        # Extract the meaningful detail message (the part after "DETAIL: ")
+        detail_message = None
+        if "DETAIL:" in error_message:
+            detail_parts = error_message.split("DETAIL:", 1)
+            if len(detail_parts) > 1:
+                detail_message = detail_parts[1].strip()
+        
+        # Determine error code and message based on constraint type
+        if "unique constraint" in error_message.lower() or "duplicate key" in error_message.lower():
+            code = "DUPLICATE_ENTRY"
+            message = "A record with this value already exists. Please use a unique value."
+        elif "foreign key constraint" in error_message.lower():
+            code = "FOREIGN_KEY_VIOLATION"
+            message = "Referenced record does not exist. Please check related entities."
+        elif "not null constraint" in error_message.lower():
+            code = "NOT_NULL_VIOLATION"
+            message = "Required field cannot be null."
+        else:
+            code = "DATABASE_CONSTRAINT_VIOLATION"
+            message = "Database constraint violation occurred."
+        
+        # Build details with the extracted meaningful message
+        details = {}
+        if detail_message:
+            details["message"] = detail_message
+        
+        conflict_exc = ConflictError(
+            message=message,
+            code=code,
+            details=details
+        )
+        
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content=conflict_exc.to_error_response(status.HTTP_409_CONFLICT)
+        )
+    
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError):
+        """
+        Handle ValueError exceptions (including built-in Python ValueError).
+        Converts to standardized format.
+        """
+        logger.error(f"ValueError: {exc}", exc_info=True)
+        
+        # Check if it's our custom ValueError or built-in
+        if isinstance(exc, ApplicationException):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content=exc.to_error_response(status.HTTP_400_BAD_REQUEST)
+            )
+        else:
+            # Handle built-in ValueError
+            from notification_service.shared.exceptions.application_exceptions import ValueError as CustomValueError
+            custom_exc = CustomValueError(
+                message=str(exc),
+                code="VALUE_ERROR"
+            )
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content=custom_exc.to_error_response(status.HTTP_400_BAD_REQUEST)
+            )
     
     @app.exception_handler(ApplicationException)
     async def application_exception_handler(request: Request, exc: ApplicationException):
+        logger.error(f"ApplicationException: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc), "type": "ApplicationException"}
+            content=exc.to_error_response(status.HTTP_500_INTERNAL_SERVER_ERROR)
+        )
+    
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        """Catch-all handler for any unhandled exceptions."""
+        logger.error(f"Unhandled exception: {exc}", exc_info=True)
+        
+        from notification_service.shared.exceptions.application_exceptions import ApplicationException
+        app_exc = ApplicationException(
+            message="An unexpected error occurred. Please try again later.",
+            code="INTERNAL_SERVER_ERROR",
+            details={"original_error": str(exc)}
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=app_exc.to_error_response(status.HTTP_500_INTERNAL_SERVER_ERROR)
         )
 
 def main()->FastAPI:
@@ -186,7 +348,7 @@ def main()->FastAPI:
     
     builder.with_transient(IUnitOfWork,UnitOfWork)
     builder.with_transient(AfromessageSMSProvider)
-    builder.with_transient(KifiyaSMSGateway)
+    builder.with_transient(KifiyaSMSProvider)
     builder.with_transient(ProcessMessageUseCase)
     builder.with_transient(IMessageHandler,MessageRouter)
     builder.with_transient(IChannelHandler,SMSChannelHandler)
