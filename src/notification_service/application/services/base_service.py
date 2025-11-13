@@ -74,6 +74,34 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
         """
         pass
     
+    @abstractmethod
+    def _get_search_fields(self) -> Optional[List[str]]:
+        """
+        Get search fields for entity queries.
+        Must be implemented by entity services to specify which fields to search.
+        
+        Returns:
+            List of field paths to search (e.g., ["name", "prefix"] or ["templateName", "serviceName"])
+        """
+        pass
+    
+    @abstractmethod
+    def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
+        """
+        Build PaginatedRequest from PaginatedRequestDTO.
+        Must be implemented by entity services to provide:
+        - searchFields: List of fields to search
+        - relatedFilters: List of RelatedFilter objects
+        - filters: Dictionary of root filters (including custom filters)
+        
+        Args:
+            params: PaginatedRequestDTO from query parameters
+            
+        Returns:
+            PaginatedRequest object with all filters, search fields, and related filters
+        """
+        pass
+    
     def _get_includes(self) -> Optional[List[str]]:
         """
         Get relationship paths to eager load.
@@ -97,7 +125,6 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
         async with self.uow:
             repository = self._get_repository()
             created_entity = await repository.add(entity)
-            await self.uow.commit()
             return created_entity
     
     async def get(self, paginated_request: PaginatedRequest) -> PaginatedResponseDTO[TResponseDTO]:
@@ -185,7 +212,6 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
             # Merge changes (update existing entity fields)
             # This is a simple merge - entity services can override for complex logic
             updated_entity = await repository.update(entity)
-            await self.uow.commit()
             
             return updated_entity
     
@@ -222,7 +248,6 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
             
             # Save
             saved_entity = await repository.update(updated_entity)
-            await self.uow.commit()
             
             return saved_entity
     
@@ -281,5 +306,4 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
                 )
             
             await repository.delete(entity_id)
-            await self.uow.commit()
 

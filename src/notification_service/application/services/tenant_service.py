@@ -36,6 +36,46 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         # Tenants don't have related filters by default
         return []
     
+    def _get_search_fields(self) -> Optional[List[str]]:
+        """Get search fields for tenants."""
+        return ["name", "prefix"]
+    
+    def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
+        """Build PaginatedRequest for tenants."""
+        # Build root filters
+        root_filters = {}
+        if hasattr(params, 'id') and params.id:
+            try:
+                if isinstance(params.id, str):
+                    root_filters['id'] = UUID(params.id)
+                else:
+                    root_filters['id'] = params.id
+            except (ValueError, AttributeError):
+                root_filters['id'] = params.id
+        
+        if hasattr(params, 'tenantId') and params.tenantId:
+            root_filters['tenantId'] = params.tenantId
+        
+        # Extract custom filters
+        custom_filters = self._extract_custom_filters(params)
+        root_filters.update(custom_filters)
+        
+        # Get search fields and related filters
+        search_fields = self._get_search_fields()
+        related_filters = self._build_related_filters(params)
+        
+        # Build and return PaginatedRequest
+        return PaginatedRequest(
+            page=params.page,
+            pageSize=params.pageSize,
+            sortBy=params.sortBy or "createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=search_fields,
+            filters=root_filters,
+            relatedFilters=related_filters
+        )
+    
         
         
     async def getTenantByPrefix(self, prefix: str ) -> Optional[Tenant]:

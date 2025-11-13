@@ -1,11 +1,12 @@
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
-from notification_service.infrastructure.providers.sms.kifiya_sms_gateway  import KifiyaSMSGateway
+from notification_service.infrastructure.providers.sms.kifiyaSmsProvider  import KifiyaSMSProvider
 from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
@@ -16,13 +17,12 @@ logger = logging.getLogger(__name__)
 class SMSChannelHandler(IChannelHandler):
     """Concrete implementation of IChannelHandler for SMS channel"""
 
-    def __init__(self, unitofWork: IUnitOfWork, afro_service: AfromessageSMSProvider, kifiya_service: KifiyaSMSGateway):
+    def __init__(self, unitofWork: IUnitOfWork, afro_service: AfromessageSMSProvider, kifiya_service: KifiyaSMSProvider):
         self.unitofWork = unitofWork
         self.__handlers = {
             SMSProvider.AFROMESSAGE: afro_service,
             SMSProvider.KIFIYA: kifiya_service
         }
-        logger.info('SMSChannelHandler initialized')
         
     async def receiveMessage(self, tenantPrefix: str, message: NotificationRequest) -> NotificationResponse:
         """Receive a message from the message router."""
@@ -59,29 +59,34 @@ class SMSChannelHandler(IChannelHandler):
         tenantConfig = await self.loadTenantConfig(tenantdb.id)
         if not tenantConfig:
             logger.error(f"No SMS channel config for tenant {tenantdb.id}")
-            return
+            return NotificationResponse(success=False, errorMessage=f"No SMS channel config for tenant {tenantdb.id}")
         # send grpc request to customer management service to get customer language preference for Qena system
         language = message.lang if message.lang else "en"
         template = await self.loadTemplate(tenantdb.id, message.templateName,message.serviceName)
         if not template:
             logger.error(f"Template {message.templateName} not found for tenant {tenantdb.id}")
-            return
+            return NotificationResponse(success=False, errorMessage=f"Template {message.templateName} not found for tenant {tenantdb.id}")
         
-        templateText= template.content.get(language, {})
-        return await self.routeToProvider(message, tenantdb, tenantConfig, template.id,templateText)
+        templateText= template.content.get(language)
+        if templateText is None or templateText.strip() == "":
+            logger.error(f"Template text not found for tenant {tenantdb.id} and language {language}")
+            return NotificationResponse(success=False, errorMessage=f"Template text not found for tenant {tenantdb.name} and language {language}")
+        return await self.routeToProvider(message, tenantdb, tenantConfig, template.id, templateText)
 
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantSMSConfiguration]:
         """Load the SMS channel configuration for a given tenant."""
         logger.info(f"Loading SMS channel config for tenant {tenantId}")
         # Implementation for loading tenant config
         async with self.unitofWork:
-            config:list[TenantSMSConfiguration]= await self.unitofWork.tenantSmsConfigurations.find(lambda t:t.tenantId==tenantId and t.priroty==1)
+            config:list[TenantSMSConfiguration]= await self.unitofWork.tenantSmsConfigurations.find(lambda t:t.tenantId==tenantId and t.priority==1)
             if config:
                 return config
-
+            else:
+                logger.error(f"No SMS channel config found for tenant {tenantId}")
+                return None
     
 
-    async def loadTemplate(self, tenantId: str, templateName: str,serviceName:str) -> dict:
+    async def loadTemplate(self, tenantId: UUID, templateName: str,serviceName:str) -> Optional[SmsTemplate]:
         """Load the SMS message template for a given tenant and template name."""
         # Implementation for loading template
         
@@ -89,7 +94,7 @@ class SMSChannelHandler(IChannelHandler):
             template = await self.unitofWork.smsTemplates.firstOrDefault(lambda t: t.tenantId == tenantId and t.templateName == templateName  and t.serviceName==serviceName)
             if not template:
                 logger.error(f"Template {templateName} not found for tenant {tenantId}")
-                return {}
+                return None
             return template
 
     async def routeToProvider(

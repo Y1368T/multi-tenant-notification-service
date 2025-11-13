@@ -528,6 +528,7 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
             return getattr(Model, "id")
         return None
 
+
     async def listAdvancedPaginated(
         self,
         page: int,
@@ -569,14 +570,31 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         if rootFilters:
             import logging
             repo_logger = logging.getLogger(__name__)
+            Model = self.model_class
+            mapper = getattr(Model, "__mapper__", None)
+            
+            if not mapper:
+                raise ValueError(f"Model {Model.__name__} does not have a mapper")
+            
             for key, value in rootFilters.items():
-                repo_logger.info(f"[DEBUG REPO] Processing root filter - key: {key}, value: {value}, value_type: {type(value)}")
-                if hasattr(Model, key):
-                    model_attr = getattr(Model, key)
-                    repo_logger.info(f"[DEBUG REPO] Model has attribute '{key}': {model_attr}, applying filter")
-                    stmt = stmt.where(model_attr == value)
-                else:
-                    repo_logger.warning(f"[DEBUG REPO] Model does NOT have attribute '{key}'. Available attributes: {[attr for attr in dir(Model) if not attr.startswith('_')]}")
+                repo_logger.debug(f"[DEBUG REPO] Processing root filter - key: {key}, value: {value}, value_type: {type(value)}")
+                
+                # Simple security check: field must be in mapper.columns to prevent SQL injection
+                if key not in mapper.columns:
+                    allowed_fields = list(mapper.columns.keys())
+                    repo_logger.warning(
+                        f"Invalid filter field '{key}' rejected. "
+                        f"Allowed fields: {sorted(allowed_fields)}"
+                    )
+                    raise ValueError(
+                        f"Invalid filter field: '{key}'. "
+                        f"Allowed fields: {', '.join(sorted(allowed_fields))}"
+                    )
+                
+                # Safe to use - get column from mapper
+                column = mapper.columns[key]
+                repo_logger.debug(f"Applying filter on '{key}' = {value}")
+                stmt = stmt.where(column == value)
 
         if relatedFilters:
             for rf in relatedFilters:
@@ -591,6 +609,8 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
             for fpath in searchFields:
                 stmt, col = self._resolve_path_column(stmt, Model, fpath, join_cache)
                 clauses.append(col.ilike(f"%{searchText}%"))
+                clauses.append(col.startswith(searchText))
+                clauses.append(col.endswith(searchText))
             if clauses:
                 stmt = stmt.where(or_(*clauses))
 

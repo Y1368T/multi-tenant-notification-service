@@ -33,16 +33,3 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
-
-
-
-print(f"\n⚙️  Settings values:")
-print("-"*60)
-print(f"app_name: {settings.app_name}")
-print(f"app_env: {settings.app_env}")
-print(f"debug: {settings.debug}")
-print(f"database_url: {settings.database_url}")
-print(f"redis_url: {settings.redis_url}")
-print(f"rabbitmq_url: {settings.rabbitmq_url}")
-print("-"*60)
-print("✅ Settings loaded successfully!\n")
