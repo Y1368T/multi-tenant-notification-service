@@ -10,12 +10,12 @@ class Tenant:
     id: UUID
     name: str
     prefix: str
-    is_active: bool = True
-    supported_channels: list[str] = field(default_factory=list)
-    api_keys: str = ""
-    prefered_communication_method:str = "rest"  # Rest , Kafka , RabbitMq , gRPC
-    rate_limit_per_minute: int = 60
-    rate_limit_per_hour: int = 1000
-    rate_limit_per_day: int = 10000
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    isActive: bool = True
+    supportedChannels: list[str] = field(default_factory=list)
+    apiKeys: str = ""
+    preferedCommunicationMethod:str = "rest"  # Rest , Kafka , RabbitMq , gRPC
+    rateLimitPerMinute: int = 60
+    rateLimitPerHour: int = 1000
+    rateLimitPerDay: int = 10000
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)

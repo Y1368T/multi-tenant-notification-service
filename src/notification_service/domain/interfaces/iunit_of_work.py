@@ -16,7 +16,7 @@ class IUnitOfWork(ABC):
     Usage example:
         async with uow:
             notification = await uow.email_notifications.add(notification_entity)
-            template = await uow.email_templates.get_by_id(template_id)
+            template = await uow.email_templates.getById(template_id)
             await uow.commit()  # Atomic commit
     """
     # ProviderRespositories
@@ -29,51 +29,51 @@ class IUnitOfWork(ABC):
     # Email repositories
     @property
     @abstractmethod
-    def email_notifications(self) -> IGenericRepository:
+    def emailNotifications(self) -> IGenericRepository:
         """Get email notifications repository."""
         pass
     
     @property
     @abstractmethod
-    def email_outbox(self) -> IGenericRepository:
+    def emailOutbox(self) -> IGenericRepository:
         """Get email outbox repository."""
         pass
     
     @property
     @abstractmethod
-    def email_templates(self) -> IGenericRepository:
+    def emailTemplates(self) -> IGenericRepository:
         """Get email templates repository."""
         pass
     
     # SMS repositories
     @property
     @abstractmethod
-    def sms_notifications(self) -> IGenericRepository:
+    def smsNotifications(self) -> IGenericRepository:
         """Get SMS notifications repository."""
         pass
     
     @property
     @abstractmethod
-    def sms_outbox(self) -> IGenericRepository:
+    def smsOutbox(self) -> IGenericRepository:
         """Get SMS outbox repository."""
         pass
     
     @property
     @abstractmethod
-    def sms_templates(self) -> IGenericRepository:
+    def smsTemplates(self) -> IGenericRepository:
         """Get SMS templates repository."""
         pass
     
     # In-app repositories
     @property
     @abstractmethod
-    def in_app_notifications(self) -> IGenericRepository:
+    def inAppNotifications(self) -> IGenericRepository:
         """Get in-app notifications repository."""
         pass
     
     @property
     @abstractmethod
-    def in_app_templates(self) -> IGenericRepository:
+    def inAppTemplates(self) -> IGenericRepository:
         """Get in-app templates repository."""
         pass
     
@@ -86,13 +86,13 @@ class IUnitOfWork(ABC):
     
     @property
     @abstractmethod
-    def tenant_email_configurations(self) -> IGenericRepository:
+    def tenantEmailConfigurations(self) -> IGenericRepository:
         """Get tenant email configurations repository."""
         pass
     
     @property
     @abstractmethod
-    def tenant_sms_configurations(self) -> IGenericRepository:
+    def tenantSmsConfigurations(self) -> IGenericRepository:
         """Get tenant SMS configurations repository."""
         pass
     

@@ -5,11 +5,11 @@ from uuid import UUID
 class TenantInAppConfiguration:
     
     id: UUID
-    tenant_id: UUID
-    provider_name: str
+    tenantId: UUID
+    providerName: str
     priority: int = 1
-    is_active: bool = True
-    rate_limit_per_minute: int = 40
-    rate_limit_per_hour: int = 600
-    rate_limit_per_day: int = 6000
+    isActive: bool = True
+    rateLimitPerMinute: int = 40
+    rateLimitPerHour: int = 600
+    rateLimitPerDay: int = 6000
     config: Dict[str, Any] = field(default_factory=dict)

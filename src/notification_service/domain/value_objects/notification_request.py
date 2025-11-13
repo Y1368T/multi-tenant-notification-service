@@ -37,45 +37,45 @@ class NotificationRequest:
         
     }
     """
-    service_name: str  # service identifier (e.g., "payment-service")
+    serviceName: str  # service identifier (e.g., "payment-service")
     recipients: List[Recipient]
-    template_name: str
+    templateName: str
     payload: Dict[str, Any]  # Template variables
-    idempotency_key: str = field(default_factory=lambda: str(uuid.uuid4()))
+    idempotencyKey: str = field(default_factory=lambda: str(uuid.uuid4()))
     lang: str = "en"  # Optional, defaults to "en"
     
     def __post_init__(self):
         """Validate request."""
-        if not self.service_name:
+        if not self.serviceName:
             raise ValueError("serviceName is required")
         if not self.recipients:
             raise ValueError("recipients list cannot be empty")
-        if not self.template_name:
+        if not self.templateName:
             raise ValueError("templateName is required")
         if not self.payload:
             raise ValueError("payload cannot be empty")
-        if not self.idempotency_key:
+        if not self.idempotencyKey:
             raise ValueError("idempotencyKey is required")
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "NotificationRequest":
+    def fromDict(cls, data: Dict[str, Any]) -> "NotificationRequest":
         """Create NotificationRequest from dictionary."""
         recipients = [Recipient(**rec) for rec in data.get("recipients", [])]
         return cls(
-            service_name=data["service_name"],
+            serviceName=data.get("serviceName") or data.get("service_name"),
             recipients=recipients,
-            template_name=data["template_name"],
+            templateName=data.get("templateName") or data.get("template_name"),
             payload=data["payload"],
-            idempotency_key=data.get("idempotency_key", str(uuid.uuid4())),
+            idempotencyKey=data.get("idempotencyKey") or data.get("idempotency_key", str(uuid.uuid4())),
             lang=data.get("lang", "en")
         )
-    def to_dict(self) -> Dict[str, Any]:
+    def toDict(self) -> Dict[str, Any]:
         """Convert NotificationRequest to dictionary."""
         return {
-            "service_name": self.service_name,
+            "serviceName": self.serviceName,
             "recipients": [vars(recipient) for recipient in self.recipients],
-            "template_name": self.template_name,
+            "templateName": self.templateName,
             "payload": self.payload,
-            "idempotency_key": self.idempotency_key,
+            "idempotencyKey": self.idempotencyKey,
             "lang": self.lang
         }

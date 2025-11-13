@@ -1,92 +1,113 @@
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    PaginatedRequestDTO,
+    RelatedFilter,
+    FilterOp
+)
+from notification_service.adapters.inbound.dto.sms_template_request_dto import SMSTemplateResponseDTO
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from uuid import UUID
-class SMSTemplateService:
+from typing import List, Optional, Dict, Any
+from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
+from notification_service.application.services.base_service import BaseService
+
+class SMSTemplateService(BaseService[SmsTemplate, SMSTemplateResponseDTO]):
     
-    def __init__(self,uow:IUnitOfWork):
-        self.uow=uow
+    def __init__(self, uow: IUnitOfWork):
+        super().__init__(uow, SmsTemplate, SMSTemplateResponseDTO)
+        self.uow = uow
     
-    async def create_sms_template(self,template:SmsTemplate):
-        """Create a new SMS template.
+    def _get_repository(self):
+        """Get SMS templates repository."""
+        return self.uow.smsTemplates
+    
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        if hasattr(params, 'isActive') and params.isActive is not None:
+            filters["isActive"] = params.isActive
+        return filters
+    
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
+        """Build related filters for SMS templates."""
+        related_filters: List[RelatedFilter] = []
+        if hasattr(params, 'tenantId') and params.tenantId:
+            related_filters.append(
+                RelatedFilter(
+                    relationshipPath="tenant",
+                    field="id",
+                    op=FilterOp.EQ,
+                    value=UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
+                )
+            )
+        return related_filters
+    
+    # Keep old method for backward compatibility
+    async def createSmsTemplate(self, template: SmsTemplate):
+        """Create a new SMS template (deprecated - use create() instead)."""
+        return await self.create(template)
         
-        Args:
-            template: SmsTemplate entity to create
-            
-        Returns:
-            Created SmsTemplate entity with generated ID
-        """
-        async with self.uow:
-            created_template = await self.uow.sms_templates.add(template)
-            await self.uow.commit()
-            return created_template
-        
-    async def get_sms_template_by_id(self, template_id):
+    async def getSmsTemplateById(self, templateId):
         """Retrieve an SMS template by its ID.
         
         Args:
-            template_id: UUID of the SMS template
+            templateId: UUID of the SMS template
             
         Returns:
             SmsTemplate entity if found, None otherwise
         """
         async with self.uow:
-            template = await self.uow.sms_templates.get_by_id(template_id)
+            template = await self.uow.smsTemplates.getById(templateId)
             return template
     
-    async def update_sms_template(self, template):
-        """Update an existing SMS template.
-        
-        Args:
-            template: SmsTemplate entity with updated values
-            
-        Returns:
-            Updated SmsTemplate entity
-        """
-        async with self.uow:
-            updated_template = await self.uow.sms_templates.update(template)
-            await self.uow.commit()
-            return updated_template
-        
-    async def delete_sms_template(self, template_id):
-        """Delete an SMS template by its ID.
-        
-        Args:
-            template_id: UUID of the SMS template to delete
-            
-        Returns:
-            None
-        """
-        async with self.uow:
-            await self.uow.sms_templates.delete(template_id)
-            await self.uow.commit()
+    # Keep old methods for backward compatibility
+    async def updateSmsTemplate(self, template):
+        """Update an existing SMS template (deprecated - use update() instead)."""
+        return await self.update(template)
     
-    async def list_sms_templates_by_tenant(self, tenant_id):
+    async def deleteSmsTemplate(self, templateId):
+        """Delete an SMS template (deprecated - use delete() instead)."""
+        await self.delete(templateId)
+    
+    async def listSmsTemplatesByTenant(self, tenantId):
         """List all SMS templates for a given tenant.
         
         Args:
-            tenant_id: UUID of the tenant
+            tenantId: UUID of the tenant
         Returns:
             List of SmsTemplate entities
         """
         async with self.uow:
-            templates = await self.uow.sms_templates.list_by_tenant(tenant_id)
+            templates = await self.uow.smsTemplates.listByTenant(tenantId)
             return templates
     
-    async def get_template_by_filters(self,tenant_id:UUID,template_name:str,service_name:str):
+    async def getTemplateByFilters(self,tenantId:UUID,templateName:str,serviceName:str):
         """ get list of templates by filters"""
         async with self.uow:
-            templates=await self.uow.sms_templates.list(lambda x:x.tenant_id==tenant_id and x.template_name==template_name and x.service_name==service_name)
+            templates=await self.uow.smsTemplates.list(lambda x:x.tenantId==tenantId and x.templateName==templateName and x.serviceName==serviceName)
             return templates
     
-    async def get_templates_by_tenant(self, tenant_id: UUID):
+    async def getTemplatesByTenant(self, tenantId: UUID):
         """Retrieve SMS templates by tenant ID.
         
         Args:
-            tenant_id: UUID of the tenant
+            tenantId: UUID of the tenant
             
         Returns:
             List of SmsTemplate entities
         """
         async with self.uow:
-            templates = await self.uow.sms_templates.list(lambda x: x.tenant_id == tenant_id)
+            templates = await self.uow.smsTemplates.list(lambda x: x.tenantId == tenantId)
             return templates
+        
+    # Keep old method for backward compatibility
+    async def getAllTemplatesAdvanced(
+        self,
+        req: PaginatedRequest
+    ) -> PaginatedResponseDTO[SMSTemplateResponseDTO]:
+        """
+        SQL-only filtering, deep relationship filtering, sorting and multi-field search.
+        (Deprecated - use get() instead)
+        """
+        return await self.get(req)

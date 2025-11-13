@@ -16,7 +16,7 @@ class SmtpEmailSender(IProviderService):
     async def send(
         self,
         request_object: Dict[str, Any],
-        notification_id: str
+        notificationId: str
     ) -> Dict[str, Any]:
         try:
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
@@ -32,14 +32,14 @@ class SmtpEmailSender(IProviderService):
                 
             return {
                 "success": True,
-                "provider_message_id": notification_id,
+                "provider_message_id": notificationId,
                 "status": "sent",
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
             return {
                 "success": False,
-                "provider_message_id": notification_id,
+                "provider_message_id": notificationId,
                 "status": "failed",
                 "error_message": str(e),
                 "timestamp": datetime.now().isoformat()
@@ -51,7 +51,7 @@ class SmtpEmailSender(IProviderService):
     ) -> Dict[str, Any]:
         # SMTP doesn't provide delivery callbacks, so we return a basic response
         return {
-            "notification_id": provider_callback.get("notification_id"),
+            "notificationId": provider_callback.get("notificationId"),
             "status": "delivered",
             "delivered_at": datetime.now().isoformat(),
             "error_message": None
@@ -59,7 +59,7 @@ class SmtpEmailSender(IProviderService):
 
     async def save_to_outbox(
         self,
-        notification_id: str,
+        notificationId: str,
         request_object: Dict[str, Any],
         retry_count: int = 0,
         next_retry_at: Optional[datetime] = None

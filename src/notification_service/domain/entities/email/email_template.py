@@ -9,14 +9,14 @@ class EmailTemplate:
     """Domain entity for email templates"""
     
     id: UUID
-    template_name: str
+    templateName: str
     subject: str
-    service_name: str
-    tenant_id: UUID
-    body_type: str = "html"  # 'html' or 'text'
-    file_urls: Optional[str] = None
-    is_active: bool = True
+    serviceName: str
+    tenantId: UUID
+    bodyType: str = "html"  # 'html' or 'text'
+    fileUrls: Optional[str] = None
+    isActive: bool = True
     version: int = 1
     body: Dict[str, str] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)
