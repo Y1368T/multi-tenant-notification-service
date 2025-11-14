@@ -1,5 +1,6 @@
 """Mapper for SMSOutbox entity and model."""
 from typing import Optional
+from sqlalchemy import inspect
 from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
 from notification_service.infrastructure.persistence.models.sms.sms_outbox import SmsOutboxModel
 
@@ -20,12 +21,27 @@ class SmsOutboxMapper:
         if model is None:
             return None
         
+        # Import here to avoid circular dependency
+        from notification_service.infrastructure.persistence.mappers.sms_template_mapper import SmsTemplateMapper
+        
+        # Extract template if loaded
+        template_entity = None
+        insp = inspect(model)
+        
+        # Check if template is loaded without triggering lazy load
+        if 'template' not in insp.unloaded:
+            template_model = model.__dict__.get('template')
+            if template_model is not None:
+                # Map the template model to entity
+                template_entity = SmsTemplateMapper.toEntity(template_model)
+        
         return SMSOutbox(
             id=model.id,
             recipientNumber=model.recipientNumber,
             messageContent=model.messageContent,
             idempotencyKey=model.idempotencyKey,
             templateId=model.templateId,
+            template=template_entity,
             retryCount=model.retryCount,
             lastRetryAt=model.lastRetryAt,
             lastErrorMessage=model.lastErrorMessage,

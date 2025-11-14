@@ -1,2 +1,3 @@
 from .afromessage_provider import AfromessageSMSProvider
-__all__ = ["AfromessageSMSProvider"]
+from .kifiyaSmsProvider import KifiyaSMSProvider
+__all__ = ["AfromessageSMSProvider", "KifiyaSMSProvider"]

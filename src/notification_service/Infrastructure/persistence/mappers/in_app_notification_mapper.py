@@ -1,5 +1,6 @@
 """Mapper for InAppNotification entity and model."""
 from typing import Optional
+from sqlalchemy import inspect
 from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
 from notification_service.infrastructure.persistence.models.in_app.in_app_notification import InAppNotificationModel
 
@@ -20,6 +21,23 @@ class InAppNotificationMapper:
         if model is None:
             return None
         
+        # Import here to avoid circular dependency
+        from notification_service.infrastructure.persistence.mappers.in_app_template_mapper import InAppTemplateMapper
+        
+        # Extract template if loaded
+        template_entity = None
+        template_name = None
+        insp = inspect(model)
+        
+        # Check if template is loaded without triggering lazy load
+        if 'template' not in insp.unloaded:
+            template_model = model.__dict__.get('template')
+            if template_model is not None:
+                # Map the template model to entity
+                template_entity = InAppTemplateMapper.toEntity(template_model)
+                # Extract template name
+                template_name = template_entity.templateName if template_entity else None
+        
         return InAppNotification(
             id=model.id,
             recipientUserId=model.recipientUserId,
@@ -27,6 +45,8 @@ class InAppNotificationMapper:
             status=model.status,
             idempotencyKey=model.idempotencyKey,
             templateId=model.templateId,
+            template=template_entity,
+            templateName=template_name,
             createdAt=model.createdAt,
             updatedAt=model.updatedAt
         )

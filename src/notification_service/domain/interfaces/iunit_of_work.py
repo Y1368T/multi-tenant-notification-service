@@ -54,7 +54,7 @@ class IUnitOfWork(ABC):
     
     @property
     @abstractmethod
-    def smsOutbox(self) -> IGenericRepository:
+    def smsOutboxes(self) -> IGenericRepository:
         """Get SMS outbox repository."""
         pass
     
@@ -75,6 +75,12 @@ class IUnitOfWork(ABC):
     @abstractmethod
     def inAppTemplates(self) -> IGenericRepository:
         """Get in-app templates repository."""
+        pass
+    
+    @property
+    @abstractmethod
+    def inAppOutboxes(self) -> IGenericRepository:
+        """Get in-app outbox repository."""
         pass
     
     # Tenant repositories

@@ -62,11 +62,12 @@ from notification_service.infrastructure.persistence.models.sms.sms_notification
 from notification_service.infrastructure.persistence.models.sms.sms_outbox import SmsOutboxModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.sms.sms_template import SmsTemplateModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.in_app.in_app_notification import InAppNotificationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.in_app.in_app_outbox import InAppOutboxModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.in_app.in_app_template import InAppTemplateModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.tenant.tenant_sms_configuration import TenantSMSConfigurationModel  # noqa: F401
-
+from notification_service.infrastructure.persistence.models.tenant.tenant_inapp_configuration import TenantInAppConfigurationModel  # noqa: F401
 # Set sqlalchemy url from settings (use sync URL for Alembic)
 sync_db_url = os.getenv('DATABASE_URL_SYNC') or settings.database_url.replace('+asyncpg', '')
 config.set_main_option('sqlalchemy.url', sync_db_url)
