@@ -56,7 +56,49 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
     def _get_includes(self) -> List[str]:
         """Get relationship paths to eager load for SMS notifications."""
         return ["template", "template.tenant"]
-
+    
+    def _get_search_fields(self) -> Optional[List[str]]:
+        """Get search fields for SMS notifications."""
+        return ["recipientNumber", "template.templateName", "template.tenant.name", "template.tenant.prefix"]
+    
+    def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
+        """Build PaginatedRequest for SMS notifications."""
+        # Build root filters
+        root_filters = {}
+        if hasattr(params, 'id') and params.id:
+            try:
+                root_filters['id'] = UUID(params.id) if isinstance(params.id, str) else params.id
+            except (ValueError, AttributeError):
+                root_filters['id'] = params.id
+        
+        if hasattr(params, 'tenantId') and params.tenantId:
+            try:
+                tenant_id_value = UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
+                root_filters['tenantId'] = tenant_id_value
+            except (ValueError, AttributeError):
+                root_filters['tenantId'] = params.tenantId
+        
+        # Extract custom filters
+        custom_filters = self._extract_custom_filters(params)
+        root_filters.update(custom_filters)
+        
+        # Build related filters
+        related_filters = self._build_related_filters(params)
+        
+        # Get search fields
+        search_fields = self._get_search_fields()
+        
+        # Build and return PaginatedRequest
+        return PaginatedRequest(
+            page=params.page,
+            pageSize=params.pageSize,
+            sortBy=params.sortBy or "createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=search_fields,
+            filters=root_filters,
+            relatedFilters=related_filters
+        )
 
     async def prepareAndSendSms(
         self, 

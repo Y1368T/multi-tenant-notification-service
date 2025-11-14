@@ -122,7 +122,6 @@ class RabbitMQConsumer(IMessageConsumer):
             # Start consuming messages
             await queue.consume(message_handler)
             
-            logger.info(f"Subscribed to queue '{queueName}'")
         except Exception as e:
             logger.error(f"Error subscribing to queue '{queueName}': {e}")
             raise
@@ -179,7 +178,6 @@ class RabbitMQConsumer(IMessageConsumer):
             )
             
             self._queues[queueName] = queue
-            logger.info(f"Queue declared: {queueName} (durable={durable})")
             return queue
             
         except Exception as e:
@@ -202,14 +200,11 @@ class RabbitMQConsumer(IMessageConsumer):
                 autoDelete=False  # Don't delete when no consumers
             )
             
-            logger.info(f"Queue ensured: {queueName}")
-            
             # Step 2: Subscribe to the queue based on channel type
             handler = self.getHandlerForChannel(channel)
             
             await self.subscribe(queueName, handler)
             
-            logger.info(f"Subscribed to queue: {queueName} with {handler.__name__}")
             
         except Exception as e:
             logger.error(f"Error ensuring queue {queueName}: {e}")

@@ -3,6 +3,8 @@ from typing import Optional
 from datetime import datetime
 from uuid import UUID
 
+from notification_service.domain.entities.in_app.in_app_template import InAppTemplate
+
 
 @dataclass
 class InAppNotification:
@@ -14,5 +16,7 @@ class InAppNotification:
     status: str = "unread"
     idempotencyKey: Optional[str] = None
     templateId: Optional[UUID] = None
+    template: Optional[InAppTemplate] = None
+    templateName: Optional[str] = None
     createdAt: datetime = field(default_factory=datetime.utcnow)
     updatedAt: datetime = field(default_factory=datetime.utcnow)

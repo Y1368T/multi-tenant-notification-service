@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from notification_service.infrastructure.persistence.repositories.tenant_inapp_configuration_repository import TenantInAppConfigurationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
@@ -13,6 +14,7 @@ from notification_service.infrastructure.persistence.repositories.sms_outbox_rep
 from notification_service.infrastructure.persistence.repositories.sms_template_repository import SmsTemplateRepository
 from notification_service.infrastructure.persistence.repositories.in_app_notification_repository import InAppNotificationRepository
 from notification_service.infrastructure.persistence.repositories.in_app_template_repository import InAppTemplateRepository
+from notification_service.infrastructure.persistence.repositories.in_app_outbox_repository import InAppOutboxRepository
 from notification_service.infrastructure.persistence.repositories.tenant_repository import TenantRepository
 from notification_service.infrastructure.persistence.repositories.tenant_email_configuration_repository import TenantEmailConfigurationRepository
 from notification_service.infrastructure.persistence.repositories.tenant_sms_configuration_repository import TenantSmsConfigurationRepository
@@ -54,8 +56,12 @@ class UnitOfWork(IUnitOfWork):
         return self._smsNotifications
 
     @property
-    def smsOutbox(self):
-        return self._smsOutbox
+    def smsOutboxes(self):
+        return self._smsOutboxes
+    
+    @property
+    def inAppOutboxes(self):
+        return self._inAppOutboxes
 
     @property
     def smsTemplates(self):
@@ -93,11 +99,12 @@ class UnitOfWork(IUnitOfWork):
         self._emailTemplates = EmailTemplateRepository(self.session)
 
         self._smsNotifications = SmsNotificationRepository(self.session)
-        self._smsOutbox = SmsOutboxRepository(self.session)
+        self._smsOutboxes = SmsOutboxRepository(self.session)
         self._smsTemplates = SmsTemplateRepository(self.session)
 
         self._inAppNotifications = InAppNotificationRepository(self.session)
         self._inAppTemplates = InAppTemplateRepository(self.session)
+        self._inAppOutboxes = InAppOutboxRepository(self.session)
 
         self._tenants = TenantRepository(self.session, TenantMapper())
         self._tenantEmailConfigurations = TenantEmailConfigurationRepository(self.session)
@@ -110,13 +117,29 @@ class UnitOfWork(IUnitOfWork):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context manager; rollback on error, close session."""
+        session_closed=False
         try:
             if exc_type:
                 await self.rollback()
             else:
                 await self.commit()
+        except Exception as e:
+            logger.exception("Error during commit or rollback.")
+            
+            if self.session and not exc_type:
+                try:
+                    await self.rollback()
+                except Exception as rollback_error:
+                    logger.exception("Error during rollback after commit failure.")
+                    raise rollback_error
+            
         finally:
-            await self.close()
+            if self.session:
+                try:
+                    await self.close()
+                    session_closed=True
+                except Exception as e:
+                    logger.exception("Error during session close.")
         # Re-raise exceptions so upper layers can handle them
         if exc_type:
             raise exc_val

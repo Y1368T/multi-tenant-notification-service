@@ -8,6 +8,8 @@ from notification_service.shared.exceptions.application_exceptions import Messag
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.entities.tenant import Tenant
 from uuid import UUID
+from notification_service.application.handlers.sms_channel_handler import SMSChannelHandler
+from notification_service.application.handlers.in_app_channel_handler import InAppChannelHandler
 logger = logging.getLogger(__name__)
 
 class MessageRouter(IMessageHandler):
@@ -15,18 +17,17 @@ class MessageRouter(IMessageHandler):
 
     def __init__(
         self,
-        smsHandler: IChannelHandler,
-        inAppHandler: IChannelHandler = None,
+        smsHandler: SMSChannelHandler,
+        inAppHandler: InAppChannelHandler = None,
         # email_handler: IChannelHandler,
         # whatsapp_handler: IChannelHandler
     ):
         self._handlers: Dict[NotificationChannel, IChannelHandler] = {
             NotificationChannel.SMS: smsHandler,
-            NotificationChannel.PUSH: inAppHandler,
+            NotificationChannel.INAPP: inAppHandler,
             # NotificationChannel.EMAIL: emailHandler,
             # NotificationChannel.WHATSAPP: whatsappHandler,
         }
-        logger.info('MessageRouter initialized with channel handlers')
 
     async def doRoute(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> NotificationResponse:
         """Route message to appropriate channel handler."""
@@ -34,10 +35,10 @@ class MessageRouter(IMessageHandler):
         
         handler = self._handlers.get(channel)
         if not handler:
-            raise MessageRoutingError(f'No handler configured for channel: {channel.value}')
+            raise MessageRoutingError(channel.value, f'No handler configured for channel: {channel.value}')
         
         try:
            return await handler.receiveMessage(tenant, message)
         except Exception as e:
             logger.error(f'Failed to route to {channel.value}: {str(e)}', exc_info=True)
-            raise MessageRoutingError(f'Routing failed for {channel.value}: {str(e)}',"exception") from e
+            raise MessageRoutingError(channel.value, f'Routing failed: {str(e)}') from e
