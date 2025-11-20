@@ -34,7 +34,7 @@ class InAppChannelHandler(IChannelHandler):
             tenantdb = await self.unitofWork.tenants.firstOrDefault(lambda t: t.prefix == tenantPrefix)
             if not tenantdb:
                 logger.error(f"Tenant with prefix {tenantPrefix} not found")
-                return NotificationResponse(success=False, error_message=f"Tenant with prefix {tenantPrefix} not found")
+                return NotificationResponse(success=False, errorMessage=f"Tenant with prefix {tenantPrefix} not found")
             
             template = await self.unitofWork.inAppTemplates.firstOrDefault(
                 lambda t: t.tenantId == tenantdb.id 
@@ -60,7 +60,7 @@ class InAppChannelHandler(IChannelHandler):
         tenantConfig = await self.loadTenantConfig(tenantdb.id)
         if not tenantConfig:
             logger.error(f"No in-app channel config for tenant {tenantdb.id}")
-            return NotificationResponse(success=False, error_message=f"No in-app channel config for tenant {tenantdb.id}")
+            return NotificationResponse(success=False, errorMessage=f"No in-app channel config for tenant {tenantdb.id}")
         
         # Get language preference
         language = message.lang if message.lang else "en"
@@ -110,19 +110,41 @@ class InAppChannelHandler(IChannelHandler):
         
         if not configs:
             logger.error(f"No active in-app configuration found for tenant {tenant.id}")
-            return NotificationResponse(success=False, error_message="No active in-app configuration found")
+            return NotificationResponse(success=False, errorMessage="No active in-app configuration found")
         
         config = configs[0]
         
+        # Extract platform configs from template (stored with _ prefix in body)
+        # These are top-level fields that apply to all languages
+        platform_data = templateBody.get('data')
+        platform_android = templateBody.get('android')
+        platform_apns = templateBody.get('apns')
+        
         # Build FCM message payload from template
-        # Template body should contain: title, body, data (optional), android (optional), apns (optional)
+        # templateBody contains language-specific title and body
         fcm_message = {
             "title": templateBody.get("title", "Notification"),
             "body": templateBody.get("body", ""),
-            "data": templateBody.get("data", {}),
-            "android": templateBody.get("android", {}),
-            "apns": templateBody.get("apns", {})
+            "data": platform_data if platform_data is not None else {},
+            "android": platform_android if platform_android is not None else {},
+            "apns": platform_apns if platform_apns is not None else {}
         }
+        
+        # Helper function to recursively format placeholders in nested dictionaries
+        def format_placeholders(obj, payload: Dict[str, Any]):
+            """Recursively format placeholders in nested dict/list structures."""
+            if isinstance(obj, dict):
+                return {k: format_placeholders(v, payload) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [format_placeholders(item, payload) for item in obj]
+            elif isinstance(obj, str) and payload:
+                try:
+                    return obj.format(**payload)
+                except (KeyError, ValueError):
+                    # If formatting fails, return original string
+                    return obj
+            else:
+                return obj
         
         # Replace placeholders in title and body with actual values from request.payload
         if isinstance(fcm_message["title"], str) and request.payload:
@@ -137,14 +159,17 @@ class InAppChannelHandler(IChannelHandler):
             except KeyError as e:
                 logger.warning(f"Missing key in payload for body: {e}")
         
-        # Replace placeholders in data if it's a dict
-        if isinstance(fcm_message["data"], dict) and request.payload:
-            for key, value in fcm_message["data"].items():
-                if isinstance(value, str):
-                    try:
-                        fcm_message["data"][key] = value.format(**request.payload)
-                    except KeyError:
-                        pass  # Keep original value if placeholder not found
+        # Format placeholders in data (recursively handles nested structures)
+        if fcm_message["data"] and request.payload:
+            fcm_message["data"] = format_placeholders(fcm_message["data"], request.payload)
+        
+        # Format placeholders in android config (recursively handles nested structures)
+        if fcm_message["android"] and request.payload:
+            fcm_message["android"] = format_placeholders(fcm_message["android"], request.payload)
+        
+        # Format placeholders in apns config (recursively handles nested structures)
+        if fcm_message["apns"] and request.payload:
+            fcm_message["apns"] = format_placeholders(fcm_message["apns"], request.payload)
         
         match config.providerName.lower():
             case PushProvider.FIREBASE.value:
@@ -160,6 +185,6 @@ class InAppChannelHandler(IChannelHandler):
                 logger.error(f"Unsupported in-app provider: {config.providerName}")
                 return NotificationResponse(
                     success=False, 
-                    error_message=f"Unsupported in-app provider: {config.providerName}"
+                    errorMessage=f"Unsupported in-app provider: {config.providerName}"
                 )
 

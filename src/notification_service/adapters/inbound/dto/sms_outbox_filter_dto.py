@@ -5,11 +5,11 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import Pagi
 
 class SMSOutboxFilterDTO(PaginatedRequestDTO):
     """Filter DTO for SMS outbox queries with custom filters."""
-    templateName: Optional[str] = Field(None, alias="template_name", description="Filter by template name")
-    serviceName: Optional[str] = Field(None, alias="service_name", description="Filter by service name")
-    recipientNumber: Optional[str] = Field(None, alias="recipient_number", description="Filter by recipient number")
+    templateName: Optional[str] = Field(None, alias="templateName", description="Filter by template name")
+    serviceName: Optional[str] = Field(None, alias="serviceName", description="Filter by service name")
+    recipientNumber: Optional[str] = Field(None, alias="recipientNumber", description="Filter by recipient number")
     status: Optional[str] = Field(None, description="Filter by status")
-    tenantId: Optional[UUID] = Field(None, alias="tenant_id", description="Filter by tenant ID")
+    tenantId: Optional[UUID] = Field(None, alias="tenantId", description="Filter by tenant ID")
     
     model_config = ConfigDict(populate_by_name=True)
     

@@ -108,7 +108,7 @@ class InAppNotificationService(BaseService[InAppNotification, InAppNotificationR
         
         valid = self.processMessageUseCase.validateMessage(
             message=messageData,
-            channel=NotificationChannel.IN_APP
+            channel=NotificationChannel.INAPP
         )
         
         if not valid.get("success"):
@@ -127,8 +127,8 @@ class InAppNotificationService(BaseService[InAppNotification, InAppNotificationR
                 )
             
             response = await self.messageRouter.doRoute(
-                NotificationChannel.IN_APP, 
-                tenant,  # Pass Tenant object
+                NotificationChannel.INAPP, 
+                tenant.prefix,  # Pass Tenant object
                 messageData
             )
             return response

@@ -5,11 +5,11 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import Pagi
 
 class InAppOutboxFilterDTO(PaginatedRequestDTO):
     """Filter DTO for in-app outbox queries with custom filters."""
-    templateName: Optional[str] = Field(None, alias="template_name", description="Filter by template name")
-    serviceName: Optional[str] = Field(None, alias="service_name", description="Filter by service name")
-    recipientUserId: Optional[str] = Field(None, alias="recipient_user_id", description="Filter by recipient user ID")
+    templateName: Optional[str] = Field(None, alias="templateName", description="Filter by template name")
+    serviceName: Optional[str] = Field(None, alias="serviceName", description="Filter by service name")
+    recipientUserId: Optional[str] = Field(None, alias="recipientUserId", description="Filter by recipient user ID")
     status: Optional[str] = Field(None, description="Filter by status")
-    tenantId: Optional[UUID] = Field(None, alias="tenant_id", description="Filter by tenant ID")
+    tenantId: Optional[UUID] = Field(None, alias="tenantId", description="Filter by tenant ID")
     
     model_config = ConfigDict(populate_by_name=True)
     

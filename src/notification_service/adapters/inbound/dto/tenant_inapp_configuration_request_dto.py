@@ -7,13 +7,13 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import Pagi
 from notification_service.shared.validators.input_validators import validate_string_input
 
 class TenantInAppConfigurationRequestDto(BaseModel):
-    tenantId: UUID = Field(alias="tenant_id")
-    providerName: str = Field(alias="provider_name")
+    tenantId: UUID = Field(alias="tenantId")
+    providerName: str = Field(alias="providerName")
     priority: int
-    isActive: bool = Field(default=True, alias="is_active")
-    rateLimitPerMinute: int = Field(default=40, alias="rate_limit_per_minute")
-    rateLimitPerHour: int = Field(default=600, alias="rate_limit_per_hour")
-    rateLimitPerDay: int = Field(default=6000, alias="rate_limit_per_day")
+    isActive: bool = Field(default=True, alias="isActive")
+    rateLimitPerMinute: int = Field(default=40, alias="rateLimitPerMinute")
+    rateLimitPerHour: int = Field(default=600, alias="rateLimitPerHour")
+    rateLimitPerDay: int = Field(default=6000, alias="rateLimitPerDay")
     config: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
@@ -22,7 +22,7 @@ class TenantInAppConfigurationRequestDto(BaseModel):
     @classmethod
     def validate_provider_name(cls, v: str) -> str:
         """Validate provider name."""
-        allowed_providers = ["kifiya", "afromessage"]  # Update with actual in-app providers
+        allowed_providers = ["kifiya", "afromessage","fcm"]  # Update with actual in-app providers
         sanitized = validate_string_input(
             v,
             field_name='providerName',
@@ -74,11 +74,29 @@ class TenantInAppConfigurationRequestDto(BaseModel):
             
             # Sanitize value if it's a string
             if isinstance(value, str):
-                sanitized_value = validate_string_input(
-                    value,
-                    field_name=f'config.{key}',
-                    max_length=1000
-                )
+                # Allow longer values for config fields (e.g., private keys can be 2000+ chars)
+                # Check for known long fields that need more space
+                max_len = 10000 if key in ['private_key', 'privateKey', 'certificate', 'cert', 'key'] else 5000
+                
+                # Skip SQL injection checking for encoded/sensitive fields (private keys, certificates, etc.)
+                # These fields contain base64-encoded data that may accidentally match SQL patterns
+                skip_sql_check = key.lower() in [
+                    'private_key', 'privatekey', 'private_key_id', 'privatekeyid',
+                    'certificate', 'cert', 'key', 'token', 'secret', 'api_key', 'apikey',
+                    'client_x509_cert_url', 'clientx509certurl', 'auth_provider_x509_cert_url'
+                ]
+                
+                if skip_sql_check:
+                    # For sensitive fields, only validate length, skip SQL/XSS checks
+                    if max_len and len(value) > max_len:
+                        raise ValueError(f"config.{key} must be at most {max_len} characters")
+                    sanitized_value = value  # Don't sanitize encoded data
+                else:
+                    sanitized_value = validate_string_input(
+                        value,
+                        field_name=f'config.{key}',
+                        max_length=max_len
+                    )
             else:
                 sanitized_value = value
             
@@ -89,13 +107,13 @@ class TenantInAppConfigurationRequestDto(BaseModel):
     @classmethod
     def fromDict(cls, data: Dict[str, Any]) -> "TenantInAppConfigurationRequestDto":
         return cls(
-            tenantId=data["tenant_id"],
-            providerName=data["provider_name"],
+            tenantId=data["tenantId"],
+            providerName=data["providerName"],
             priority=int(data.get("priority", 1)),
-            isActive=bool(data.get("is_active", True)),
-            rateLimitPerMinute=int(data.get("rate_limit_per_minute", 40)),
-            rateLimitPerHour=int(data.get("rate_limit_per_hour", 600)),
-            rateLimitPerDay=int(data.get("rate_limit_per_day", 6000)),
+            isActive=bool(data.get("isActive", True)),
+            rateLimitPerMinute=int(data.get("rateLimitPerMinute", 40)),
+            rateLimitPerHour=int(data.get("rateLimitPerHour", 600)),
+            rateLimitPerDay=int(data.get("rateLimitPerDay", 6000)),
             config=data.get("config", {}),
         )
 
@@ -114,16 +132,16 @@ class TenantInAppConfigurationRequestDto(BaseModel):
 
 class TenantInAppConfigurationResponseDTO(BaseModel):
     id: UUID
-    tenantId: UUID = Field(alias="tenant_id")
-    providerName: str = Field(alias="provider_name")
+    tenantId: UUID = Field(alias="tenantId")
+    providerName: str = Field(alias="providerName")
     priority: int
-    isActive: bool = Field(alias="is_active")
-    rateLimitPerMinute: int = Field(alias="rate_limit_per_minute")
-    rateLimitPerHour: int = Field(alias="rate_limit_per_hour")
-    rateLimitPerDay: int = Field(alias="rate_limit_per_day")
+    isActive: bool = Field(alias="isActive")
+    rateLimitPerMinute: int = Field(alias="rateLimitPerMinute")
+    rateLimitPerHour: int = Field(alias="rateLimitPerHour")
+    rateLimitPerDay: int = Field(alias="rateLimitPerDay")
     config: Dict[str, Any] = Field(default_factory=dict)
-    createdAt: Optional[datetime] = Field(default=None, alias="created_at")
-    updatedAt: Optional[datetime] = Field(default=None, alias="updated_at")
+    createdAt: Optional[datetime] = Field(default=None, alias="createdAt")
+    updatedAt: Optional[datetime] = Field(default=None, alias="updatedAt")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
 
@@ -146,9 +164,9 @@ class TenantInAppConfigurationResponseDTO(BaseModel):
 
 class TenantInAppConfigurationFilterDTO(PaginatedRequestDTO):
     """Filter DTO for tenant in-app configuration queries with custom filters."""
-    isActive: Optional[bool] = Field(None, alias="is_active", description="Filter by active status")
-    tenantId: Optional[UUID] = Field(None, alias="tenant_id", description="Filter by tenant ID")
-    providerName: Optional[str] = Field(None, alias="provider_name", description="Filter by provider name")
+    isActive: Optional[bool] = Field(None, alias="isActive", description="Filter by active status")
+    tenantId: Optional[UUID] = Field(None, alias="tenantId", description="Filter by tenant ID")
+    providerName: Optional[str] = Field(None, alias="providerName", description="Filter by provider name")
     
     @field_validator('providerName')
     @classmethod
@@ -165,7 +183,7 @@ class TenantInAppConfigurationFilterDTO(PaginatedRequestDTO):
         )
         
         # Validate against allowed providers
-        allowed_providers = ["kifiya", "afromessage"]  # Update with actual in-app providers
+        allowed_providers = ["kifiya", "afromessage","fcm"]  # Update with actual in-app providers
         normalized = sanitized.lower()
         if normalized not in allowed_providers:
             raise ValueError(f"Provider name must be one of: {', '.join(allowed_providers)}")

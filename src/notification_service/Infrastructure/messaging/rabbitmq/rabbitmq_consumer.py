@@ -215,7 +215,7 @@ class RabbitMQConsumer(IMessageConsumer):
         handlers = {
             "sms": self.handleSmsMessage,
             "email": self.handleEmailMessage,
-            "in_app": self.handleInAppMessage,
+            "inapp": self.handleInAppMessage,
         }
         
         handler = handlers.get(channel.lower())
@@ -229,7 +229,7 @@ class RabbitMQConsumer(IMessageConsumer):
         try:
                 # Parse message body
                 payload = json.loads(message.body.decode())
-                queue_name = message.method.routing_key
+                queue_name = message.routing_key
                 
                 queue_parts = queue_name.split('.')
                 if len(queue_parts) != 3 or queue_parts[0] != "notification":
@@ -279,14 +279,14 @@ class RabbitMQConsumer(IMessageConsumer):
                 logger.info(f"Received in-app notification: {payload}")
                 
                 notification_request = NotificationRequest.fromDict(payload)
-                queue_name = message.method.routing_key
+                queue_name = message.routing_key
                 
                 queue_parts = queue_name.split('.')
                 if len(queue_parts) != 3 or queue_parts[0] != "notification":
                     raise ValueError(f"Invalid queue name format: {queue_name}")
                 tenant_prefix = queue_parts[2]
 
-                await self.processMessageUseCase.execute(NotificationChannel.IN_APP, tenant_prefix, notification_request)
+                await self.processMessageUseCase.execute(NotificationChannel.INAPP, tenant_prefix, notification_request)
 
                 logger.info(f"Successfully processed in-app notification")
                 

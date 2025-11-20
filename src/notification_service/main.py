@@ -26,6 +26,8 @@ from notification_service.domain.interfaces.iprovider_service import IProviderSe
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.application.services.sms_template_service import SMSTemplateService
 from notification_service.infrastructure.providers.sms.kifiyaSmsProvider import KifiyaSMSProvider
+from notification_service.infrastructure.providers.sms.kannel_sms_provider import KannelSMSProvider
+from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.infrastructure.providers.in_app.fcm_provider import FCMProvider
 from notification_service.application.handlers.in_app_channel_handler import InAppChannelHandler
 # from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
@@ -351,6 +353,8 @@ def main()->FastAPI:
     builder.with_transient(IUnitOfWork,UnitOfWork)
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSProvider)
+    builder.with_transient(KannelSMSProvider)
+    builder.with_transient(JasminSMSProvider)
     builder.with_transient(FCMProvider)
     builder.with_transient(ProcessMessageUseCase)
     # Register concrete channel handlers directly (MessageRouter needs concrete types)

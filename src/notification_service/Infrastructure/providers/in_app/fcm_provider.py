@@ -1,3 +1,9 @@
+import uuid
+import logging
+import httpx
+import json
+import firebase_admin
+from firebase_admin import credentials, messaging
 from notification_service.domain.interfaces.iprovider_service import IProviderService
 from typing import Dict, Any
 from notification_service.domain.value_objects.notification_request import NotificationRequest
@@ -9,12 +15,8 @@ from notification_service.domain.value_objects.providers import PushProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 from uuid import UUID
 from datetime import datetime
-import uuid
 from pydantic import BaseModel
 from typing import Optional, List
-import logging
-import httpx
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -26,29 +28,70 @@ class FCMResponse(BaseModel):
     error_code: Optional[str] = None
 
 class FCMConfig(BaseModel):
-    """FCM configuration model"""
-    server_key: str
+    """FCM configuration model matching Firebase service account JSON"""
+    type: str = "service_account"
     project_id: str
-    api_url: str = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+    private_key_id: str
+    private_key: str
+    client_email: str
+    client_id: str
+    auth_uri: str = "https://accounts.google.com/o/oauth2/auth"
+    token_uri: str = "https://oauth2.googleapis.com/token"
+    auth_provider_x509_cert_url: str = "https://www.googleapis.com/oauth2/v1/certs"
+    client_x509_cert_url: str
+    universe_domain: str = "googleapis.com"
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'FCMConfig':
-        return cls(
-            server_key=data.get("serverKey") or data.get("server_key", ""),
-            project_id=data.get("projectId") or data.get("project_id", ""),
-            api_url=data.get("apiUrl") or data.get("api_url", f"https://fcm.googleapis.com/v1/projects/{data.get('projectId', '')}/messages:send")
+        """Create FCMConfig from dictionary, supporting Firebase service account format."""
+        # Check if it's already in service account format
+        if "type" in data and data.get("type") == "service_account":
+            return cls(
+                type=data.get("type", "service_account"),
+                project_id=data.get("project_id", ""),
+                private_key_id=data.get("private_key_id", ""),
+                private_key=data.get("private_key", ""),
+                client_email=data.get("client_email", ""),
+                client_id=data.get("client_id", ""),
+                auth_uri=data.get("auth_uri", "https://accounts.google.com/o/oauth2/auth"),
+                token_uri=data.get("token_uri", "https://oauth2.googleapis.com/token"),
+                auth_provider_x509_cert_url=data.get("auth_provider_x509_cert_url", "https://www.googleapis.com/oauth2/v1/certs"),
+                client_x509_cert_url=data.get("client_x509_cert_url", ""),
+                universe_domain=data.get("universe_domain", "googleapis.com")
+            )
+        # Check if it's web app config format (apiKey, authDomain, etc.) - not supported
+        if "apiKey" in data or "authDomain" in data:
+            raise ValueError(
+                "FCM config must be in Firebase service account format (not web app config). "
+                "Please use the service account JSON file from Firebase Console > Project Settings > Service Accounts. "
+                "The web app config (apiKey, authDomain, etc.) is for client-side SDK only and cannot be used with Firebase Admin SDK."
+            )
+        # Generic error for other formats
+        raise ValueError(
+            "FCM config must be in Firebase service account format with fields: "
+            "type, project_id, private_key_id, private_key, client_email, client_id, etc. "
+            "Please download the service account JSON from Firebase Console."
         )
     
     def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary format compatible with Firebase Admin SDK."""
         return {
-            "serverKey": self.server_key,
-            "projectId": self.project_id,
-            "apiUrl": self.api_url
+            "type": self.type,
+            "project_id": self.project_id,
+            "private_key_id": self.private_key_id,
+            "private_key": self.private_key,
+            "client_email": self.client_email,
+            "client_id": self.client_id,
+            "auth_uri": self.auth_uri,
+            "token_uri": self.token_uri,
+            "auth_provider_x509_cert_url": self.auth_provider_x509_cert_url,
+            "client_x509_cert_url": self.client_x509_cert_url,
+            "universe_domain": self.universe_domain
         }
     
-    def get_api_url(self) -> str:
-        """Get the full FCM API URL with project ID"""
-        return self.api_url.format(project_id=self.project_id)
+    def get_credentials(self) -> credentials.Certificate:
+        """Get Firebase credentials object."""
+        return credentials.Certificate(self.to_dict())
 
 class FCMProvider(IProviderService):
     """Firebase Cloud Messaging (FCM) provider for in-app/push notifications"""
@@ -56,6 +99,19 @@ class FCMProvider(IProviderService):
     def __init__(self, uow: IUnitOfWork):
         self.uow = uow
         self.client = httpx.AsyncClient(timeout=30.0)
+        self._firebase_app = None
+    
+    def _get_firebase_app(self, config: FCMConfig):
+        """Get or initialize Firebase app with credentials."""
+        try:
+            # Try to get existing app
+            app = firebase_admin.get_app()
+            return app
+        except ValueError:
+            # App doesn't exist, initialize it
+            cred = config.get_credentials()
+            app = firebase_admin.initialize_app(cred)
+            return app
     
     async def send(
         self,
@@ -78,93 +134,120 @@ class FCMProvider(IProviderService):
         """
         logger.info("Sending in-app notification via FCM")
         
-        config = FCMConfig.from_dict(tenantConfig.config)
+        logger.info(f"FCM config: {tenantConfig.config}")
+        fcm_config = FCMConfig.from_dict(tenantConfig.config)
+        app = self._get_firebase_app(fcm_config)
         
         # Prepare FCM message for each recipient
         for recipient in requestObject.recipients:
-            # FCM message structure
-            fcm_message = {
-                "message": {
-                    "token": recipient.address,  # Device token
-                    "notification": {
-                        "title": messageToSend.get("title", "Notification"),
-                        "body": messageToSend.get("body", "")
-                    },
-                    "data": messageToSend.get("data", {}),
-                    "android": messageToSend.get("android", {}),
-                    "apns": messageToSend.get("apns", {})
-                }
-            }
-            
             try:
-                # Send to FCM API
-                # FCM v1 API uses OAuth2 access token, but for simplicity we'll use the legacy API
-                # which uses server key in Authorization header
-                fcm_url = f"https://fcm.googleapis.com/fcm/send"
-                response_data = await self.client.post(
-                    fcm_url,
-                    json={
-                        "to": recipient.address,  # Device token
-                        "notification": fcm_message.get("notification", {}),
-                        "data": fcm_message.get("data", {})
-                    },
-                    headers={
-                        "Authorization": f"key={config.server_key}",
-                        "Content-Type": "application/json"
-                    }
+                # Build Android config if provided
+                android_config = None
+                if messageToSend.get("android"):
+                    android_dict = messageToSend["android"].copy()
+                    # Build AndroidNotification if notification section exists
+                    android_notification = None
+                    if "notification" in android_dict:
+                        notif_dict = android_dict.pop("notification")
+                        android_notification = messaging.AndroidNotification(**notif_dict) if notif_dict else None
+                    
+                    # Build AndroidConfig with remaining fields
+                    android_config = messaging.AndroidConfig(
+                        notification=android_notification,
+                        **android_dict
+                    ) if android_dict else None
+                
+                # Build APNS config if provided
+                apns_config = None
+                if messageToSend.get("apns"):
+                    apns_dict = messageToSend["apns"].copy()
+                    headers = apns_dict.pop("headers", {})
+                    payload_dict = apns_dict.pop("payload", {})
+                    
+                    # Build APS if provided in payload
+                    aps = None
+                    if "aps" in payload_dict:
+                        aps_dict = payload_dict.pop("aps")
+                        aps = messaging.Aps(**aps_dict) if aps_dict else None
+                    
+                    # Build APNSPayload
+                    apns_payload = None
+                    if aps:
+                        # If there are other payload fields, include them
+                        if payload_dict:
+                            apns_payload = messaging.APNSPayload(aps=aps, **payload_dict)
+                        else:
+                            apns_payload = messaging.APNSPayload(aps=aps)
+                    elif payload_dict:
+                        # Only other payload fields, no aps
+                        apns_payload = messaging.APNSPayload(**payload_dict)
+                    
+                    # Build APNSConfig
+                    apns_config = messaging.APNSConfig(
+                        headers=headers if headers else {},
+                        payload=apns_payload
+                    )
+                
+                # Convert data to FCM-compatible format (all values must be strings)
+                # FCM data field requires Dict[str, str] - all values must be strings
+                fcm_data = {}
+                if messageToSend.get("data"):
+                    data_dict = messageToSend["data"]
+                    for key, value in data_dict.items():
+                        # Convert all values to strings
+                        if value is None:
+                            fcm_data[str(key)] = ""
+                        elif isinstance(value, (dict, list)):
+                            # For nested structures, convert to JSON string
+                            fcm_data[str(key)] = json.dumps(value)
+                        else:
+                            # Convert to string
+                            fcm_data[str(key)] = str(value)
+                
+                # Build FCM message using Firebase Admin SDK
+                fcm_message = messaging.Message(
+                    notification=messaging.Notification(
+                        title=messageToSend.get("title", "Notification"),
+                        body=messageToSend.get("body", "")
+                    ),
+                    data=fcm_data,
+                    token=recipient.address,  # Device token
+                    android=android_config,
+                    apns=apns_config
                 )
                 
-                response_data.raise_for_status()
-                response_json = response_data.json()
+                # Send message using Firebase Admin SDK
+                response = messaging.send(fcm_message)
+                logger.info(f"FCM message sent successfully. Message ID: {response}")
                 
-                logger.info(f"FCM response for {recipient.address}: {response_json}")
+                # Save notification to database
+                in_app_notification = InAppNotification(
+                    id=uuid.uuid4(),
+                    recipientUserId=recipient.address,
+                    messageContent=json.dumps(messageToSend) if isinstance(messageToSend, dict) else str(messageToSend),
+                    status=NotificationStatus.SENT,
+                    idempotencyKey=requestObject.idempotencyKey,
+                    templateId=templateId
+                )
                 
-                # Check if message was sent successfully
-                # Legacy FCM API returns success=1 and message_id on success
-                if response_json.get("success") == 1 or response_json.get("message_id"):
-                    logger.info(f"In-app notification sent successfully to {recipient.address}")
-                    
-                    # Save notification to database
-                    in_app_notification = InAppNotification(
-                        id=uuid.uuid4(),
-                        recipientUserId=recipient.address,
-                        messageContent=json.dumps(messageToSend) if isinstance(messageToSend, dict) else str(messageToSend),
-                        status=NotificationStatus.SENT,
-                        idempotencyKey=requestObject.idempotencyKey,
-                        templateId=templateId
-                    )
-                    
-                    result = await self.uow.inAppNotifications.add(in_app_notification)
-                    await self.uow.commit()
-                    logger.info(f"InAppNotification saved with ID: {result.id}")
-                    
-                    return NotificationResponse(
-                        notificationId=str(result.id),
-                        tenantId=tenantConfig.tenantId,
-                        channel="in_app",
-                        recipients=[recipient.address],
-                        status="sent",
-                        createdAt=datetime.utcnow(),
-                        success=True,
-                        message=f"In-app notification sent successfully to {recipient.address}"
-                    )
-                else:
-                    # Handle FCM error response
-                    error = response_json.get("error", {})
-                    error_message = error.get("message", "Unknown FCM error")
-                    logger.error(f"Failed to send FCM notification to {recipient.address}: {error_message}")
-                    
-                    # Save to outbox for retry (if outbox exists for in-app)
-                    # For now, return error response
-                    return NotificationResponse(
-                        success=False,
-                        message=f"Failed to send notification: {error_message}",
-                        status="failed"
-                    )
-                    
-            except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error sending FCM notification to {recipient.address}: {e.response.text}")
-                error_message = f"HTTP {e.response.status_code}: {e.response.text}"
+                result = await self.uow.inAppNotifications.add(in_app_notification)
+                await self.uow.commit()
+                logger.info(f"InAppNotification saved with ID: {result.id}")
+                
+                return NotificationResponse(
+                    notificationId=str(result.id),
+                    tenantId=tenantConfig.tenantId,
+                    channel="in_app",
+                    recipients=[recipient.address],
+                    status="sent",
+                    createdAt=datetime.utcnow(),
+                    success=True,
+                    message=f"In-app notification sent successfully to {recipient.address}"
+                )
+                
+            except messaging.FirebaseError as e:
+                error_message = f"Firebase error: {str(e)}"
+                logger.error(f"Failed to send FCM notification to {recipient.address}: {error_message}")
                 
                 return NotificationResponse(
                     success=False,
@@ -186,7 +269,7 @@ class FCMProvider(IProviderService):
         Test FCM configuration by sending a test notification.
         
         Args:
-            config: FCM configuration dict
+            config: FCM configuration dict (Firebase service account format)
             address: Device token to send test notification to
             
         Returns:
@@ -195,62 +278,39 @@ class FCMProvider(IProviderService):
         try:
             fcm_config = FCMConfig.from_dict(config)
             
-            # Create test FCM message
-            fcm_message = {
-                "message": {
-                    "token": address,
-                    "notification": {
-                        "title": "Test Notification",
-                        "body": "This is a test message from the notification service"
-                    },
-                    "data": {
-                        "type": "test",
-                        "timestamp": str(datetime.utcnow().isoformat())
-                    }
-                }
-            }
+            # Initialize Firebase app with credentials
+            cred = fcm_config.get_credentials()
+            app = firebase_admin.initialize_app(cred)
             
-            fcm_url = f"https://fcm.googleapis.com/fcm/send"
-            response_data = await self.client.post(
-                fcm_url,
-                json={
-                    "to": address,
-                    "notification": {
-                        "title": "Test Notification",
-                        "body": "This is a test message from the notification service"
-                    },
-                    "data": {
-                        "type": "test",
-                        "timestamp": str(datetime.utcnow().isoformat())
-                    }
-                },
-                headers={
-                    "Authorization": f"key={fcm_config.server_key}",
-                    "Content-Type": "application/json"
-                }
+            # Create test message
+            message = messaging.Message(
+                notification=messaging.Notification(
+                    title="Test Notification",
+                    body="This is a test message from the notification service"
+                ),
+                token=address
             )
             
-            response_data.raise_for_status()
-            response_json = response_data.json()
+            # Send test message
+            response = messaging.send(message)
+            logger.info(f"FCM test response: {response}")
             
-            if response_json.get("success") == 1 or response_json.get("message_id"):
-                return ProviderTestResponse(
-                    success=True,
-                    message="Test in-app notification sent successfully"
-                )
-            else:
-                error = response_json.get("error", {})
-                error_message = error.get("message", "Unknown FCM error")
-                return ProviderTestResponse(
-                    success=False,
-                    message=f"Failed to send test notification: {error_message}"
-                )
+            return ProviderTestResponse(
+                success=True,
+                message=f"Test in-app notification sent successfully. Message ID: {response}"
+            )
                 
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error during FCM test: {e.response.text}")
+        except ValueError as e:
+            logger.error(f"Configuration error during FCM test: {str(e)}")
             return ProviderTestResponse(
                 success=False,
-                message=f"HTTP {e.response.status_code}: {e.response.text}"
+                message=f"Configuration error: {str(e)}"
+            )
+        except messaging.FirebaseError as e:
+            logger.error(f"Firebase error during FCM test: {str(e)}")
+            return ProviderTestResponse(
+                success=False,
+                message=f"Firebase error: {str(e)}"
             )
         except Exception as e:
             logger.error(f"Exception during FCM test: {e}", exc_info=True)
