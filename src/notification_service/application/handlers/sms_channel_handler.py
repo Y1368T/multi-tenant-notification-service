@@ -7,6 +7,8 @@ from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.infrastructure.providers.sms.kifiyaSmsProvider  import KifiyaSMSProvider
+from notification_service.infrastructure.providers.sms.kannel_sms_provider import KannelSMSProvider
+from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
@@ -17,11 +19,20 @@ logger = logging.getLogger(__name__)
 class SMSChannelHandler(IChannelHandler):
     """Concrete implementation of IChannelHandler for SMS channel"""
 
-    def __init__(self, unitofWork: IUnitOfWork, afro_service: AfromessageSMSProvider, kifiya_service: KifiyaSMSProvider):
+    def __init__(
+        self,
+        unitofWork: IUnitOfWork,
+        afro_service: AfromessageSMSProvider,
+        kifiya_service: KifiyaSMSProvider,
+        kannel_service: KannelSMSProvider,
+        jasmin_service: JasminSMSProvider,
+    ):
         self.unitofWork = unitofWork
         self.__handlers = {
             SMSProvider.AFROMESSAGE: afro_service,
-            SMSProvider.KIFIYA: kifiya_service
+            SMSProvider.KIFIYA: kifiya_service,
+            SMSProvider.KANNEL: kannel_service,
+            SMSProvider.JASMIN: jasmin_service,
         }
         
     async def receiveMessage(self, tenantPrefix: str, message: NotificationRequest) -> NotificationResponse:
@@ -33,7 +44,7 @@ class SMSChannelHandler(IChannelHandler):
             tenantdb= await self.unitofWork.tenants.firstOrDefault(lambda t: t.prefix == tenantPrefix)
             if not tenantdb:
                 logger.error(f"Tenant with prefix {tenantPrefix} not found")  # pyright: ignore[reportUnreachable]
-                return NotificationResponse(success=False, error_message=f"Tenant with prefix {tenantPrefix} not found")
+                return NotificationResponse(success=False, errorMessage=f"Tenant with prefix {tenantPrefix} not found")
             template = await self.unitofWork.smsTemplates.firstOrDefault(
                 lambda t: t.tenantId == tenantdb.id 
                 and t.templateName == message.templateName 
@@ -110,15 +121,19 @@ class SMSChannelHandler(IChannelHandler):
         # Implementation for routing to SMS provider
         
         logger.info(f"Routing SMS notification for tenant {tenant.name} to provider")
-        config=configs[0]
-        match config.providerName.lower():
+        config = configs[0]
+        provider_name = (config.providerName or "").lower()
+
+        match provider_name:
             case SMSProvider.AFROMESSAGE.value:
                 # Implementation for routing to Afromessage
                 # replace the message payload in the template with actual values from request. and give me example
                 # e.g., Hello {name}, your code is {code} -> Hello John, your code is 1234 and the payload is {'name': 'John', 'code': '1234'}
                 
                 message_body= templateText.format(**request.payload)
-                response= await self.__handlers[SMSProvider.AFROMESSAGE].send(request, config, message_body,templateId)
+                response = await self.__handlers[SMSProvider.AFROMESSAGE].send(
+                    request, config, message_body, templateId
+                )
                 return response
             case SMSProvider.KIFIYA.value:
                 # Implementation for routing to Kifiya
@@ -126,10 +141,26 @@ class SMSChannelHandler(IChannelHandler):
                 # e.g., Hello {name}, your code is {code} -> Hello John, your code is 1234 and the payload is {'name': 'John', 'code': '1234'}
                 
                 message_body= templateText.format(**request.payload)
-                response= await self.__handlers[SMSProvider.KIFIYA].send(request, config, message_body,templateId)
+                response = await self.__handlers[SMSProvider.KIFIYA].send(
+                    request, config, message_body, templateId
+                )
+                return response
+            case SMSProvider.KANNEL.value:
+                # Kannel HTTP SMS provider
+                message_body = templateText.format(**request.payload)
+                response = await self.__handlers[SMSProvider.KANNEL].send(
+                    request, config, message_body, templateId
+                )
+                return response
+            case SMSProvider.JASMIN.value:
+                # Jasmin SMS provider (HTTP or SMPP based on tenant configuration)
+                message_body = templateText.format(**request.payload)
+                response = await self.__handlers[SMSProvider.JASMIN].send(
+                    request, config, message_body, templateId
+                )
                 return response
             case _:
                 logger.error(f"Unsupported SMS provider: {config.providerName}")
                 
-                return NotificationResponse(success=False, error_message=f"Unsupported SMS provider: {config.providerName}")
+                return NotificationResponse(success=False, errorMessage=f"Unsupported SMS provider: {config.providerName}")
         

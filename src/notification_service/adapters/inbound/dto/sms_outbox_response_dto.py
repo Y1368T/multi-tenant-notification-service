@@ -6,27 +6,27 @@ from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
 
 class SMSOutboxResponseDTO(BaseModel):
     id: UUID
-    templateId: Optional[UUID] = Field(None, alias="template_id")
-    recipientNumber: str = Field(alias="recipient_number")
-    messageContent: str = Field(alias="message_content")
-    idempotencyKey: str = Field(alias="idempotency_key")
-    retryCount: int = Field(alias="retry_count")
-    lastRetryAt: Optional[datetime] = Field(None, alias="last_retry_at")
-    lastErrorMessage: Optional[str] = Field(None, alias="last_error_message")
-    nextRetryAt: Optional[datetime] = Field(None, alias="next_retry_at")
-    providerAttempted: Optional[str] = Field(None, alias="provider_attempted")
-    isSent: bool = Field(alias="is_sent")
-    sentAt: Optional[datetime] = Field(None, alias="sent_at")
+    templateId: Optional[UUID] = Field(None, alias="templateId")
+    recipientNumber: str = Field(alias="recipientNumber")
+    messageContent: str = Field(alias="messageContent")
+    idempotencyKey: str = Field(alias="idempotencyKey")
+    retryCount: int = Field(alias="retryCount")
+    lastRetryAt: Optional[datetime] = Field(None, alias="lastRetryAt")
+    lastErrorMessage: Optional[str] = Field(None, alias="lastErrorMessage")
+    nextRetryAt: Optional[datetime] = Field(None, alias="nextRetryAt")
+    providerAttempted: Optional[str] = Field(None, alias="providerAttempted")
+    isSent: bool = Field(alias="isSent")
+    sentAt: Optional[datetime] = Field(None, alias="sentAt")
     status: str
-    createdAt: datetime = Field(alias="created_at")
-    updatedAt: datetime = Field(alias="updated_at")
+    createdAt: datetime = Field(alias="createdAt")
+    updatedAt: datetime = Field(alias="updatedAt")
     
     # Enriched fields from relationships
-    templateName: Optional[str] = Field(None, alias="template_name")
-    serviceName: Optional[str] = Field(None, alias="service_name")
-    tenantId: Optional[UUID] = Field(None, alias="tenant_id")
-    tenantName: Optional[str] = Field(None, alias="tenant_name")
-    tenantPrefix: Optional[str] = Field(None, alias="tenant_prefix")
+    templateName: Optional[str] = Field(None, alias="templateName")
+    serviceName: Optional[str] = Field(None, alias="serviceName")
+    tenantId: Optional[UUID] = Field(None, alias="tenantId")
+    tenantName: Optional[str] = Field(None, alias="tenantName")
+    tenantPrefix: Optional[str] = Field(None, alias="tenantPrefix")
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
     

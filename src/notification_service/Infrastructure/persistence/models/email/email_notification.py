@@ -3,12 +3,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class EmailNotificationModel(BaseModel):
-    __tablename__ = "email_notifications"
+    __tablename__ = "emailNotifications"
 
-    recipientEmail = Column(String, name="recipient_email", nullable=False)
-    messageContent = Column(JSONB, name="message_content", nullable=False)
+    recipientEmail = Column(String, name="recipientEmail", nullable=False)
+    messageContent = Column(JSONB, name="messageContent", nullable=False)
     status = Column(String, nullable=False, default="pending")
-    idempotencyKey = Column(String, name="idempotency_key", unique=True, nullable=False)
-    templateId = Column(UUID, ForeignKey("email_templates.id", ondelete="SET NULL"), name="template_id", nullable=True)
+    idempotencyKey = Column(String, name="idempotencyKey", unique=True, nullable=False)
+    templateId = Column(UUID, ForeignKey("emailTemplates.id", ondelete="SET NULL"), name="templateId", nullable=True)
 
     template = relationship("EmailTemplateModel", back_populates="emailNotifications")

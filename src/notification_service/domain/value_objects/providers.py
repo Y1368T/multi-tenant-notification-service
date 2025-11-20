@@ -1,9 +1,12 @@
 
 from enum import Enum
 
+
 class SMSProvider(Enum):
     AFROMESSAGE = "afromessage"
     KIFIYA = "kifiya"
+    KANNEL = "kannel"
+    JASMIN = "jasmin"
 
 class EmailProvider(Enum):
     SENDGRID = "sendgrid"
@@ -12,6 +15,6 @@ class EmailProvider(Enum):
     SMTP = "smtp"
 
 class PushProvider(Enum):
-    FIREBASE = "firebase"
+    FIREBASE = "fcm"
     ONESIGNAL = "onesignal"
 

@@ -78,11 +78,29 @@ class TestRequestDto(BaseModel):
             )
             
             if isinstance(value, str):
-                sanitized_value = validate_string_input(
-                    value,
-                    field_name=f'config.{key}',
-                    max_length=1000
-                )
+                # Allow longer values for config fields (e.g., private keys can be 2000+ chars)
+                # Check for known long fields that need more space
+                max_len = 10000 if key in ['private_key', 'privateKey', 'certificate', 'cert', 'key'] else 5000
+                
+                # Skip SQL injection checking for encoded/sensitive fields (private keys, certificates, etc.)
+                # These fields contain base64-encoded data that may accidentally match SQL patterns
+                skip_sql_check = key.lower() in [
+                    'private_key', 'privatekey', 'private_key_id', 'privatekeyid',
+                    'certificate', 'cert', 'key', 'token', 'secret', 'api_key', 'apikey',
+                    'client_x509_cert_url', 'clientx509certurl', 'auth_provider_x509_cert_url'
+                ]
+                
+                if skip_sql_check:
+                    # For sensitive fields, only validate length, skip SQL/XSS checks
+                    if max_len and len(value) > max_len:
+                        raise ValueError(f"config.{key} must be at most {max_len} characters")
+                    sanitized_value = value  # Don't sanitize encoded data
+                else:
+                    sanitized_value = validate_string_input(
+                        value,
+                        field_name=f'config.{key}',
+                        max_length=max_len
+                    )
             else:
                 sanitized_value = value
             

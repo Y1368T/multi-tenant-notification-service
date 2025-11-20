@@ -12,20 +12,20 @@ class SMSNotificationResponseDTO(BaseModel):
     
     # SMS Notification fields
     id: UUID
-    recipientNumber: str = Field(alias="recipient_number")
-    messageContent: Dict[str, Any] = Field(alias="message_content")
+    recipientNumber: str = Field(alias="recipientNumber")
+    messageContent: Dict[str, Any] = Field(alias="messageContent")
     status: str
-    idempotencyKey: Optional[str] = Field(default=None, alias="idempotency_key")
-    templateId: Optional[UUID] = Field(default=None, alias="template_id")
-    createdAt: datetime = Field(alias="created_at")
-    updatedAt: datetime = Field(alias="updated_at")
+    idempotencyKey: Optional[str] = Field(default=None, alias="idempotencyKey")
+    templateId: Optional[UUID] = Field(default=None, alias="templateId")
+    createdAt: datetime = Field(alias="createdAt")
+    updatedAt: datetime = Field(alias="updatedAt")
     
     # Enriched fields from related entities
-    templateName: Optional[str] = Field(default=None, alias="template_name")
-    serviceName: Optional[str] = Field(default=None, alias="service_name")
-    tenantId: Optional[UUID] = Field(default=None, alias="tenant_id")
-    tenantName: Optional[str] = Field(default=None, alias="tenant_name")
-    tenantPrefix: Optional[str] = Field(default=None, alias="tenant_prefix")
+    templateName: Optional[str] = Field(default=None, alias="templateName")
+    serviceName: Optional[str] = Field(default=None, alias="serviceName")
+    tenantId: Optional[UUID] = Field(default=None, alias="tenantId")
+    tenantName: Optional[str] = Field(default=None, alias="tenantName")
+    tenantPrefix: Optional[str] = Field(default=None, alias="tenantPrefix")
     
     @classmethod
     def fromEntityWithRelations(cls, notification: SMSNotification):

@@ -5,6 +5,8 @@ from typing import List, Optional, Dict, Any
 from notification_service.adapters.inbound.dto.provider_supported_dto import TestRequestDto, ProviderResponseDTO
 from notification_service.infrastructure.providers.in_app.fcm_provider import FCMProvider
 from notification_service.infrastructure.providers.sms.kifiyaSmsProvider import KifiyaSMSProvider
+from notification_service.infrastructure.providers.sms.kannel_sms_provider import KannelSMSProvider
+from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
@@ -18,16 +20,21 @@ from pydantic import ValidationError
 
 class ProviderService(BaseService[Provider, ProviderResponseDTO]):
     
-    def __init__(self,
-     uow: IUnitOfWork, 
-    kifiyaSmsProvider: KifiyaSMSProvider, 
-    afromessageSmsProvider: AfromessageSMSProvider,
-    fcmProvider: FCMProvider
+    def __init__(
+        self,
+        uow: IUnitOfWork,
+        kifiyaSmsProvider: KifiyaSMSProvider,
+        afromessageSmsProvider: AfromessageSMSProvider,
+        kannelSmsProvider: KannelSMSProvider,
+        jasminSmsProvider: JasminSMSProvider,
+        fcmProvider: FCMProvider,
     ):
         super().__init__(uow, Provider, ProviderResponseDTO)
         self.uow = uow
         self.kifiyaSmsProvider = kifiyaSmsProvider
         self.afromessageSmsProvider = afromessageSmsProvider
+        self.kannelSmsProvider = kannelSmsProvider
+        self.jasminSmsProvider = jasminSmsProvider
         self.fcmProvider = fcmProvider
     def _get_repository(self):
         """Get providers repository."""
@@ -112,18 +119,28 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
                 # Add SMS provider testing logic here
                 match dto.provider_name:
                     case "kifiya":
-                        return await self.kifiyaSmsProvider.test(dto.config, dto.address)
+                        provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
+                        return await self.kifiyaSmsProvider.test(provider_config, dto.address)
                     case "afromessage":
-                        return await self.afromessageSmsProvider.test(dto.config, dto.address)
+                        provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
+                        return await self.afromessageSmsProvider.test(provider_config, dto.address)
+                    case "kannel":
+                        provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
+                        return await self.kannelSmsProvider.test(provider_config, dto.address)
+                    case "jasmin":
+                        provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
+                        return await self.jasminSmsProvider.test(provider_config, dto.address)
                     case _:
-                        raise ValueError(message=f"Unsupported provider: {dto.provider_name}",field="provider_name")
+                        raise ValueError(f"Unsupported provider: {dto.provider_name}")
             case "inapp":
                 match dto.provider_name:
                     case "fcm":
-                        return await self.fcmProvider.test(dto.config, dto.address)
+                        # Extract nested config if it exists, otherwise use config directly
+                        provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
+                        return await self.fcmProvider.test(provider_config, dto.address)
                     case _:
-                        raise ValueError(message=f"Unsupported provider: {dto.provider_name}",field="provider_name")
+                        raise ValueError(f"Unsupported provider: {dto.provider_name}")
                 
             case _:
-                raise ValueError(message=f"Unsupported channel: {dto.channel}",field="channel")
+                raise ValueError(f"Unsupported channel: {dto.channel}")
             

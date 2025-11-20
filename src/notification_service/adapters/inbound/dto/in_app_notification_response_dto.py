@@ -12,18 +12,18 @@ class InAppNotificationResponseDTO(BaseModel):
     
     # In-App Notification fields
     id: UUID
-    recipientUserId: str = Field(alias="recipient_user_id")
-    messageContent: str = Field(alias="message_content")
+    recipientUserId: str = Field(alias="recipientUserId")
+    messageContent: str = Field(alias="messageContent")
     status: str
-    idempotencyKey: Optional[str] = Field(default=None, alias="idempotency_key")
-    templateId: Optional[UUID] = Field(default=None, alias="template_id")
-    createdAt: datetime = Field(alias="created_at")
-    updatedAt: datetime = Field(alias="updated_at")
+    idempotencyKey: Optional[str] = Field(default=None, alias="idempotencyKey")
+    templateId: Optional[UUID] = Field(default=None, alias="templateId")
+    createdAt: datetime = Field(alias="createdAt")
+    updatedAt: datetime = Field(alias="updatedAt")
     
     # Enriched fields from related entities
-    templateName: str = Field(alias="template_name")
-    tenantName: str = Field(alias="tenant_name")
-    tenantPrefix: str = Field(alias="tenant_prefix")
+    templateName: str = Field(alias="templateName")
+    tenantName: str = Field(alias="tenantName")
+    tenantPrefix: str = Field(alias="tenantPrefix")
     
     @classmethod
     def fromEntityWithRelations(cls, notification):

@@ -23,7 +23,7 @@ class ProcessMessageUseCase:
             logger.warning(f"Message validation failed for channel {channel}: {error_msg}")
             return NotificationResponse(
                 success=False,
-                message=error_msg
+                errorMessage=error_msg
             )
         return await self.messageRouter.doRoute(channel, tenant, message)
     
@@ -65,7 +65,7 @@ class ProcessMessageUseCase:
     def isValidPhoneNumber(self, phone: str) -> bool:
         """Validate phone number format"""
         # Basic phone number validation (adjust regex as needed)
-        phone_pattern = r'^\+?[1-9]\d{1,14}$'
+        phone_pattern = r'^\+?[1-9]\d{1,14}$' 
         return bool(re.match(phone_pattern, phone.strip()))
         
     def isValidEmail(self, email: str) -> bool:

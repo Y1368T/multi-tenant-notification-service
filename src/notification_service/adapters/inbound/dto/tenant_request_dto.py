@@ -13,9 +13,9 @@ from notification_service.shared.validators.input_validators import validate_str
 class TenantRequestDTO(BaseModel):
     name: str
     prefix: str
-    isActive: bool = Field(alias="is_active")
-    supportedChannels: list[str] = Field(alias="supported_channels")
-    preferedCommunicationMethod: str = Field(alias="prefered_communication_method")
+    isActive: bool = Field(alias="isActive")
+    supportedChannels: list[str] = Field(alias="supportedChannels")
+    preferedCommunicationMethod: str = Field(alias="preferedCommunicationMethod")
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,
@@ -23,9 +23,9 @@ class TenantRequestDTO(BaseModel):
             "example": {
                 "name": "Tenant A",
                 "prefix": "TENANTA",
-                "is_active": True,
-                "supported_channels": ["sms", "email"],
-                "prefered_communication_method": "rabbitmq"
+                "isActive": True,
+                "supportedChannels": ["sms", "email"],
+                "preferedCommunicationMethod": "rabbitmq"
             }
         })
     
@@ -130,9 +130,9 @@ class TenantResponseDTO(BaseModel):
     id: UUID
     name: str
     prefix: str
-    isActive: bool = Field(alias="is_active")
-    supportedChannels: list[str] = Field(default_factory=list, alias="supported_channels")
-    preferedCommunicationMethod: Optional[str] = Field(default=None, alias="prefered_communication_method")
+    isActive: bool = Field(alias="isActive")
+    supportedChannels: list[str] = Field(default_factory=list, alias="supportedChannels")
+    preferedCommunicationMethod: Optional[str] = Field(default=None, alias="preferedCommunicationMethod")
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
    
     @classmethod

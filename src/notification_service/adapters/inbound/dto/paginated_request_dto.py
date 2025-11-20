@@ -12,9 +12,9 @@ class SortDirection(str, Enum):
 
 class PaginatedRequestDTO(BaseModel):
     page: int = Field(1, ge=1, description="Page number (1-indexed)")
-    pageSize: int = Field(10, ge=1, le=100, alias="page_size", description="Number of items per page")
-    sortBy: Optional[str] = Field(None, alias="sort_by", description="Sort by field")
-    sortDirection: SortDirection = Field(SortDirection.DESC, alias="sort_direction")
+    pageSize: int = Field(10, ge=1, le=100, alias="pageSize", description="Number of items per page")
+    sortBy: Optional[str] = Field(None, alias="sortBy", description="Sort by field")
+    sortDirection: SortDirection = Field(SortDirection.DESC, alias="sortDirection")
     search: Optional[str] = Field(None, max_length=256, description="Search text")
     id: Optional[str] = Field(None, description="Filter by entity ID (for single entity retrieval)")
     
@@ -87,7 +87,7 @@ class FilterOp(str, Enum):
 
 
 class RelatedFilter(BaseModel):
-    relationshipPath: str = Field(alias="relationship_path")
+    relationshipPath: str = Field(alias="relationshipPath")
     field: str
     op: FilterOp = FilterOp.EQ
     value: Any
