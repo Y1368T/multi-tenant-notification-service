@@ -10,14 +10,16 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
 )
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.application.services.base_service import BaseService
+from notification_service.infrastructure import RedisCache
+from notification_service.shared.exceptions.application_exceptions import ApplicationException, EntityNotFoundError
 
 
 class TenantInAppConfigurationService(BaseService[TenantInAppConfiguration, TenantInAppConfigurationResponseDTO]):
 
-    def __init__(self, uow: IUnitOfWork):
+    def __init__(self, uow: IUnitOfWork, redis: RedisCache):
         super().__init__(uow, TenantInAppConfiguration, TenantInAppConfigurationResponseDTO)
         self.uow = uow
-    
+        self.redis = redis
     def _get_repository(self):
         """Get tenant in-app configurations repository."""
         return self.uow.tenantInAppConfigurations
@@ -104,4 +106,99 @@ class TenantInAppConfigurationService(BaseService[TenantInAppConfiguration, Tena
         (Deprecated - use get() instead)
         """
         return await self.get(req)
+    
+    async def deleteConfiguration(self, configId: UUID) -> None:
+        """Delete an existing in-app configuration (deprecated - use delete() instead)."""
+       
+        try:
+            async with self.uow:
+                config = await self.uow.tenantInAppConfigurations.getById(configId)
+                if config:
+                    cache_key = f"tenant_config:in_app:{config.tenantId}"
+                    await self.redis.delete(cache_key)
+                    await self.uow.tenantInAppConfigurations.delete(configId)
+                    await self.uow.commit()
+                else:
+                    raise EntityNotFoundError(
+                        TenantInAppConfiguration.__name__,
+                        str(configId)
+                    )
+        except Exception as e:
+            raise ApplicationException(
+                f"Error deleting in-app configuration: {e}",
+                code="ERROR_DELETING_IN_APP_CONFIGURATION",
+                details={"configId": configId}
+            )
+        finally:
+            if config:
+                cache_key = f"tenant_config:in_app:{config.tenantId}"
+                await self.redis.delete(cache_key)
+                return config
+    
+    
+    async def updateConfiguration(self, config: TenantInAppConfiguration) -> TenantInAppConfiguration:
+        """Update an existing in-app configuration (deprecated - use update() instead)."""
+        try:
+            async with self.uow:
+                updated_config = await self.uow.tenantInAppConfigurations.update(config)
+                await self.uow.commit()
+                cache_key = f"tenant_config:in_app:{config.tenantId}"
+                await self.redis.delete(cache_key)
+                return updated_config
+        except Exception as e:
+            raise ApplicationException(
+                f"Error updating in-app configuration: {e}",
+                code="ERROR_UPDATING_IN_APP_CONFIGURATION",
+                details={"configId": config.id}
+            )
+        finally:
+            if config:
+                cache_key = f"tenant_config:in_app:{config.tenantId}"
+                await self.redis.delete(cache_key)
+                return config
+    
+
+    async def partialUpdate(self, configId: UUID, updates: Dict[str, Any]) -> TenantInAppConfiguration:
+        """Partial update of an existing in-app configuration (deprecated - use partialUpdate() instead)."""
+        try:
+            async with self.uow:
+                config = await self.uow.tenantInAppConfigurations.getById(configId)
+                if config:
+                    cache_key = f"tenant_config:in_app:{config.tenantId}"
+                    await self.redis.delete(cache_key)
+                    await self.uow.tenantInAppConfigurations.partialUpdate(configId, updates)
+                    await self.uow.commit()
+                    return config
+        except Exception as e:
+            raise ApplicationException(
+                f"Error partial updating in-app configuration: {e}",
+                code="ERROR_PARTIAL_UPDATING_IN_APP_CONFIGURATION",
+                details={"configId": configId}
+            )
+        finally:
+            if config:
+                cache_key = f"tenant_config:in_app:{config.tenantId}"
+                await self.redis.delete(cache_key)
+                return config
+    
+    async def createConfiguration(self, config: TenantInAppConfiguration) -> TenantInAppConfiguration:
+        """Create a new in-app configuration (deprecated - use create() instead)."""
+        try:
+            async with self.uow:
+                created_config = await self.uow.tenantInAppConfigurations.create(config)
+                await self.uow.commit()
+                cache_key = f"tenant_config:in_app:{config.tenantId}"
+                await self.redis.set(cache_key, created_config.__dict__, expire=60*60*24)
+                return created_config
+        except Exception as e:
+            raise ApplicationException(
+                f"Error creating in-app configuration: {e}",
+                code="ERROR_CREATING_IN_APP_CONFIGURATION",
+                details={"config": config}
+            )
+        finally:
+            if config:
+                cache_key = f"tenant_config:in_app:{config.tenantId}"
+                await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
+                return config
 

@@ -93,7 +93,7 @@ class UnitOfWork(IUnitOfWork):
 
     async def __aenter__(self):
         """Enter async context manager."""
-        self.session = self.database.get_session()
+        self.session = self.database.getSession()
         self._emailNotifications = EmailNotificationRepository(self.session)
         self._emailOutbox = EmailOutboxRepository(self.session)
         self._emailTemplates = EmailTemplateRepository(self.session)

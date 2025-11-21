@@ -1,8 +1,8 @@
-from .session import Database, get_db_session, get_database, metadata
+from .session import Database, getDbSession, getDatabase, metadata
 
 __all__ = [
     "Database",
-    "get_db_session",
-    "get_database",
+    "getDbSession",
+    "getDatabase",
     "metadata"
 ]

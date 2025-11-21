@@ -24,7 +24,7 @@ class AfromessageConfiguration(BaseModel):
     class Config:
         from_attributes = True
         
-    def to_dict(self) -> Dict[str, Any]:
+    def toDict(self) -> Dict[str, Any]:
         return {
             "baseUrl": self.baseUrl,
             "apiKey": self.apiKey,
@@ -34,7 +34,7 @@ class AfromessageConfiguration(BaseModel):
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AfromessageConfiguration':
+    def fromDict(cls, data: Dict[str, Any]) -> 'AfromessageConfiguration':
         return cls(
             baseUrl=data.get("baseUrl", "https://api.afromessage.com/api"),
             apiKey=data.get("apiKey", ""),
@@ -53,7 +53,7 @@ class AfromessageSMSProvider(IProviderService):
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
         """Test Afromessage configuration by sending a test message."""
         try:
-            afro_config = AfromessageConfiguration.from_dict(config)
+            afro_config = AfromessageConfiguration.fromDict(config)
             url = f"{afro_config.baseUrl}/send"
             
             payload = {
@@ -227,7 +227,7 @@ class AfromessageSMSProvider(IProviderService):
         # TODO: Implement actual outbox persistence
         pass
     
-    async def circuit_breaker_check(
+    async def circuitBreakerCheck(
         self,
         config: TenantSMSConfiguration
     ) -> bool:

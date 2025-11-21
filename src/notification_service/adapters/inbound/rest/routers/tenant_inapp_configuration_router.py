@@ -72,13 +72,13 @@ class TenantInAppConfigurationController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=TenantInAppConfigurationResponseDTO)
-    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> TenantInAppConfigurationResponseDTO:
+    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> TenantInAppConfigurationResponseDTO:
         """
         Partial update of a tenant in-app configuration.
         PATCH /tenant-inapp-configurations/{id}
         """
         # Call service - exceptions will be handled by global exception handlers
-        updated_entity = await self.tenantInAppConfigurationService.partial_update(id, updates)
+        updated_entity = await self.tenantInAppConfigurationService.partialUpdate(id, updates)
         
         # Convert to response DTO
         if hasattr(TenantInAppConfigurationResponseDTO, 'fromEntityWithRelations'):

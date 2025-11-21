@@ -12,14 +12,15 @@ from notification_service.domain.value_objects.notification_status import Notifi
 from notification_service.domain.entities.in_app.in_app_template import InAppTemplate
 from uuid import UUID
 import json
-
+from notification_service.infrastructure.cache.redis_cache import RedisCache
 logger = logging.getLogger(__name__)
 
 class InAppChannelHandler(IChannelHandler):
     """Concrete implementation of IChannelHandler for in-app notification channel"""
 
-    def __init__(self, unitofWork: IUnitOfWork, fcmService: FCMProvider):
+    def __init__(self, unitofWork: IUnitOfWork, fcmService: FCMProvider, redis: RedisCache):
         self.unitofWork = unitofWork
+        self.redis = redis
         self.__handlers = {
             PushProvider.FIREBASE: fcmService
         }
@@ -76,13 +77,21 @@ class InAppChannelHandler(IChannelHandler):
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantInAppConfiguration]:
         """Load the in-app channel configuration for a given tenant."""
         logger.info(f"Loading in-app channel config for tenant {tenantId}")
+        cache_key = f"tenant_config:in_app:{tenantId}"
+        cached_config = await self.redis.get(cache_key)
+        if cached_config:
+            logger.info(f"Cache hit for in-app channel config: {tenantId}")
+            return [TenantInAppConfiguration(**config) for config in cached_config]
+        else:
+            logger.info(f"Cache miss for in-app channel config: {tenantId}")
         async with self.unitofWork:
             config: list[TenantInAppConfiguration] = await self.unitofWork.tenantInAppConfigurations.find(
                 lambda t: t.tenantId == tenantId and t.priority == 1 and t.isActive == True
             )
-            if config:
-                return config
-            return []
+        if config:
+            await self.redis.set(cache_key, [config.__dict__ for config in config], expire=60*60*24)
+        return config
+            
 
     async def loadTemplate(self, tenantId: UUID, templateName: str, serviceName: str) -> InAppTemplate:
         """Load the in-app message template for a given tenant and template name."""
@@ -131,7 +140,7 @@ class InAppChannelHandler(IChannelHandler):
         }
         
         # Helper function to recursively format placeholders in nested dictionaries
-        def format_placeholders(obj, payload: Dict[str, Any]):
+        def formatPlaceholders(obj, payload: Dict[str, Any]):
             """Recursively format placeholders in nested dict/list structures."""
             if isinstance(obj, dict):
                 return {k: format_placeholders(v, payload) for k, v in obj.items()}

@@ -42,7 +42,7 @@ class FCMConfig(BaseModel):
     universe_domain: str = "googleapis.com"
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'FCMConfig':
+    def fromDict(cls, data: Dict[str, Any]) -> 'FCMConfig':
         """Create FCMConfig from dictionary, supporting Firebase service account format."""
         # Check if it's already in service account format
         if "type" in data and data.get("type") == "service_account":
@@ -73,7 +73,7 @@ class FCMConfig(BaseModel):
             "Please download the service account JSON from Firebase Console."
         )
     
-    def to_dict(self) -> Dict[str, Any]:
+    def toDict(self) -> Dict[str, Any]:
         """Convert to dictionary format compatible with Firebase Admin SDK."""
         return {
             "type": self.type,
@@ -89,9 +89,9 @@ class FCMConfig(BaseModel):
             "universe_domain": self.universe_domain
         }
     
-    def get_credentials(self) -> credentials.Certificate:
+    def getCredentials(self) -> credentials.Certificate:
         """Get Firebase credentials object."""
-        return credentials.Certificate(self.to_dict())
+        return credentials.Certificate(self.toDict())
 
 class FCMProvider(IProviderService):
     """Firebase Cloud Messaging (FCM) provider for in-app/push notifications"""
@@ -109,7 +109,7 @@ class FCMProvider(IProviderService):
             return app
         except ValueError:
             # App doesn't exist, initialize it
-            cred = config.get_credentials()
+            cred = config.getCredentials()
             app = firebase_admin.initialize_app(cred)
             return app
     
@@ -135,7 +135,7 @@ class FCMProvider(IProviderService):
         logger.info("Sending in-app notification via FCM")
         
         logger.info(f"FCM config: {tenantConfig.config}")
-        fcm_config = FCMConfig.from_dict(tenantConfig.config)
+        fcm_config = FCMConfig.fromDict(tenantConfig.config)
         app = self._get_firebase_app(fcm_config)
         
         # Prepare FCM message for each recipient
