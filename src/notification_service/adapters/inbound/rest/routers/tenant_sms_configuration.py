@@ -63,7 +63,7 @@ class TenantSMSConfigurationController(ControllerBase):
             raise ValidationError("Request DTO must have toEntity() method")
         
         # Call service - exceptions will be handled by global exception handlers
-        updated_entity = await self.tenantSmsConfigurationService.update(entity)
+        updated_entity = await self.tenantSmsConfigurationService.updateConfiguration(entity)
         
         # Convert to response DTO
         if hasattr(TenantSMSConfigurationResponseDTO, 'fromEntityWithRelations'):
@@ -72,13 +72,13 @@ class TenantSMSConfigurationController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=TenantSMSConfigurationResponseDTO)
-    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> TenantSMSConfigurationResponseDTO:
+    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> TenantSMSConfigurationResponseDTO:
         """
         Partial update of a tenant SMS configuration.
         PATCH /tenant-sms-configurations/{id}
         """
         # Call service - exceptions will be handled by global exception handlers
-        updated_entity = await self.tenantSmsConfigurationService.partial_update(id, updates)
+        updated_entity = await self.tenantSmsConfigurationService.partialUpdate(id, updates)
         
         # Convert to response DTO
         if hasattr(TenantSMSConfigurationResponseDTO, 'fromEntityWithRelations'):

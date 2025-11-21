@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
+from notification_service.domain.entities.sms.sms_template import SmsTemplate
 
 
 @dataclass
@@ -13,6 +14,7 @@ class SMSOutbox:
     messageContent: str
     idempotencyKey: str
     templateId: Optional[UUID] = None
+    template: Optional[SmsTemplate] = None
     retryCount: int = 0
     lastRetryAt: Optional[datetime] = None
     lastErrorMessage: Optional[str] = None

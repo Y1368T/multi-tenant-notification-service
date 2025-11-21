@@ -8,6 +8,8 @@ from notification_service.shared.exceptions.application_exceptions import Messag
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.entities.tenant import Tenant
 from uuid import UUID
+from notification_service.application.handlers.sms_channel_handler import SMSChannelHandler
+from notification_service.application.handlers.in_app_channel_handler import InAppChannelHandler
 logger = logging.getLogger(__name__)
 
 class MessageRouter(IMessageHandler):
@@ -15,16 +17,16 @@ class MessageRouter(IMessageHandler):
 
     def __init__(
         self,
-        sms_handler: IChannelHandler,
+        smsHandler: SMSChannelHandler,
+        inAppHandler: InAppChannelHandler = None,
         # email_handler: IChannelHandler,
-        # push_handler: IChannelHandler,
         # whatsapp_handler: IChannelHandler
     ):
         self._handlers: Dict[NotificationChannel, IChannelHandler] = {
-            NotificationChannel.SMS: sms_handler
-            # NotificationChannel.EMAIL: email_handler,
-            # NotificationChannel.PUSH: push_handler,
-            # NotificationChannel.WHATSAPP: whatsapp_handler
+            NotificationChannel.SMS: smsHandler,
+            NotificationChannel.INAPP: inAppHandler,
+            # NotificationChannel.EMAIL: emailHandler,
+            # NotificationChannel.WHATSAPP: whatsappHandler,
         }
 
     async def doRoute(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> NotificationResponse:

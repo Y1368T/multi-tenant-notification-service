@@ -11,9 +11,9 @@ class PaginatedResponseDTO(BaseModel, Generic[T]):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
     
     items: List[T]
-    totalCount: int = Field(alias="total_count")
+    totalCount: int = Field(alias="totalCount")
     page: int
-    pageSize: int = Field(alias="page_size")
-    totalPages: int = Field(alias="total_pages")
-    hasNext: bool = Field(alias="has_next")
-    hasPrevious: bool = Field(alias="has_previous")
+    pageSize: int = Field(alias="pageSize")
+    totalPages: int = Field(alias="totalPages")
+    hasNext: bool = Field(alias="hasNext")
+    hasPrevious: bool = Field(alias="hasPrevious")

@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from notification_service.infrastructure.persistence.repositories.tenant_inapp_configuration_repository import TenantInAppConfigurationRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
@@ -13,6 +14,7 @@ from notification_service.infrastructure.persistence.repositories.sms_outbox_rep
 from notification_service.infrastructure.persistence.repositories.sms_template_repository import SmsTemplateRepository
 from notification_service.infrastructure.persistence.repositories.in_app_notification_repository import InAppNotificationRepository
 from notification_service.infrastructure.persistence.repositories.in_app_template_repository import InAppTemplateRepository
+from notification_service.infrastructure.persistence.repositories.in_app_outbox_repository import InAppOutboxRepository
 from notification_service.infrastructure.persistence.repositories.tenant_repository import TenantRepository
 from notification_service.infrastructure.persistence.repositories.tenant_email_configuration_repository import TenantEmailConfigurationRepository
 from notification_service.infrastructure.persistence.repositories.tenant_sms_configuration_repository import TenantSmsConfigurationRepository
@@ -54,8 +56,12 @@ class UnitOfWork(IUnitOfWork):
         return self._smsNotifications
 
     @property
-    def smsOutbox(self):
-        return self._smsOutbox
+    def smsOutboxes(self):
+        return self._smsOutboxes
+    
+    @property
+    def inAppOutboxes(self):
+        return self._inAppOutboxes
 
     @property
     def smsTemplates(self):
@@ -81,23 +87,31 @@ class UnitOfWork(IUnitOfWork):
     def tenantSmsConfigurations(self):
         return self._tenantSmsConfigurations
 
+    @property
+    def tenantInAppConfigurations(self):
+        return self._tenantInAppConfigurations
+
     async def __aenter__(self):
         """Enter async context manager."""
-        self.session = self.database.get_session()
+        self.session = self.database.getSession()
         self._emailNotifications = EmailNotificationRepository(self.session)
         self._emailOutbox = EmailOutboxRepository(self.session)
         self._emailTemplates = EmailTemplateRepository(self.session)
 
         self._smsNotifications = SmsNotificationRepository(self.session)
-        self._smsOutbox = SmsOutboxRepository(self.session)
+        self._smsOutboxes = SmsOutboxRepository(self.session)
         self._smsTemplates = SmsTemplateRepository(self.session)
 
         self._inAppNotifications = InAppNotificationRepository(self.session)
         self._inAppTemplates = InAppTemplateRepository(self.session)
+        self._inAppOutboxes = InAppOutboxRepository(self.session)
 
         self._tenants = TenantRepository(self.session, TenantMapper())
         self._tenantEmailConfigurations = TenantEmailConfigurationRepository(self.session)
         self._tenantSmsConfigurations = TenantSmsConfigurationRepository(self.session)
+        # TODO: Create TenantInAppConfigurationRepository, Model, and Mapper
+        # For now, using SMS configuration repository as placeholder - needs to be replaced
+        self._tenantInAppConfigurations = TenantInAppConfigurationRepository(self.session)
         self._providers = ProviderRepository(self.session)
         return self
 

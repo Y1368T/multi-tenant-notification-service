@@ -1,4 +1,5 @@
 import logging
+from math import e
 from typing import Dict, Any, Optional
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
@@ -7,21 +8,35 @@ from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.infrastructure.providers.sms.kifiyaSmsProvider  import KifiyaSMSProvider
+from notification_service.infrastructure.providers.sms.kannel_sms_provider import KannelSMSProvider
+from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.value_objects.notification_status import NotificationStatus
 from uuid import UUID
+from notification_service.infrastructure.cache.redis_cache import RedisCache
 logger = logging.getLogger(__name__)
 
 class SMSChannelHandler(IChannelHandler):
     """Concrete implementation of IChannelHandler for SMS channel"""
 
-    def __init__(self, unitofWork: IUnitOfWork, afro_service: AfromessageSMSProvider, kifiya_service: KifiyaSMSProvider):
+    def __init__(
+        self,
+        unitofWork: IUnitOfWork,
+        afro_service: AfromessageSMSProvider,
+        kifiya_service: KifiyaSMSProvider,
+        kannel_service: KannelSMSProvider,
+        jasmin_service: JasminSMSProvider,
+        redis: RedisCache,
+    ):
         self.unitofWork = unitofWork
+        self.redis = redis
         self.__handlers = {
             SMSProvider.AFROMESSAGE: afro_service,
-            SMSProvider.KIFIYA: kifiya_service
+            SMSProvider.KIFIYA: kifiya_service,
+            SMSProvider.KANNEL: kannel_service,
+            SMSProvider.JASMIN: jasmin_service,
         }
         
     async def receiveMessage(self, tenantPrefix: str, message: NotificationRequest) -> NotificationResponse:
@@ -33,7 +48,7 @@ class SMSChannelHandler(IChannelHandler):
             tenantdb= await self.unitofWork.tenants.firstOrDefault(lambda t: t.prefix == tenantPrefix)
             if not tenantdb:
                 logger.error(f"Tenant with prefix {tenantPrefix} not found")  # pyright: ignore[reportUnreachable]
-                return NotificationResponse(success=False, error_message=f"Tenant with prefix {tenantPrefix} not found")
+                return NotificationResponse(success=False, errorMessage=f"Tenant with prefix {tenantPrefix} not found")
             template = await self.unitofWork.smsTemplates.firstOrDefault(
                 lambda t: t.tenantId == tenantdb.id 
                 and t.templateName == message.templateName 
@@ -52,7 +67,8 @@ class SMSChannelHandler(IChannelHandler):
                 return NotificationResponse(success=True, message="Duplicate message ignored")
             else:
                 logger.info(f"Processing new message for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
-                checkOutboxIdempotency=await self.unitofWork.smsOutbox.firstOrDefault(lambda n: n.idempotencyKey == message.idempotencyKey and n.tenantId==tenantdb.id and n.status!=NotificationStatus.FAILED)
+                # Check outbox for duplicate messages using templateId (template already verified to belong to tenant)
+                checkOutboxIdempotency=await self.unitofWork.smsOutboxes.firstOrDefault(lambda n: n.idempotencyKey == message.idempotencyKey and n.templateId==template.id and n.status!="failed")
                 if checkOutboxIdempotency:
                     logger.info(f"Duplicate message detected in outbox for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
                     return NotificationResponse(success=True, message="Duplicate message ignored")
@@ -76,14 +92,51 @@ class SMSChannelHandler(IChannelHandler):
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantSMSConfiguration]:
         """Load the SMS channel configuration for a given tenant."""
         logger.info(f"Loading SMS channel config for tenant {tenantId}")
-        # Implementation for loading tenant config
+        cache_key = f"tenant_config:sms:{tenantId}"
+        
+        # Try to get from cache first
+        try:
+            cached_config = await self.redis.get(cache_key)
+            if cached_config:
+                logger.debug(f"Cache hit for tenant config: {tenantId}")
+                # Deserialize from cache
+                return [TenantSMSConfiguration(**config) for config in cached_config]
+        except Exception as e:
+            logger.warning(f"Error reading from cache: {e}, falling back to DB")
+        
+        # Load from database
         async with self.unitofWork:
-            config:list[TenantSMSConfiguration]= await self.unitofWork.tenantSmsConfigurations.find(lambda t:t.tenantId==tenantId and t.priority==1)
+            config: list[TenantSMSConfiguration] = await self.unitofWork.tenantSmsConfigurations.find(
+                lambda t: t.tenantId == tenantId and t.priority == 1
+            )
             if config:
+                # Cache the config (serialize dataclass to dict)
+                try:
+                    config_dicts = [
+                        {
+                            'id': str(c.id),
+                            'tenantId': str(c.tenantId),
+                            'providerName': c.providerName,
+                            'priority': c.priority,
+                            'isActive': c.isActive,
+                            'rateLimitPerMinute': c.rateLimitPerMinute,
+                            'rateLimitPerHour': c.rateLimitPerHour,
+                            'rateLimitPerDay': c.rateLimitPerDay,
+                            'config': c.config,
+                            'createdAt': c.createdAt.isoformat() if c.createdAt else None,
+                            'updatedAt': c.updatedAt.isoformat() if c.updatedAt else None,
+                        }
+                        for c in config
+                    ]
+                    await self.redis.set(cache_key, config_dicts, expire=3600)  # Cache for 1 hour
+                    logger.debug(f"Cached tenant config for: {tenantId}")
+                except Exception as e:
+                    logger.warning(f"Error caching tenant config: {e}")
+                
                 return config
             else:
                 logger.error(f"No SMS channel config found for tenant {tenantId}")
-                return None
+                return []
     
 
     async def loadTemplate(self, tenantId: UUID, templateName: str,serviceName:str) -> Optional[SmsTemplate]:
@@ -109,15 +162,32 @@ class SMSChannelHandler(IChannelHandler):
         # Implementation for routing to SMS provider
         
         logger.info(f"Routing SMS notification for tenant {tenant.name} to provider")
-        config=configs[0]
-        match config.providerName.lower():
+        config = configs[0]
+        if request.metadata and request.metadata.get("shortcode"):
+            config = next((c for c in configs if (c.config.get("shortcode") or "").lower() == (request.metadata.get("shortcode") or "").lower()), None)
+            if not config:
+                logger.error(f"No config found for shortcode '{request.metadata.get('shortcode')}' in tenant {tenant.name}")
+                return NotificationResponse(success=False, errorMessage=f"No config found for shortcode '{request.metadata.get('shortcode')}'")
+        else:
+            # select the lowest priority active config
+            config = min(
+                (c for c in configs if c.isActive),
+                key=lambda c: c.priority,
+                default=None
+            )
+            
+        provider_name = (config.providerName or "").lower()
+
+        match provider_name:
             case SMSProvider.AFROMESSAGE.value:
                 # Implementation for routing to Afromessage
                 # replace the message payload in the template with actual values from request. and give me example
                 # e.g., Hello {name}, your code is {code} -> Hello John, your code is 1234 and the payload is {'name': 'John', 'code': '1234'}
                 
                 message_body= templateText.format(**request.payload)
-                response= await self.__handlers[SMSProvider.AFROMESSAGE].send(request, config, message_body,templateId)
+                response = await self.__handlers[SMSProvider.AFROMESSAGE].send(
+                    request, config, message_body, templateId
+                )
                 return response
             case SMSProvider.KIFIYA.value:
                 # Implementation for routing to Kifiya
@@ -125,10 +195,26 @@ class SMSChannelHandler(IChannelHandler):
                 # e.g., Hello {name}, your code is {code} -> Hello John, your code is 1234 and the payload is {'name': 'John', 'code': '1234'}
                 
                 message_body= templateText.format(**request.payload)
-                response= await self.__handlers[SMSProvider.KIFIYA].send(request, config, message_body,templateId)
+                response = await self.__handlers[SMSProvider.KIFIYA].send(
+                    request, config, message_body, templateId
+                )
+                return response
+            case SMSProvider.KANNEL.value:
+                # Kannel HTTP SMS provider
+                message_body = templateText.format(**request.payload)
+                response = await self.__handlers[SMSProvider.KANNEL].send(
+                    request, config, message_body, templateId
+                )
+                return response
+            case SMSProvider.JASMIN.value:
+                # Jasmin SMS provider (HTTP or SMPP based on tenant configuration)
+                message_body = templateText.format(**request.payload)
+                response = await self.__handlers[SMSProvider.JASMIN].send(
+                    request, config, message_body, templateId
+                )
                 return response
             case _:
                 logger.error(f"Unsupported SMS provider: {config.providerName}")
                 
-                return NotificationResponse(success=False, error_message=f"Unsupported SMS provider: {config.providerName}")
+                return NotificationResponse(success=False, errorMessage=f"Unsupported SMS provider: {config.providerName}")
         

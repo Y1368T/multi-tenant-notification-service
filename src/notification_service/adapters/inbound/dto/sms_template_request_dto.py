@@ -5,7 +5,7 @@ from datetime import datetime
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from uuid import UUID
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO
-from notification_service.shared.validators.input_validators import validate_string_input
+from notification_service.shared.validators.input_validators import validateStringInput
 import re
 class SMSTemplateRequestDTO(BaseModel):
     templateName: str = Field(alias="templateName")
@@ -33,13 +33,13 @@ class SMSTemplateRequestDTO(BaseModel):
     
     @field_validator('templateName')
     @classmethod
-    def validate_template_name(cls, v: str) -> str:
+    def validateTemplateName(cls, v: str) -> str:
         """Validate template name."""
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='templateName',
-            max_length=100,
-            min_length=1
+            fieldName='templateName',
+            maxLength=100,
+            minLength=1
         )
         # Template name should be alphanumeric with underscores/hyphens
         if not re.match(r'^[a-zA-Z0-9_-]+$', sanitized):
@@ -48,18 +48,18 @@ class SMSTemplateRequestDTO(BaseModel):
     
     @field_validator('serviceName')
     @classmethod
-    def validate_service_name(cls, v: str) -> str:
+    def validateServiceName(cls, v: str) -> str:
         """Validate service name."""
-        return validate_string_input(
+        return validateStringInput(
             v,
-            field_name='serviceName',
-            max_length=100,
-            min_length=1
+            fieldName='serviceName',
+            maxLength=100,
+            minLength=1
         )
     
     @field_validator('version')
     @classmethod
-    def validate_version(cls, v: int) -> int:
+    def validateVersion(cls, v: int) -> int:
         """Validate version number."""
         if v < 1:
             raise ValueError("Version must be at least 1")
@@ -69,7 +69,7 @@ class SMSTemplateRequestDTO(BaseModel):
     
     @field_validator('content')
     @classmethod
-    def validate_content(cls, v: Dict[str, str]) -> Dict[str, str]:
+    def validateContent(cls, v: Dict[str, str]) -> Dict[str, str]:
         """Validate template content for each language."""
         if not v:
             raise ValueError("Template content cannot be empty")
@@ -85,11 +85,11 @@ class SMSTemplateRequestDTO(BaseModel):
                 raise ValueError(f"Template text for language '{lang}' cannot be empty")
             
             # Sanitize template text (allow placeholders like {userName})
-            sanitized = validate_string_input(
+            sanitized = validateStringInput(
                 template_text,
-                field_name=f'content.{lang}',
-                max_length=1000,
-                allow_html=False  # No HTML in SMS templates
+                fieldName=f'content.{lang}',
+                maxLength=1000,
+                allowHtml=False  # No HTML in SMS templates
             )
             
             sanitized_content[lang] = sanitized
@@ -144,7 +144,7 @@ class SMSTemplateFilterDTO(PaginatedRequestDTO):
     
     @field_validator('tenantId')
     @classmethod
-    def validate_tenant_id(cls, v: Optional[UUID]) -> Optional[UUID]:
+    def validateTenantId(cls, v: Optional[UUID]) -> Optional[UUID]:
         """Validate tenant ID (UUID format)."""
         if v is None:
             return None

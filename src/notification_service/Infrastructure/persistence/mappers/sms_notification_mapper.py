@@ -26,6 +26,7 @@ class SmsNotificationMapper:
         
         # Extract template if loaded
         template_entity = None
+        template_name = None
         insp = inspect(model)
         
         # Check if template is loaded without triggering lazy load
@@ -34,6 +35,9 @@ class SmsNotificationMapper:
             if template_model is not None:
                 # Map the template model to entity
                 template_entity = SmsTemplateMapper.toEntity(template_model)
+                # Extract template name from template entity
+                if template_entity and hasattr(template_entity, 'templateName'):
+                    template_name = template_entity.templateName
         
         return SMSNotification(
             id=model.id,
@@ -43,7 +47,7 @@ class SmsNotificationMapper:
             idempotencyKey=model.idempotencyKey,
             templateId=model.templateId,
             template=template_entity,
-            templateName=None,
+            templateName=template_name,
             createdAt=model.createdAt,
             updatedAt=model.updatedAt
         )

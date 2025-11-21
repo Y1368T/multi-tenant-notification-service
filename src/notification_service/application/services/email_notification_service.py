@@ -10,7 +10,7 @@ class EmailNotificationService:
         self.email_config_service = email_config_service
         self.uow = uow
 
-    async def send_email_notification(self, tenant_id: UUID, email_notification: EmailNotification) -> bool:
+    async def sendEmailNotification(self, tenant_id: UUID, email_notification: EmailNotification) -> bool:
         """Send an email notification using the tenant's email configuration.
         
         Args:
@@ -36,7 +36,7 @@ class EmailNotificationService:
         success = await handler.send_email(config, email_notification)
         return success
 
-    async def get_email_notifications(self, tenant_id: UUID) -> list[EmailNotification]:
+    async def getEmailNotifications(self, tenant_id: UUID) -> list[EmailNotification]:
         """Retrieve email notifications for a given tenant.
 
         Args:
