@@ -5,7 +5,7 @@ from datetime import datetime
 from notification_service.domain.entities.in_app.in_app_template import InAppTemplate
 from uuid import UUID
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO
-from notification_service.shared.validators.input_validators import validate_string_input
+from notification_service.shared.validators.input_validators import validateStringInput
 import re
 
 class InAppTemplateRequestDTO(BaseModel):
@@ -75,13 +75,13 @@ class InAppTemplateRequestDTO(BaseModel):
     
     @field_validator('templateName')
     @classmethod
-    def validate_template_name(cls, v: str) -> str:
+    def validateTemplateName(cls, v: str) -> str:
         """Validate template name."""
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='templateName',
-            max_length=100,
-            min_length=1
+            fieldName='templateName',
+            maxLength=100,
+            minLength=1
         )
         # Template name should be alphanumeric with underscores/hyphens
         if not re.match(r'^[a-zA-Z0-9_-]+$', sanitized):
@@ -90,18 +90,18 @@ class InAppTemplateRequestDTO(BaseModel):
     
     @field_validator('serviceName')
     @classmethod
-    def validate_service_name(cls, v: str) -> str:
+    def validateServiceName(cls, v: str) -> str:
         """Validate service name."""
-        return validate_string_input(
+        return validateStringInput(
             v,
-            field_name='serviceName',
-            max_length=100,
-            min_length=1
+            fieldName='serviceName',
+            maxLength=100,
+            minLength=1
         )
     
     @field_validator('version')
     @classmethod
-    def validate_version(cls, v: int) -> int:
+    def validateVersion(cls, v: int) -> int:
         """Validate version number."""
         if v < 1:
             raise ValueError("Version must be at least 1")
@@ -111,7 +111,7 @@ class InAppTemplateRequestDTO(BaseModel):
     
     @field_validator('body')
     @classmethod
-    def validate_body(cls, v: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    def validateBody(cls, v: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """Validate template body for each language and field."""
         if not v:
             raise ValueError("Template body cannot be empty")
@@ -151,11 +151,11 @@ class InAppTemplateRequestDTO(BaseModel):
                         raise ValueError(f"Field '{field_key}' value for language '{lang_code}' cannot be empty")
                     
                     # Sanitize field value (allow placeholders like {userName})
-                    sanitized = validate_string_input(
+                    sanitized = validateStringInput(
                         field_value,
-                        field_name=f'body.{lang_code}.{field_key}',
-                        max_length=2000,
-                        allow_html=True  # Allow HTML in in-app templates
+                        fieldName=f'body.{lang_code}.{field_key}',
+                        maxLength=2000,
+                        allowHtml=True  # Allow HTML in in-app templates
                     )
                     
                     sanitized_lang_body[field_key] = sanitized
@@ -165,7 +165,7 @@ class InAppTemplateRequestDTO(BaseModel):
         return sanitized_body
     @field_validator('data', 'android', 'apns')
     @classmethod
-    def validate_platform_config(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def validatePlatformConfig(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Validate platform-specific configuration (optional)."""
         if v is None:
             return None
@@ -185,11 +185,11 @@ class InAppTemplateRequestDTO(BaseModel):
             return [cls._validate_nested_dict(item, f'{field_path}[{i}]') for i, item in enumerate(value)]
         elif isinstance(value, str):
             # Validate string values in nested structures
-            return validate_string_input(
+            return validateStringInput(
                 value,
-                field_name=field_path,
-                max_length=5000,  # Longer limit for nested values
-                allow_html=False
+                fieldName=field_path,
+                maxLength=5000,  # Longer limit for nested values
+                allowHtml=False
             )
         elif isinstance(value, (int, float, bool)):
             # Allow numbers and booleans in nested structures
@@ -271,7 +271,7 @@ class InAppTemplateFilterDTO(PaginatedRequestDTO):
     
     @field_validator('tenantId')
     @classmethod
-    def validate_tenant_id(cls, v: Optional[UUID]) -> Optional[UUID]:
+    def validateTenantId(cls, v: Optional[UUID]) -> Optional[UUID]:
         """Validate tenant ID (UUID format)."""
         if v is None:
             return None

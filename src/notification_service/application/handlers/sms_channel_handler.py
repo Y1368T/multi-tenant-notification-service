@@ -1,4 +1,5 @@
 import logging
+from math import e
 from typing import Dict, Any, Optional
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
@@ -14,6 +15,7 @@ from notification_service.domain.value_objects.notification_response import Noti
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.value_objects.notification_status import NotificationStatus
 from uuid import UUID
+from notification_service.infrastructure.cache.redis_cache import RedisCache
 logger = logging.getLogger(__name__)
 
 class SMSChannelHandler(IChannelHandler):
@@ -26,8 +28,10 @@ class SMSChannelHandler(IChannelHandler):
         kifiya_service: KifiyaSMSProvider,
         kannel_service: KannelSMSProvider,
         jasmin_service: JasminSMSProvider,
+        redis: RedisCache,
     ):
         self.unitofWork = unitofWork
+        self.redis = redis
         self.__handlers = {
             SMSProvider.AFROMESSAGE: afro_service,
             SMSProvider.KIFIYA: kifiya_service,
@@ -88,14 +92,51 @@ class SMSChannelHandler(IChannelHandler):
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantSMSConfiguration]:
         """Load the SMS channel configuration for a given tenant."""
         logger.info(f"Loading SMS channel config for tenant {tenantId}")
-        # Implementation for loading tenant config
+        cache_key = f"tenant_config:sms:{tenantId}"
+        
+        # Try to get from cache first
+        try:
+            cached_config = await self.redis.get(cache_key)
+            if cached_config:
+                logger.debug(f"Cache hit for tenant config: {tenantId}")
+                # Deserialize from cache
+                return [TenantSMSConfiguration(**config) for config in cached_config]
+        except Exception as e:
+            logger.warning(f"Error reading from cache: {e}, falling back to DB")
+        
+        # Load from database
         async with self.unitofWork:
-            config:list[TenantSMSConfiguration]= await self.unitofWork.tenantSmsConfigurations.find(lambda t:t.tenantId==tenantId and t.priority==1)
+            config: list[TenantSMSConfiguration] = await self.unitofWork.tenantSmsConfigurations.find(
+                lambda t: t.tenantId == tenantId and t.priority == 1
+            )
             if config:
+                # Cache the config (serialize dataclass to dict)
+                try:
+                    config_dicts = [
+                        {
+                            'id': str(c.id),
+                            'tenantId': str(c.tenantId),
+                            'providerName': c.providerName,
+                            'priority': c.priority,
+                            'isActive': c.isActive,
+                            'rateLimitPerMinute': c.rateLimitPerMinute,
+                            'rateLimitPerHour': c.rateLimitPerHour,
+                            'rateLimitPerDay': c.rateLimitPerDay,
+                            'config': c.config,
+                            'createdAt': c.createdAt.isoformat() if c.createdAt else None,
+                            'updatedAt': c.updatedAt.isoformat() if c.updatedAt else None,
+                        }
+                        for c in config
+                    ]
+                    await self.redis.set(cache_key, config_dicts, expire=3600)  # Cache for 1 hour
+                    logger.debug(f"Cached tenant config for: {tenantId}")
+                except Exception as e:
+                    logger.warning(f"Error caching tenant config: {e}")
+                
                 return config
             else:
                 logger.error(f"No SMS channel config found for tenant {tenantId}")
-                return None
+                return []
     
 
     async def loadTemplate(self, tenantId: UUID, templateName: str,serviceName:str) -> Optional[SmsTemplate]:
@@ -122,6 +163,19 @@ class SMSChannelHandler(IChannelHandler):
         
         logger.info(f"Routing SMS notification for tenant {tenant.name} to provider")
         config = configs[0]
+        if request.metadata and request.metadata.get("shortcode"):
+            config = next((c for c in configs if (c.config.get("shortcode") or "").lower() == (request.metadata.get("shortcode") or "").lower()), None)
+            if not config:
+                logger.error(f"No config found for shortcode '{request.metadata.get('shortcode')}' in tenant {tenant.name}")
+                return NotificationResponse(success=False, errorMessage=f"No config found for shortcode '{request.metadata.get('shortcode')}'")
+        else:
+            # select the lowest priority active config
+            config = min(
+                (c for c in configs if c.isActive),
+                key=lambda c: c.priority,
+                default=None
+            )
+            
         provider_name = (config.providerName or "").lower()
 
         match provider_name:

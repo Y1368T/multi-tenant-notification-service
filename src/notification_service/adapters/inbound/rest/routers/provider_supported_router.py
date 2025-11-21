@@ -76,13 +76,13 @@ class ProviderSupportedController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=ProviderResponseDTO)
-    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> ProviderResponseDTO:
+    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> ProviderResponseDTO:
         """
         Partial update of a provider.
         PATCH /provider-supported/{id}
         """
         # Call service - exceptions will be handled by global exception handlers
-        updated_entity = await self.providerService.partial_update(id, updates)
+        updated_entity = await self.providerService.partialUpdate(id, updates)
         
         # Convert to response DTO
         if hasattr(ProviderResponseDTO, 'fromEntityWithRelations'):
@@ -101,7 +101,7 @@ class ProviderSupportedController(ControllerBase):
         return {"message": "Provider deleted successfully"}
     
     @post("/test", response_model=ProviderTestResponse)
-    async def test_provider(self, dto: TestRequestDto) -> ProviderTestResponse:
+    async def testProvider(self, dto: TestRequestDto) -> ProviderTestResponse:
         """Test a provider (custom endpoint)."""
         return await self.providerService.test_provider(dto)
     

@@ -14,7 +14,7 @@ class QueryableExtensions:
     """Extension methods for SQLAlchemy queries similar to .NET's Queryable extensions."""
     
     @staticmethod
-    def apply_paging(query: Select, page: int, page_size: int) -> Select:
+    def applyPaging(query: Select, page: int, page_size: int) -> Select:
         """Apply pagination to a SQLAlchemy query.
         
         Args:
@@ -33,7 +33,7 @@ class QueryableExtensions:
         return query.offset(offset).limit(page_size)
     
     @staticmethod
-    def apply_sorting(
+    def applySorting(
         query: Select,
         model_class: Type[Any],
         sort_by: str,
@@ -67,7 +67,7 @@ class QueryableExtensions:
             return query.orderBy(column)
     
     @staticmethod
-    async def to_paged_response_async(
+    async def toPagedResponseAsync(
         query: Select,
         session: AsyncSession,
         model_class: Type[TModel],

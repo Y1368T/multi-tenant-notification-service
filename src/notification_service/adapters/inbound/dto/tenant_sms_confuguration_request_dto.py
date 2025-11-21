@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from datetime import datetime
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO
-from notification_service.shared.validators.input_validators import validate_string_input
+from notification_service.shared.validators.input_validators import validateStringInput
 
 class TenantSMSConfigurationRequestDto(BaseModel):
     tenantId: UUID = Field(alias="tenantId")
@@ -20,21 +20,20 @@ class TenantSMSConfigurationRequestDto(BaseModel):
 
     @field_validator('providerName')
     @classmethod
-    def validate_provider_name(cls, v: str) -> str:
+    def validateProviderName(cls, v: str) -> str:
         """Validate provider name."""
-        allowed_providers = ["kifiya", "afromessage", "kannel", "jasmin"]
-        sanitized = validate_string_input(
+        # allowedProviders = ["kifiya", "afromessage", "kannel", "jasmin"]
+        sanitized = validateStringInput(
             v,
-            field_name='providerName',
-            max_length=50
+            fieldName='providerName',
+            maxLength=50
         )
-        if sanitized.lower() not in allowed_providers:
-            raise ValueError(f"Provider must be one of: {', '.join(allowed_providers)}")
-        return sanitized.lower()
+        # return sanitized.lower()
+        return v
     
     @field_validator('priority')
     @classmethod
-    def validate_priority(cls, v: int) -> int:
+    def validatePriority(cls, v: int) -> int:
         """Validate priority (must be positive)."""
         if v < 1:
             raise ValueError("Priority must be at least 1")
@@ -44,7 +43,7 @@ class TenantSMSConfigurationRequestDto(BaseModel):
     
     @field_validator('rateLimitPerMinute', 'rateLimitPerHour', 'rateLimitPerDay')
     @classmethod
-    def validate_rate_limits(cls, v: int) -> int:
+    def validateRateLimits(cls, v: int) -> int:
         """Validate rate limit values."""
         if v < 0:
             raise ValueError("Rate limit must be non-negative")
@@ -54,55 +53,55 @@ class TenantSMSConfigurationRequestDto(BaseModel):
     
     @field_validator('config')
     @classmethod
-    def validate_config(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+    def validateConfig(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         """Validate configuration dictionary."""
         if not isinstance(v, dict):
             raise ValueError("Config must be a dictionary")
         
         # Sanitize string values in config
-        sanitized_config = {}
+        sanitizedConfig = {}
         for key, value in v.items():
             # Validate key
             if not isinstance(key, str):
                 raise ValueError("Config keys must be strings")
             
-            sanitized_key = validate_string_input(
+            sanitizedKey = validateStringInput(
                 key,
-                field_name=f'config.{key}',
-                max_length=100
+                fieldName=f'config.{key}',
+                maxLength=100
             )
             
             # Sanitize value if it's a string
             if isinstance(value, str):
                 # Allow longer values for config fields (e.g., private keys can be 2000+ chars)
                 # Check for known long fields that need more space
-                max_len = 10000 if key in ['private_key', 'privateKey', 'certificate', 'cert', 'key'] else 5000
+                maxLen = 10000 if key in ['private_key', 'privateKey', 'certificate', 'cert', 'key'] else 5000
                 
                 # Skip SQL injection checking for encoded/sensitive fields (private keys, certificates, etc.)
                 # These fields contain base64-encoded data that may accidentally match SQL patterns
-                skip_sql_check = key.lower() in [
+                skipSqlCheck = key.lower() in [
                     'private_key', 'privatekey', 'private_key_id', 'privatekeyid',
                     'certificate', 'cert', 'key', 'token', 'secret', 'api_key', 'apikey',
                     'client_x509_cert_url', 'clientx509certurl', 'auth_provider_x509_cert_url'
                 ]
                 
-                if skip_sql_check:
+                if skipSqlCheck:
                     # For sensitive fields, only validate length, skip SQL/XSS checks
-                    if max_len and len(value) > max_len:
-                        raise ValueError(f"config.{key} must be at most {max_len} characters")
-                    sanitized_value = value  # Don't sanitize encoded data
+                    if maxLen and len(value) > maxLen:
+                        raise ValueError(f"config.{key} must be at most {maxLen} characters")
+                    sanitizedValue = value  # Don't sanitize encoded data
                 else:
-                    sanitized_value = validate_string_input(
+                    sanitizedValue = validateStringInput(
                         value,
-                        field_name=f'config.{key}',
-                        max_length=max_len
+                        fieldName=f'config.{key}',
+                        maxLength=maxLen
                     )
             else:
-                sanitized_value = value
+                sanitizedValue = value
             
-            sanitized_config[sanitized_key] = sanitized_value
+            sanitizedConfig[sanitizedKey] = sanitizedValue
         
-        return sanitized_config
+        return sanitizedConfig
 
     @classmethod
     def fromDict(cls, data: Dict[str, Any]) -> "TenantSMSConfigurationRequestDto":
@@ -170,29 +169,30 @@ class TenantSMSConfigurationFilterDTO(PaginatedRequestDTO):
     
     @field_validator('providerName')
     @classmethod
-    def validate_provider_name(cls, v: Optional[str]) -> Optional[str]:
+    def validateProviderName(cls, v: Optional[str]) -> Optional[str]:
         """Validate provider name filter."""
         if v is None or v == "":
             return None
         
         # Sanitize provider name
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='providerName',
-            max_length=50
+            fieldName='providerName',
+            maxLength=50
         )
         
         # Validate against allowed providers
-        allowed_providers = ["kifiya", "afromessage", "kannel", "jasmin"]
+        # allowedProviders = ["kifiya", "afromessage", "kannel", "jasmin"]
         normalized = sanitized.lower()
-        if normalized not in allowed_providers:
-            raise ValueError(f"Provider name must be one of: {', '.join(allowed_providers)}")
+        # if normalized not in allowedProviders:
+        #     raise ValueError(f"Provider name must be one of: {', '.join(allowedProviders)}")
         
-        return normalized
+        # return normalized
+        return v
     
     @field_validator('tenantId')
     @classmethod
-    def validate_tenant_id(cls, v: Optional[UUID]) -> Optional[UUID]:
+    def validateTenantId(cls, v: Optional[UUID]) -> Optional[UUID]:
         """Validate tenant ID (UUID format)."""
         if v is None:
             return None

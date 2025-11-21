@@ -33,7 +33,7 @@ class KannelSMSConfig(BaseModel):
         from_attributes = True
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "KannelSMSConfig":
+    def fromDict(cls, data: Dict[str, Any]) -> "KannelSMSConfig":
         return cls(
             baseUrl=data.get("baseUrl", ""),
             username=data.get("username", ""),
@@ -45,7 +45,7 @@ class KannelSMSConfig(BaseModel):
             extraParams=data.get("extraParams") or {},
         )
 
-    def to_query_params(self, to: str, text: str, sender_override: str | None = None) -> Dict[str, Any]:
+    def toQueryParams(self, to: str, text: str, sender_override: str | None = None) -> Dict[str, Any]:
         params: Dict[str, Any] = {
             "username": self.username,
             "password": self.password,
@@ -77,7 +77,7 @@ class KannelSMSProvider(IProviderService):
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
         """Test Kannel configuration by sending a lightweight request."""
         try:
-            kannel_conf = KannelSMSConfig.from_dict(config)
+            kannel_conf = KannelSMSConfig.fromDict(config)
             if not kannel_conf.baseUrl or not kannel_conf.username or not kannel_conf.password:
                 return ProviderTestResponse(
                     success=False,
@@ -137,7 +137,7 @@ class KannelSMSProvider(IProviderService):
             failed_recipients: List[str] = []
 
             for to in recipients:
-                params = kannel_conf.to_query_params(to=to, text=messageToSend, sender_override=None)
+                params = kannel_conf.toQueryParams(to=to, text=messageToSend, sender_override=None)
                 try:
                     logger.info(f"Sending SMS via Kannel to {to}")
                     response = await self.client.get(

@@ -15,7 +15,7 @@ class InAppOutboxFilterDTO(PaginatedRequestDTO):
     
     @field_validator('status')
     @classmethod
-    def validate_status(cls, v: Optional[str]) -> Optional[str]:
+    def validateStatus(cls, v: Optional[str]) -> Optional[str]:
         """Validate status value."""
         if v is None:
             return None

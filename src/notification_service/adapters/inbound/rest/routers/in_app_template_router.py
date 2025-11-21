@@ -74,13 +74,13 @@ class InAppTemplateController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=InAppTemplateResponseDTO)
-    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> InAppTemplateResponseDTO:
+    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> InAppTemplateResponseDTO:
         """
         Partial update of an in-app template.
         PATCH /in-app-templates/{id}
         """
         # Call service - exceptions will be handled by global exception handlers
-        updated_entity = await self.inAppTemplateService.partial_update(id, updates)
+        updated_entity = await self.inAppTemplateService.partialUpdate(id, updates)
         
         # Convert to response DTO
         if hasattr(InAppTemplateResponseDTO, 'fromEntityWithRelations'):

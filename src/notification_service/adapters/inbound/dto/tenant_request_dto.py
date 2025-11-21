@@ -8,7 +8,7 @@ import re
 from pydantic import Field
 from notification_service.domain.entities.tenant.tenant import Tenant
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO
-from notification_service.shared.validators.input_validators import validate_string_input
+from notification_service.shared.validators.input_validators import validateStringInput
 
 class TenantRequestDTO(BaseModel):
     name: str
@@ -31,25 +31,25 @@ class TenantRequestDTO(BaseModel):
     
     @field_validator('name')
     @classmethod
-    def validate_name(cls, v: str) -> str:
+    def validateName(cls, v: str) -> str:
         """Validate and sanitize tenant name."""
-        return validate_string_input(
+        return validateStringInput(
             v,
-            field_name='name',
-            max_length=255,
-            min_length=1
+            fieldName='name',
+            maxLength=255,
+            minLength=1
         )
     
     @field_validator('prefix')
     @classmethod
-    def validate_prefix(cls, v: str) -> str:
+    def validatePrefix(cls, v: str) -> str:
         """Validate and sanitize tenant prefix."""
         # Prefix should be uppercase alphanumeric
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='prefix',
-            max_length=50,
-            min_length=1
+            fieldName='prefix',
+            maxLength=50,
+            minLength=1
         )
         # Ensure uppercase and alphanumeric only
         if not re.match(r'^[A-Z0-9_]+$', sanitized):
@@ -58,27 +58,27 @@ class TenantRequestDTO(BaseModel):
     
     @field_validator('preferedCommunicationMethod')
     @classmethod
-    def validate_communication_method(cls, v: str) -> str:
+    def validateCommunicationMethod(cls, v: str) -> str:
         """Validate communication method."""
         allowed_methods = ["rest", "kafka", "rabbitmq", "grpc"]
-        sanitized = validate_string_input(v, field_name='preferedCommunicationMethod')
+        sanitized = validateStringInput(v, fieldName='preferedCommunicationMethod')
         if sanitized.lower() not in allowed_methods:
             raise ValueError(f"Communication method must be one of: {', '.join(allowed_methods)}")
         return sanitized.lower()
     
     @field_validator('supportedChannels')
     @classmethod
-    def validate_channels(cls, v: list[str]) -> list[str]:
+    def validateChannels(cls, v: list[str]) -> list[str]:
         """Validate supported channels."""
-        allowed_channels = ["sms", "email", "inapp", "whatsapp"]
+        allowedChannels = ["sms", "email", "inapp", "whatsapp"]
         if not v:
             raise ValueError("At least one supported channel is required")
         
         sanitized_channels = []
         for channel in v:
-            sanitized = validate_string_input(channel, field_name='supportedChannels')
-            if sanitized.lower() not in allowed_channels:
-                raise ValueError(f"Channel must be one of: {', '.join(allowed_channels)}")
+            sanitized = validateStringInput(channel, fieldName='supportedChannels')
+            if sanitized.lower() not in allowedChannels:
+                raise ValueError(f"Channel must be one of: {', '.join(allowedChannels)}")
             sanitized_channels.append(sanitized.lower())
         
         return sanitized_channels
@@ -103,16 +103,16 @@ class TenantFilterDTO(PaginatedRequestDTO):
     
     @field_validator('status')
     @classmethod
-    def validate_status(cls, v: Optional[str]) -> Optional[str]:
+    def validateStatus(cls, v: Optional[str]) -> Optional[str]:
         """Validate status filter."""
         if v is None or v == "":
             return None
         
         # Sanitize status value
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='status',
-            max_length=50
+            fieldName='status',
+            maxLength=50
         )
         
         # Normalize to lowercase

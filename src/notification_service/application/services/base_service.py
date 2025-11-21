@@ -215,7 +215,7 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
             
             return updated_entity
     
-    async def partial_update(self, entity_id: UUID, updates: Dict[str, Any]) -> TEntity:
+    async def partialUpdate(self, entity_id: UUID, updates: Dict[str, Any]) -> TEntity:
         """
         Partial update of an entity.
         Fetches existing entity, applies updates, and saves.
@@ -243,15 +243,15 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
                 )
             
             # Validate and apply updates
-            self._validate_partial_update(updates)
-            updated_entity = self._apply_partial_updates(existing, updates)
+            self._validate_partialUpdate(updates)
+            updated_entity = self._apply_partialUpdates(existing, updates)
             
             # Save
             saved_entity = await repository.update(updated_entity)
             
             return saved_entity
     
-    def _validate_partial_update(self, updates: Dict[str, Any]) -> None:
+    def _validate_partialUpdate(self, updates: Dict[str, Any]) -> None:
         """
         Validate partial update data.
         Override in entity services for custom validation.
@@ -266,7 +266,7 @@ class BaseService(ABC, Generic[TEntity, TResponseDTO]):
         # Entity services can override
         pass
     
-    def _apply_partial_updates(self, entity: TEntity, updates: Dict[str, Any]) -> TEntity:
+    def _apply_partialUpdates(self, entity: TEntity, updates: Dict[str, Any]) -> TEntity:
         """
         Apply partial updates to entity.
         Override in entity services for complex update logic.

@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import logging
+from notification_service.infrastructure.cache.redis_cache import RedisCache
 from qena_shared_lib.application import Builder
 from notification_service.infrastructure.persistence.db_session.session import Database
 from notification_service.infrastructure.messaging.rabbitmq import RabbitMQConsumer
@@ -61,7 +62,7 @@ logging.basicConfig(
 )
 logging.getLogger(__name__).setLevel(logging.INFO)
 
-def custom_openapi(app: FastAPI) -> Dict[str, Any]:
+def customOpenapi(app: FastAPI) -> Dict[str, Any]:
     """Custom OpenAPI schema generator that fixes anyOf null type issues."""
     if app.openapi_schema:
         return app.openapi_schema
@@ -77,7 +78,7 @@ def custom_openapi(app: FastAPI) -> Dict[str, Any]:
     openapi_schema["openapi"] = "3.0.0"
     
     # Fix anyOf with null type issues - convert to nullable
-    def fix_schema(schema: Any) -> Any:
+    def fixSchema(schema: Any) -> Any:
         """Recursively fix anyOf schemas with null type."""
         if isinstance(schema, dict):
             # Check if this is an anyOf with null type
@@ -108,18 +109,18 @@ def custom_openapi(app: FastAPI) -> Dict[str, Any]:
                 if key == "properties" and isinstance(value, dict):
                     # Fix properties within schemas
                     for prop_name, prop_schema in value.items():
-                        schema[key][prop_name] = fix_schema(prop_schema)
+                        schema[key][prop_name] = fixSchema(prop_schema)
                 else:
-                    schema[key] = fix_schema(value)
+                    schema[key] = fixSchema(value)
         elif isinstance(schema, list):
-            schema = [fix_schema(item) for item in schema]
+            schema = [fixSchema(item) for item in schema]
         
         return schema
     
     # Fix all schemas in the OpenAPI spec
     if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
         for schema_name, schema_def in openapi_schema["components"]["schemas"].items():
-            openapi_schema["components"]["schemas"][schema_name] = fix_schema(schema_def)
+            openapi_schema["components"]["schemas"][schema_name] = fixSchema(schema_def)
     
     # Fix parameter schemas and response schemas
     if "paths" in openapi_schema:
@@ -130,30 +131,30 @@ def custom_openapi(app: FastAPI) -> Dict[str, Any]:
                     if "parameters" in operation:
                         for param in operation["parameters"]:
                             if "schema" in param:
-                                param["schema"] = fix_schema(param["schema"])
+                                param["schema"] = fixSchema(param["schema"])
                     # Fix request body schemas
                     if "requestBody" in operation and "content" in operation["requestBody"]:
                         for content_type, content_schema in operation["requestBody"]["content"].items():
                             if "schema" in content_schema:
-                                content_schema["schema"] = fix_schema(content_schema["schema"])
+                                content_schema["schema"] = fixSchema(content_schema["schema"])
                     # Fix response schemas
                     if "responses" in operation:
                         for status_code, response in operation["responses"].items():
                             if "content" in response:
                                 for content_type, content_schema in response["content"].items():
                                     if "schema" in content_schema:
-                                        content_schema["schema"] = fix_schema(content_schema["schema"])
+                                        content_schema["schema"] = fixSchema(content_schema["schema"])
     
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
-def register_exception_handlers(app: FastAPI):
+def registerExceptionHandlers(app: FastAPI):
     """Register global exception handlers with standardized error format."""
     
     logger = logging.getLogger(__name__)
     
     @app.exception_handler(RequestValidationError)
-    async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+    async def requestValidationErrorHandler(request: Request, exc: RequestValidationError):
         """
         Handle FastAPI/Pydantic request validation errors.
         Converts to standardized error format.
@@ -217,7 +218,7 @@ def register_exception_handlers(app: FastAPI):
         )
     
     @app.exception_handler(EntityNotFoundError)
-    async def entity_not_found_handler(request: Request, exc: EntityNotFoundError):
+    async def entityNotFoundHandler(request: Request, exc: EntityNotFoundError):
         logger.error(f"EntityNotFoundError: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -225,7 +226,7 @@ def register_exception_handlers(app: FastAPI):
         )
     
     @app.exception_handler(ValidationError)
-    async def validation_error_handler(request: Request, exc: ValidationError):
+    async def validationErrorHandler(request: Request, exc: ValidationError):
         logger.error(f"ValidationError: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -233,7 +234,7 @@ def register_exception_handlers(app: FastAPI):
         )
     
     @app.exception_handler(ConflictError)
-    async def conflict_error_handler(request: Request, exc: ConflictError):
+    async def conflictErrorHandler(request: Request, exc: ConflictError):
         logger.error(f"ConflictError: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
@@ -241,7 +242,7 @@ def register_exception_handlers(app: FastAPI):
         )
     
     @app.exception_handler(IntegrityError)
-    async def integrity_error_handler(request: Request, exc: IntegrityError):
+    async def integrityErrorHandler(request: Request, exc: IntegrityError):
         """
         Handle database integrity constraint violations.
         Converts SQLAlchemy IntegrityError to standardized format.
@@ -289,7 +290,7 @@ def register_exception_handlers(app: FastAPI):
         )
     
     @app.exception_handler(ValueError)
-    async def value_error_handler(request: Request, exc: ValueError):
+    async def valueErrorHandler(request: Request, exc: ValueError):
         """
         Handle ValueError exceptions (including built-in Python ValueError).
         Converts to standardized format.
@@ -315,7 +316,7 @@ def register_exception_handlers(app: FastAPI):
             )
     
     @app.exception_handler(ApplicationException)
-    async def application_exception_handler(request: Request, exc: ApplicationException):
+    async def applicationExceptionHandler(request: Request, exc: ApplicationException):
         logger.error(f"ApplicationException: {exc}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -323,7 +324,7 @@ def register_exception_handlers(app: FastAPI):
         )
     
     @app.exception_handler(Exception)
-    async def general_exception_handler(request: Request, exc: Exception):
+    async def generalExceptionHandler(request: Request, exc: Exception):
         """Catch-all handler for any unhandled exceptions."""
         logger.error(f"Unhandled exception: {exc}", exc_info=True)
         
@@ -349,7 +350,7 @@ def main()->FastAPI:
     register_controllers(builder)
     builder.with_singleton(Settings,instance=Settings())
     builder.with_singleton(Database)
-    
+    builder.with_singleton(RedisCache)
     builder.with_transient(IUnitOfWork,UnitOfWork)
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSProvider)
@@ -389,10 +390,10 @@ def main()->FastAPI:
     app=builder.build()
     
     # Register global exception handlers
-    register_exception_handlers(app)
+    registerExceptionHandlers(app)
     
     # Override OpenAPI schema generation to fix version and anyOf issues
-    app.openapi = lambda: custom_openapi(app)
+    app.openapi = lambda: customOpenapi(app)
     
     app.add_middleware(
     CORSMiddleware,
@@ -410,6 +411,8 @@ async def lifespan(app: FastAPI):
     
     db=get_service(app,Database)
     await db.connect()
+    redis=get_service(app,RedisCache)
+    await redis.connect()
     tenantservice=get_service(app,tenant_service.TenantService)
     
     # Get ProcessMessageUseCase from DI container
@@ -431,7 +434,7 @@ async def lifespan(app: FastAPI):
         # Shutdown actions
         await adapterConsumer.stopConsuming()
         db.disconnect()
-        
+        redis.disconnect()
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
         

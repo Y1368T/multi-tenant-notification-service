@@ -98,7 +98,7 @@ class RabbitMQConsumer(IMessageConsumer):
             self._subscriptions[queueName] = callback
             
             # Create message handler wrapper
-            async def message_handler(message: AbstractIncomingMessage) -> None:
+            async def messageHandler(message: AbstractIncomingMessage) -> None:
                 async with message.process():
                     try:
                         # Decode message body

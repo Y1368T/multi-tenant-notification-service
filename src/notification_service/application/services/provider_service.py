@@ -91,28 +91,28 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         )
     
     # Keep old method for backward compatibility
-    async def create_provider(self, provider: Provider) -> Provider:
+    async def createProvider(self, provider: Provider) -> Provider:
         """Create a new provider (deprecated - use create() instead)."""
         return await self.create(provider)
     
-    async def get_all(self) -> list[Provider]:
+    async def getAll(self) -> list[Provider]:
         """Get all providers (deprecated - use get() instead)."""
         async with self.uow:
             providers = await self.uow.providers.list()
             return providers
     
-    async def get_providers_by_channel(self, channel: str) -> list[Provider]:
+    async def getProvidersByChannel(self, channel: str) -> list[Provider]:
         """Get providers by channel (custom method)."""
         async with self.uow:
             providers = await self.uow.providers.list(lambda p: p.channel == channel)
             return providers
     
-    async def get_provider_by_name(self, name: str) -> Provider:
+    async def getProviderByName(self, name: str) -> Provider:
         """Get provider by name (custom method)."""
         async with self.uow:
             provider = await self.uow.providers.firstOrDefault(lambda p: p.providerName == name)
             return provider
-    async def test_provider(self, dto:TestRequestDto)->ProviderTestResponse:
+    async def testProvider(self, dto:TestRequestDto)->ProviderTestResponse:
         # Implement the logic to test the provider with the given configuration
         match dto.channel:
             case "sms":

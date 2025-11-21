@@ -84,7 +84,7 @@ class LinqQuery(Generic[T, M]):
         self._predicates.append(predicate)
         return self
     
-    def where_any(self, *predicates: Callable[[Any], bool]) -> "LinqQuery[T, M]":
+    def whereAny(self, *predicates: Callable[[Any], bool]) -> "LinqQuery[T, M]":
         """
         Filter entities where ANY predicate matches (OR condition).
         
@@ -100,7 +100,7 @@ class LinqQuery(Generic[T, M]):
                 lambda x: x.status == "pending"
             )
         """
-        def combined_predicate(x):
+        def combinedPredicate(x):
             return any(pred(x) for pred in predicates)
         self._predicates.append(combined_predicate)
         return self
@@ -122,7 +122,7 @@ class LinqQuery(Generic[T, M]):
         self._order_clauses.append((key_selector, column_name, False))
         return self
     
-    def order_by_descending(self, key_selector: Callable[[Any], Any], column_name: Optional[str] = None) -> "LinqQuery[T, M]":
+    def orderByDescending(self, key_selector: Callable[[Any], Any], column_name: Optional[str] = None) -> "LinqQuery[T, M]":
         """
         Order results descending (similar to EF OrderByDescending).
         
@@ -139,7 +139,7 @@ class LinqQuery(Generic[T, M]):
         self._order_clauses.append((key_selector, column_name, True))
         return self
     
-    def then_by(self, key_selector: Callable[[Any], Any], column_name: Optional[str] = None) -> "LinqQuery[T, M]":
+    def thenBy(self, key_selector: Callable[[Any], Any], column_name: Optional[str] = None) -> "LinqQuery[T, M]":
         """
         Add secondary ascending sort (similar to EF ThenBy).
         
@@ -157,7 +157,7 @@ class LinqQuery(Generic[T, M]):
         self._order_clauses.append((key_selector, column_name, False))
         return self
     
-    def then_by_descending(self, key_selector: Callable[[Any], Any], column_name: Optional[str] = None) -> "LinqQuery[T, M]":
+    def thenByDescending(self, key_selector: Callable[[Any], Any], column_name: Optional[str] = None) -> "LinqQuery[T, M]":
         """
         Add secondary descending sort (similar to EF ThenByDescending).
         """
@@ -217,7 +217,7 @@ class LinqQuery(Generic[T, M]):
         self._stmt = self._stmt.limit(count)
         return self
     
-    async def to_list(self) -> List[Any]:
+    async def toList(self) -> List[Any]:
         """
         Execute query and return list of results.
         
@@ -263,7 +263,7 @@ class LinqQuery(Generic[T, M]):
         
         return entities
     
-    async def to_paginated_list(self, page: int, page_size: int) -> PaginatedResult:
+    async def toPaginatedList(self, page: int, page_size: int) -> PaginatedResult:
         """
         Execute query and return paginated results.
         

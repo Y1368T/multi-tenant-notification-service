@@ -39,7 +39,7 @@ class JasminHTTPConfig(BaseModel):
         from_attributes = True
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "JasminHTTPConfig":
+    def fromDict(cls, data: Dict[str, Any]) -> "JasminHTTPConfig":
         return cls(
             baseUrl=data.get("baseUrl", ""),
             username=data.get("username", ""),
@@ -54,7 +54,7 @@ class JasminHTTPConfig(BaseModel):
             extraParams=data.get("extraParams") or {},
         )
 
-    def to_query_params(self, to: str, text: str, sender_override: Optional[str] = None) -> Dict[str, Any]:
+    def toQueryParams(self, to: str, text: str, sender_override: Optional[str] = None) -> Dict[str, Any]:
         params: Dict[str, Any] = {
             "username": self.username,
             "password": self.password,
@@ -103,7 +103,7 @@ class JasminSMPPConfig(BaseModel):
         from_attributes = True
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "JasminSMPPConfig":
+    def fromDict(cls, data: Dict[str, Any]) -> "JasminSMPPConfig":
         return cls(
             host=data.get("host", ""),
             port=int(data.get("port", 2775)) if data.get("port") is not None else 2775,
@@ -144,7 +144,7 @@ class JasminSMSProvider(IProviderService):
         try:
             mode = (config or {}).get("mode", "http").lower()
             if mode == "http":
-                http_conf = JasminHTTPConfig.from_dict(config or {})
+                http_conf = JasminHTTPConfig.fromDict(config or {})
                 if not http_conf.baseUrl or not http_conf.username or not http_conf.password:
                     return ProviderTestResponse(
                         success=False,
@@ -154,7 +154,7 @@ class JasminSMSProvider(IProviderService):
                 resp.raise_for_status()
                 return ProviderTestResponse(success=True, message="Jasmin HTTP gateway reachable")
             elif mode == "smpp":
-                smpp_conf = JasminSMPPConfig.from_dict(config or {})
+                smpp_conf = JasminSMPPConfig.fromDict(config or {})
                 if not smpp_conf.host or not smpp_conf.systemId or not smpp_conf.password:
                     return ProviderTestResponse(
                         success=False,
@@ -205,7 +205,7 @@ class JasminSMSProvider(IProviderService):
         messageToSend: str,
     ) -> NotificationResponse:
         """Send SMS using Jasmin HTTP API."""
-        http_conf = JasminHTTPConfig.from_dict(tenantConfig.config or {})
+        http_conf = JasminHTTPConfig.fromDict(tenantConfig.config or {})
 
         if not http_conf.baseUrl or not http_conf.username or not http_conf.password:
             return NotificationResponse(
@@ -236,7 +236,7 @@ class JasminSMSProvider(IProviderService):
         failed_recipients: List[str] = []
 
         for to in recipients:
-            params = http_conf.to_query_params(to=to, text=messageToSend, sender_override=None)
+            params = http_conf.toQueryParams(to=to, text=messageToSend, sender_override=None)
             try:
                 logger.info(f"Sending SMS via Jasmin HTTP to {to}")
                 response = await self.client.post(
@@ -299,7 +299,7 @@ class JasminSMSProvider(IProviderService):
         executed in a background thread. For production, consider replacing
         this with a fully-featured async SMPP client and connection pooling.
         """
-        smpp_conf = JasminSMPPConfig.from_dict(tenantConfig.config or {})
+        smpp_conf = JasminSMPPConfig.fromDict(tenantConfig.config or {})
 
         # Delay import so that environments that don't use SMPP are not forced
         # to have smpplib installed.

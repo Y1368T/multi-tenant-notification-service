@@ -86,7 +86,7 @@ class TenantController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=TenantResponseDTO)
-    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> TenantResponseDTO:
+    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> TenantResponseDTO:
         """
         Partial update of a tenant.
         PATCH /tenants/{id}
@@ -99,7 +99,7 @@ class TenantController(ControllerBase):
                 raise ValidationError("Invalid preferred communication method. Must be one of: rest, kafka, rabbitmq, grpc")
         
         # Call service - exceptions will be handled by global exception handlers
-        updated_entity = await self.tenantService.partial_update(id, updates)
+        updated_entity = await self.tenantService.partialUpdate(id, updates)
         
         # Convert to response DTO
         if hasattr(TenantResponseDTO, 'fromEntityWithRelations'):

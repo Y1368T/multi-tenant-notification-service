@@ -2,6 +2,7 @@ from typing import Optional, Dict, List, Any
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.value_objects.providers import SMSProvider
+from notification_service.infrastructure import RedisCache
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.infrastructure.providers.sms.kannel_sms_provider import KannelSMSProvider
 from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
@@ -14,8 +15,10 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
 )
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.application.services.base_service import BaseService
+from notification_service.shared.exceptions.application_exceptions import ApplicationException, EntityNotFoundError
+import logging
 
-
+logger = logging.getLogger(__name__)
 class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSMSConfigurationResponseDTO]):
 
     def __init__(
@@ -24,6 +27,7 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
         afro_service: AfromessageSMSProvider,
         kannel_service: KannelSMSProvider,
         jasmin_service: JasminSMSProvider,
+        redis: RedisCache,
     ):
         super().__init__(uow, TenantSMSConfiguration, TenantSMSConfigurationResponseDTO)
         self.uow = uow
@@ -32,6 +36,7 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
             SMSProvider.KANNEL: kannel_service,
             SMSProvider.JASMIN: jasmin_service,
         }
+        self.redis = redis
     
     def _get_repository(self):
         """Get tenant SMS configurations repository."""
@@ -107,16 +112,97 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
     # Keep old methods for backward compatibility
     async def createConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
         """Create a new SMS configuration (deprecated - use create() instead)."""
-        return await self.create(config)
+        try:
+            async with self.uow:
+                created_config = await self.uow.tenantSmsConfigurations.create(config)
+                await self.uow.commit()
+                cache_key = f"tenant_config:sms:{config.tenantId}"
+                await self.redis.set(cache_key, created_config.__dict__, expire=60*60*24)
+                return created_config
+        except Exception as e:
+            raise ApplicationException(
+                f"Error creating SMS configuration: {e}",
+                code="ERROR_CREATING_SMS_CONFIGURATION",
+                details={"config": config}
+            )
+        finally:
+            if config:
+                cache_key = f"tenant_config:sms:{config.tenantId}"
+                await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
+                return config
     
     # Keep old methods for backward compatibility
     async def updateConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
         """Update an existing SMS configuration (deprecated - use update() instead)."""
-        return await self.update(config)
+        try:
+            async with self.uow:
+                updated_config = await self.uow.tenantSmsConfigurations.update(config)
+                await self.uow.commit()
+                cache_key = f"tenant_config:sms:{config.tenantId}"
+                await self.redis.delete(cache_key)
+                await self.redis.set(cache_key, updated_config.__dict__, expire=60*60*24)
+                return updated_config
+        except Exception as e:
+            raise ApplicationException(
+                f"Error updating SMS configuration: {e}",
+                code="ERROR_UPDATING_SMS_CONFIGURATION",
+                details={"configId": config.id}
+            )
+        finally:
+            if config:
+                cache_key = f"tenant_config:sms:{config.tenantId}"
+                await self.redis.delete(cache_key)
+                await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
+                return config
     
     async def deleteConfiguration(self, configId: UUID) -> None:
         """Delete an existing SMS configuration (deprecated - use delete() instead)."""
-        await self.delete(configId)
+        
+        async with self.uow:
+            try:
+                config = await self.uow.tenantSmsConfigurations.getById(configId)
+                if config:
+                    cache_key = f"tenant_config:sms:{config.tenantId}"
+                    await self.redis.delete(cache_key)
+                    await self.uow.tenantSmsConfigurations.delete(configId)
+                    await self.uow.commit()
+            except Exception as e:
+                logger.error(f"Error deleting SMS configuration: {e}")
+                raise ApplicationException(
+                    f"Error deleting SMS configuration: {e}",
+                    code="ERROR_DELETING_SMS_CONFIGURATION",
+                    details={"configId": configId}
+                )
+            finally:
+                if config:
+                    cache_key = f"tenant_config:sms:{config.tenantId}"
+                    await self.redis.delete(cache_key)
+                    return config
+
+    async def partialUpdate(self, configId: UUID, updates: Dict[str, Any]) -> TenantSMSConfiguration:
+        """Partial update of an existing SMS configuration (deprecated - use partialUpdate() instead)."""
+        try:
+            async with self.uow:
+                config = await self.uow.tenantSmsConfigurations.getById(configId)
+                if config:
+                    cache_key = f"tenant_config:sms:{config.tenantId}"
+                    await self.redis.delete(cache_key)
+                    await self.uow.tenantSmsConfigurations.partialUpdate(configId, updates)
+                    await self.uow.commit()
+                    await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
+                    return config
+        except Exception as e:
+            raise ApplicationException(
+                f"Error partial updating SMS configuration: {e}",
+                code="ERROR_PARTIAL_UPDATING_SMS_CONFIGURATION",
+                details={"configId": configId}
+            )
+        finally:
+            if config:
+                cache_key = f"tenant_config:sms:{config.tenantId}"
+                await self.redis.delete(cache_key)
+                await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
+                return config
             
     async def getConfigurationById(self, configId: UUID) -> Optional[TenantSMSConfiguration]:
         """Retrieve SMS configuration by its ID (custom method)."""
