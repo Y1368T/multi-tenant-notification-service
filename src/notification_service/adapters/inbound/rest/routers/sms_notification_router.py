@@ -5,6 +5,12 @@ from notification_service.domain.entities.sms.sms_notification import SMSNotific
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.adapters.inbound.dto.sms_notification_response_dto import SMSNotificationResponseDTO
 from notification_service.adapters.inbound.dto.sms_notification_request_dto import SMSNotificationFilterDTO
+from typing import Dict, Any, List
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    RelatedFilter,
+    FilterOp
+)
 from uuid import UUID
 from fastapi import Depends
 import logging
@@ -18,7 +24,7 @@ class SMSNotificationController(ControllerBase):
     
     def __init__(self, smsNotificationService: SMSNotificationService = Depends()):
         self.smsNotificationService = smsNotificationService
-    
+       
     @get("/get", response_model=PaginatedResponseDTO[SMSNotificationResponseDTO])
     async def get(self, params: SMSNotificationFilterDTO = Depends()) -> PaginatedResponseDTO[SMSNotificationResponseDTO]:
         """Get SMS notifications by filters."""

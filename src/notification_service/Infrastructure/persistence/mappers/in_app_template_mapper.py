@@ -1,7 +1,9 @@
 """Mapper for InAppTemplate entity and model."""
 from typing import Optional
+from sqlalchemy import inspect
 from notification_service.domain.entities.in_app.in_app_template import InAppTemplate
 from notification_service.infrastructure.persistence.models.in_app.in_app_template import InAppTemplateModel
+from notification_service.infrastructure.persistence.mappers.tenant_mapper import TenantMapper
 
 
 class InAppTemplateMapper:
@@ -20,6 +22,15 @@ class InAppTemplateMapper:
         if model is None:
             return None
         
+        # Map tenant relationship if loaded (avoid lazy loading)
+        tenant_entity = None
+        insp = inspect(model)
+        if 'tenant' not in insp.unloaded:
+            # Relationship is loaded (either already loaded or explicitly eager loaded)
+            tenant_model = model.__dict__.get('tenant')
+            if tenant_model is not None:
+                tenant_entity = TenantMapper.toEntity(tenant_model)
+        
         return InAppTemplate(
             id=model.id,
             templateName=model.templateName,
@@ -28,6 +39,7 @@ class InAppTemplateMapper:
             tenantId=model.tenantId,
             isActive=model.isActive,
             version=model.version,
+            tenant=tenant_entity,
             createdAt=model.createdAt,
             updatedAt=model.updatedAt
         )

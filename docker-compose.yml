@@ -37,6 +37,36 @@ services:
       - notification-network
     restart: unless-stopped
 
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: notification-redis-insight
+    ports:
+      - "8001:8001"
+    volumes:
+      - redisinsight-data:/data
+    environment:
+      - RITRUSTEDORIGINS=http://localhost:8001,http://127.0.0.1:8001
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: unless-stopped
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: notification-redis-commander
+    ports:
+      - "8082:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - notification-network
+    restart: unless-stopped
+
   web:
     build:
       context: .
@@ -60,6 +90,9 @@ services:
     networks:
       - notification-network
     restart: unless-stopped
+
+volumes:
+  redisinsight-data:
 
 networks:
   notification-network:

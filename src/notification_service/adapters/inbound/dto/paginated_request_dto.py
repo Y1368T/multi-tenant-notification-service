@@ -3,7 +3,7 @@ from typing import Optional
 from enum import Enum
 from typing import Any, Dict, List
 import re
-from notification_service.shared.validators.input_validators import validate_string_input, validate_uuid_string
+from notification_service.shared.validators.input_validators import validateStringInput, validateUuidString
 
 class SortDirection(str, Enum):
     """Sort direction enum."""
@@ -12,27 +12,27 @@ class SortDirection(str, Enum):
 
 class PaginatedRequestDTO(BaseModel):
     page: int = Field(1, ge=1, description="Page number (1-indexed)")
-    pageSize: int = Field(10, ge=1, le=100, alias="page_size", description="Number of items per page")
-    sortBy: Optional[str] = Field(None, alias="sort_by", description="Sort by field")
-    sortDirection: SortDirection = Field(SortDirection.DESC, alias="sort_direction")
-    search: Optional[str] = Field(None, max_length=256, description="Search text")
+    pageSize: int = Field(10, ge=1, le=100, alias="pageSize", description="Number of items per page")
+    sortBy: Optional[str] = Field(None, alias="sortBy", description="Sort by field")
+    sortDirection: SortDirection = Field(SortDirection.DESC, alias="sortDirection")
+    search: Optional[str] = Field(None, maxLength=256, description="Search text")
     id: Optional[str] = Field(None, description="Filter by entity ID (for single entity retrieval)")
     
     model_config = ConfigDict(populate_by_name=True)
     
     @field_validator('sortBy')
     @classmethod
-    def validate_sort_by(cls, v: Optional[str]) -> Optional[str]:
+    def validateSortBy(cls, v: Optional[str]) -> Optional[str]:
         """Validate sort by field name."""
         if v is None:
             return v
         
         # Sanitize and validate field name
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='sortBy',
-            max_length=100,
-            min_length=1
+            fieldName='sortBy',
+            maxLength=100,
+            minLength=1
         )
         
         # Field name should be alphanumeric with underscores (SQL-safe)
@@ -43,32 +43,32 @@ class PaginatedRequestDTO(BaseModel):
     
     @field_validator('search')
     @classmethod
-    def validate_search(cls, v: Optional[str]) -> Optional[str]:
+    def validateSearch(cls, v: Optional[str]) -> Optional[str]:
         """Validate search text."""
         if v is None or v == "":
             return None
         
         # Sanitize search text
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='search',
-            max_length=256,
-            min_length=1,
-            allow_html=False
+            fieldName='search',
+            maxLength=256,
+            minLength=1,
+            allowHtml=False
         )
         
         return sanitized
     
     @field_validator('id')
     @classmethod
-    def validate_id(cls, v: Optional[str]) -> Optional[str]:
+    def validateId(cls, v: Optional[str]) -> Optional[str]:
         """Validate entity ID (UUID format)."""
         if v is None or v == "":
             return None
         
         # Validate UUID format
         try:
-            validated = validate_uuid_string(v)
+            validated = validateUuidString(v)
             return validated
         except ValueError as e:
             raise ValueError(f"Invalid ID format: {str(e)}")
@@ -87,7 +87,7 @@ class FilterOp(str, Enum):
 
 
 class RelatedFilter(BaseModel):
-    relationshipPath: str = Field(alias="relationship_path")
+    relationshipPath: str = Field(alias="relationshipPath")
     field: str
     op: FilterOp = FilterOp.EQ
     value: Any
@@ -96,17 +96,17 @@ class RelatedFilter(BaseModel):
     
     @field_validator('relationshipPath')
     @classmethod
-    def validate_relationship_path(cls, v: str) -> str:
+    def validateRelationshipPath(cls, v: str) -> str:
         """Validate relationship path (e.g., 'template.tenant')."""
         if not v or not isinstance(v, str):
             raise ValueError("Relationship path must be a non-empty string")
         
         # Sanitize relationship path
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='relationshipPath',
-            max_length=200,
-            min_length=1
+            fieldName='relationshipPath',
+            maxLength=200,
+            minLength=1
         )
         
         # Relationship path should be dot-separated alphanumeric with underscores
@@ -118,17 +118,17 @@ class RelatedFilter(BaseModel):
     
     @field_validator('field')
     @classmethod
-    def validate_field(cls, v: str) -> str:
+    def validateField(cls, v: str) -> str:
         """Validate field name."""
         if not v or not isinstance(v, str):
             raise ValueError("Field name must be a non-empty string")
         
         # Sanitize field name
-        sanitized = validate_string_input(
+        sanitized = validateStringInput(
             v,
-            field_name='field',
-            max_length=100,
-            min_length=1
+            fieldName='field',
+            maxLength=100,
+            minLength=1
         )
         
         # Field name should be alphanumeric with underscores (SQL-safe)
@@ -139,15 +139,15 @@ class RelatedFilter(BaseModel):
     
     @field_validator('value')
     @classmethod
-    def validate_value(cls, v: Any) -> Any:
+    def validateValue(cls, v: Any) -> Any:
         """Validate filter value."""
         # If value is a string, sanitize it
         if isinstance(v, str):
-            sanitized = validate_string_input(
+            sanitized = validateStringInput(
                 v,
-                field_name='value',
-                max_length=500,
-                allow_html=False
+                fieldName='value',
+                maxLength=500,
+                allowHtml=False
             )
             return sanitized
         

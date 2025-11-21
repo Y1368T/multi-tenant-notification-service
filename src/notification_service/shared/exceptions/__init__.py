@@ -33,7 +33,7 @@ class ErrorResponse:
     timestamp: str
     details: Optional[Dict[str, Any]] = None
     
-    def to_dict(self) -> Dict[str, Any]:
+    def toDict(self) -> Dict[str, Any]:
         """Convert to dictionary format for JSON response."""
         result = {
             "error": {

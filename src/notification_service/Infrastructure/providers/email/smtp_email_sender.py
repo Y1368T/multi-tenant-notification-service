@@ -57,7 +57,7 @@ class SmtpEmailSender(IProviderService):
             "error_message": None
         }
 
-    async def save_to_outbox(
+    async def saveToOutbox(
         self,
         notificationId: str,
         request_object: Dict[str, Any],

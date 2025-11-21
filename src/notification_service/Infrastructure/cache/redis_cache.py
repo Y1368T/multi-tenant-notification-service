@@ -2,6 +2,7 @@
 import json
 import logging
 from typing import Any, Optional
+from notification_service.config.settings import Settings
 from redis.asyncio import Redis
 from notification_service.domain.interfaces.cache import ICachedRepository
 
@@ -11,13 +12,13 @@ logger = logging.getLogger(__name__)
 class RedisCache(ICachedRepository):
     """Redis cache implementation with async support."""
     
-    def __init__(self, redis_url: str):
+    def __init__(self, settings: Settings):
         """Initialize Redis cache.
         
         Args:
             redis_url: Redis connection URL (e.g., redis://localhost:6379/0)
         """
-        self.redis_url = redis_url
+        self.redis_url = settings.redis_url
         self._client: Optional[Redis] = None
     
     async def connect(self) -> None:
@@ -145,7 +146,7 @@ class RedisCache(ICachedRepository):
             logger.error(f"Error getting expiry time for key '{key}': {e}")
             return None
     
-    async def clear_pattern(self, pattern: str) -> int:
+    async def clearPattern(self, pattern: str) -> int:
         """Delete all keys matching a pattern.
         
         Args:

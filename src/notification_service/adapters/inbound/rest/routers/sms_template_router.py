@@ -75,13 +75,13 @@ class SMSTemplateController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=SMSTemplateResponseDTO)
-    async def partial_update(self, id: UUID, updates: Dict[str, Any]) -> SMSTemplateResponseDTO:
+    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> SMSTemplateResponseDTO:
         """
         Partial update of an SMS template.
         PATCH /sms-templates/{id}
         """
         # Call service - exceptions will be handled by global exception handlers
-        updated_entity = await self.smsTemplateService.partial_update(id, updates)
+        updated_entity = await self.smsTemplateService.partialUpdate(id, updates)
         
         # Convert to response DTO
         if hasattr(SMSTemplateResponseDTO, 'fromEntityWithRelations'):

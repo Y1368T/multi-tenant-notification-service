@@ -1,0 +1,171 @@
+from uuid import UUID
+from typing import Optional, List, Dict, Any
+from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
+from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
+from notification_service.domain.value_objects.notification_types import NotificationChannel
+from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.notification_response import NotificationResponse
+from notification_service.domain.interfaces import IMessageHandler
+from notification_service.domain.entities.tenant import Tenant
+from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
+from notification_service.domain.value_objects.notification_status import NotificationStatus
+from notification_service.domain.value_objects.paginated_result import PaginatedResult
+from notification_service.adapters.inbound.dto.in_app_notification_response_dto import InAppNotificationResponseDTO
+from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    PaginatedRequestDTO,
+    RelatedFilter,
+    FilterOp
+)
+from notification_service.application.services.base_service import BaseService
+        
+class InAppNotificationService(BaseService[InAppNotification, InAppNotificationResponseDTO]):
+    def __init__(self, uow: IUnitOfWork, processMessageUseCase: ProcessMessageUseCase, messageRouter: IMessageHandler):
+        super().__init__(uow, InAppNotification, InAppNotificationResponseDTO)
+        self.uow = uow
+        self.processMessageUseCase = processMessageUseCase
+        self.messageRouter = messageRouter
+    
+    def _get_repository(self):
+        """Get in-app notifications repository."""
+        return self.uow.inAppNotifications
+    
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        if hasattr(params, 'status') and params.status:
+            filters["status"] = params.status
+        return filters
+    
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
+        """Build related filters for in-app notifications."""
+        related_filters: List[RelatedFilter] = []
+        if hasattr(params, 'tenantId') and params.tenantId:
+            related_filters.append(
+                RelatedFilter(
+                    relationshipPath="template",
+                    field="tenantId",
+                    op=FilterOp.EQ,
+                    value=UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
+                )
+            )
+        return related_filters
+    
+    def _get_includes(self) -> List[str]:
+        """Get relationship paths to eager load for in-app notifications."""
+        return ["template", "template.tenant"]
+    
+    def _get_search_fields(self) -> Optional[List[str]]:
+        """Get search fields for in-app notifications."""
+        return ["recipientUserId", "template.templateName", "template.tenant.name", "template.tenant.prefix"]
+    
+    def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
+        """Build PaginatedRequest for in-app notifications."""
+        # Build root filters
+        root_filters = {}
+        if hasattr(params, 'id') and params.id:
+            try:
+                root_filters['id'] = UUID(params.id) if isinstance(params.id, str) else params.id
+            except (ValueError, AttributeError):
+                root_filters['id'] = params.id
+        
+        if hasattr(params, 'tenantId') and params.tenantId:
+            try:
+                tenant_id_value = UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
+                root_filters['tenantId'] = tenant_id_value
+            except (ValueError, AttributeError):
+                root_filters['tenantId'] = params.tenantId
+        
+        # Extract custom filters
+        custom_filters = self._extract_custom_filters(params)
+        root_filters.update(custom_filters)
+        
+        # Build related filters
+        related_filters = self._build_related_filters(params)
+        
+        # Get search fields
+        search_fields = self._get_search_fields()
+        
+        # Build and return PaginatedRequest
+        return PaginatedRequest(
+            page=params.page,
+            pageSize=params.pageSize,
+            sortBy=params.sortBy or "createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=search_fields,
+            filters=root_filters,
+            relatedFilters=related_filters
+        )
+
+    async def prepareAndSendInApp(
+        self, 
+        tenantId: UUID, 
+        messageData: NotificationRequest
+    ) -> NotificationResponse:
+        """Prepare and send an in-app notification."""
+        
+        valid = self.processMessageUseCase.validateMessage(
+            message=messageData,
+            channel=NotificationChannel.INAPP
+        )
+        
+        if not valid.get("success"):
+            return NotificationResponse(
+                success=False,
+                message=valid.get("error", "Validation failed")
+            )
+        
+        async with self.uow:
+            tenant = await self.uow.tenants.getById(tenantId)
+            
+            if not tenant:
+                return NotificationResponse(
+                    success=False,
+                    message="Tenant does not exist"
+                )
+            
+            response = await self.messageRouter.doRoute(
+                NotificationChannel.INAPP, 
+                tenant.prefix,  # Pass Tenant object
+                messageData
+            )
+            return response
+    
+    async def getNotificationStatus(self, notificationId: UUID) -> str:
+        """Get notification status by ID."""
+        async with self.uow:
+            notification = await self.uow.inAppNotifications.getById(notificationId)
+            if not notification:
+                from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
+                raise EntityNotFoundError("InAppNotification", str(notificationId))
+            return notification.status
+    
+    async def updateNotificationStatus(self, notificationId: UUID, status: str) -> InAppNotification:
+        """Update notification status."""
+        async with self.uow:
+            notification = await self.uow.inAppNotifications.getById(notificationId)
+            if not notification:
+                from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
+                raise EntityNotFoundError("InAppNotification", str(notificationId))
+            notification.status = status
+            updated = await self.uow.inAppNotifications.update(notification)
+            await self.uow.commit()
+            return updated
+    
+    async def deleteNotification(self, notificationId: UUID):
+        """Delete notification by ID."""
+        await self.delete(notificationId)
+    
+    # Keep old method for backward compatibility
+    async def getAllNotificationsAdvanced(
+        self,
+        req: PaginatedRequest
+    ) -> PaginatedResponseDTO[InAppNotificationResponseDTO]:
+        """
+        SQL-only filtering, deep relationship filtering, sorting and multi-field search.
+        (Deprecated - use get() instead)
+        """
+        return await self.get(req)
+

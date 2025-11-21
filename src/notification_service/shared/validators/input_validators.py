@@ -28,7 +28,7 @@ class InputSanitizer:
     ]
     
     @classmethod
-    def sanitize_string(cls, value: str, max_length: Optional[int] = None) -> str:
+    def sanitizeString(cls, value: str, maxLength: Optional[int] = None) -> str:
         """
         Sanitize a string input by:
         1. Stripping whitespace
@@ -44,26 +44,26 @@ class InputSanitizer:
         # Escape HTML entities to prevent XSS
         sanitized = html.escape(sanitized)
         
-        # Truncate if max_length specified
-        if max_length and len(sanitized) > max_length:
-            sanitized = sanitized[:max_length]
+        # Truncate if maxLength specified
+        if maxLength and len(sanitized) > maxLength:
+            sanitized = sanitized[:maxLength]
         
         return sanitized
     
     @classmethod
-    def check_sql_injection(cls, value: str) -> bool:
+    def checkSqlInjection(cls, value: str) -> bool:
         """Check if string contains potential SQL injection patterns."""
         if not isinstance(value, str):
             return False
         
-        value_upper = value.upper()
+        valueUpper = value.upper()
         for pattern in cls.SQL_INJECTION_PATTERNS:
-            if re.search(pattern, value_upper, re.IGNORECASE):
+            if re.search(pattern, valueUpper, re.IGNORECASE):
                 return True
         return False
     
     @classmethod
-    def check_xss(cls, value: str) -> bool:
+    def checkXss(cls, value: str) -> bool:
         """Check if string contains potential XSS patterns."""
         if not isinstance(value, str):
             return False
@@ -74,14 +74,14 @@ class InputSanitizer:
         return False
     
     @classmethod
-    def validate_and_sanitize(cls, value: Any, field_name: str, allow_html: bool = False) -> str:
+    def validateAndSanitize(cls, value: Any, fieldName: str, allowHtml: bool = False) -> str:
         """
         Validate and sanitize input value.
         
         Args:
             value: Input value to validate
-            field_name: Name of the field (for error messages)
-            allow_html: If True, allows HTML (still escapes dangerous patterns)
+            fieldName: Name of the field (for error messages)
+            allowHtml: If True, allows HTML (still escapes dangerous patterns)
         
         Returns:
             Sanitized string
@@ -90,33 +90,33 @@ class InputSanitizer:
             ValueError: If SQL injection or XSS patterns detected
         """
         if not isinstance(value, str):
-            raise ValueError(f"{field_name} must be a string")
+            raise ValueError(f"{fieldName} must be a string")
         
         # Check for SQL injection
-        if cls.check_sql_injection(value):
-            raise ValueError(f"{field_name} contains potentially dangerous SQL patterns")
+        if cls.checkSqlInjection(value):
+            raise ValueError(f"{fieldName} contains potentially dangerous SQL patterns")
         
         # Check for XSS (unless HTML is explicitly allowed)
-        if not allow_html and cls.check_xss(value):
-            raise ValueError(f"{field_name} contains potentially dangerous script patterns")
+        if not allowHtml and cls.checkXss(value):
+            raise ValueError(f"{fieldName} contains potentially dangerous script patterns")
         
         # Sanitize
-        if allow_html:
+        if allowHtml:
             # Only escape dangerous patterns, keep safe HTML
             sanitized = value.strip()
         else:
-            sanitized = cls.sanitize_string(value)
+            sanitized = cls.sanitizeString(value)
         
         return sanitized
 
 
 # Pydantic validators for common use cases
-def validate_string_input(
+def validateStringInput(
     value: str,
-    field_name: str = "field",
-    max_length: Optional[int] = None,
-    min_length: Optional[int] = None,
-    allow_html: bool = False
+    fieldName: str = "field",
+    maxLength: Optional[int] = None,
+    minLength: Optional[int] = None,
+    allowHtml: bool = False
 ) -> str:
     """
     Pydantic-compatible validator for string inputs.
@@ -124,26 +124,26 @@ def validate_string_input(
     Usage in Pydantic models:
         @field_validator('name')
         @classmethod
-        def validate_name(cls, v: str) -> str:
-            return validate_string_input(v, field_name='name', max_length=100)
+        def validateName(cls, v: str) -> str:
+            return validateStringInput(v, fieldName='name', maxLength=100)
     """
     if not isinstance(value, str):
-        raise ValueError(f"{field_name} must be a string")
+        raise ValueError(f"{fieldName} must be a string")
     
     # Length validation
-    if min_length and len(value) < min_length:
-        raise ValueError(f"{field_name} must be at least {min_length} characters")
+    if minLength and len(value) < minLength:
+        raise ValueError(f"{fieldName} must be at least {minLength} characters")
     
-    if max_length and len(value) > max_length:
-        raise ValueError(f"{field_name} must be at most {max_length} characters")
+    if maxLength and len(value) > maxLength:
+        raise ValueError(f"{fieldName} must be at most {maxLength} characters")
     
     # Sanitize and validate
-    sanitized = InputSanitizer.validate_and_sanitize(value, field_name, allow_html)
+    sanitized = InputSanitizer.validateAndSanitize(value, fieldName, allowHtml)
     
     return sanitized
 
 
-def validate_phone_number(value: str) -> str:
+def validatePhoneNumber(value: str) -> str:
     """Validate and sanitize phone number."""
     if not isinstance(value, str):
         raise ValueError("Phone number must be a string")
@@ -152,7 +152,7 @@ def validate_phone_number(value: str) -> str:
     cleaned = re.sub(r'[\s\-\(\)]', '', value)
     
     # Check for SQL injection
-    if InputSanitizer.check_sql_injection(cleaned):
+    if InputSanitizer.checkSqlInjection(cleaned):
         raise ValueError("Phone number contains invalid characters")
     
     # Basic phone number validation (digits only, 10-15 digits)
@@ -162,33 +162,33 @@ def validate_phone_number(value: str) -> str:
     return cleaned
 
 
-def validate_email(value: str) -> str:
+def validateEmail(value: str) -> str:
     """Validate and sanitize email address."""
     if not isinstance(value, str):
         raise ValueError("Email must be a string")
     
     # Sanitize
-    sanitized = InputSanitizer.sanitize_string(value.lower())
+    sanitized = InputSanitizer.sanitizeString(value.lower())
     
     # Check for SQL injection
-    if InputSanitizer.check_sql_injection(sanitized):
+    if InputSanitizer.checkSqlInjection(sanitized):
         raise ValueError("Email contains invalid characters")
     
     # Basic email validation
-    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    if not re.match(email_pattern, sanitized):
+    emailPattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(emailPattern, sanitized):
         raise ValueError("Invalid email format")
     
     return sanitized
 
 
-def validate_uuid_string(value: str) -> str:
+def validateUuidString(value: str) -> str:
     """Validate UUID string format."""
     if not isinstance(value, str):
         raise ValueError("UUID must be a string")
     
-    uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    if not re.match(uuid_pattern, value, re.IGNORECASE):
+    uuidPattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    if not re.match(uuidPattern, value, re.IGNORECASE):
         raise ValueError("Invalid UUID format")
     
     return value

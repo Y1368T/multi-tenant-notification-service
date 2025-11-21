@@ -31,12 +31,12 @@ class KifiyaSMSConfig(BaseModel):
     tokenId: str
     url:str
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'KifiyaSMSConfig':
+    def fromDict(cls, data: Dict[str, Any]) -> 'KifiyaSMSConfig':
         return cls(
             tokenId=data.get("tokenId", ""),
             url=data.get("url", "")
         )
-    def to_dict(self):
+    def toDict(self):
         return {
             "tokenId": self.tokenId,
             "url": self.url
@@ -58,7 +58,7 @@ class KifiyaSMSProvider(IProviderService):
         # TODO: Implement actual Kifiya SMS Gateway API call
         logger.info("Sending SMS via Kifiya SMS Gateway")
         
-        config=KifiyaSMSConfig.from_dict(tenantConfig.config)
+        config=KifiyaSMSConfig.fromDict(tenantConfig.config)
         for recipient in requestObject.recipients:
             payload={
                 "tokenId": config.tokenId,
@@ -119,7 +119,7 @@ class KifiyaSMSProvider(IProviderService):
     
     async def test(self, config: Dict[str, Any],address:str) -> ProviderTestResponse:
             try:   
-                kifiyasmsconf=KifiyaSMSConfig.from_dict(config)
+                kifiyasmsconf=KifiyaSMSConfig.fromDict(config)
                 payload={
                     "tokenId": kifiyasmsconf.tokenId,
                     "phoneNo": address ,

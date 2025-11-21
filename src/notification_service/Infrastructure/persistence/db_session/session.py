@@ -24,7 +24,7 @@ class Database:
         self.session_maker: Optional[async_sessionmaker] = None
         
         
-    def get_session(self) -> AsyncSession:
+    def getSession(self) -> AsyncSession:
         """Get a  database session"""
         if not self.session_maker:
             raise RuntimeError("Database session maker is not initialized.")
@@ -60,13 +60,13 @@ class Database:
             await self.engine.dispose()
             logger.info("Database connection disposed.")
     
-    async def create_db(self):
+    async def createDb(self):
         """Create all tables in the database"""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             logger.info("Database tables created successfully.")
 
-    async def drop_db(self):
+    async def dropDb(self):
         """Drop all tables in the database"""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
@@ -76,16 +76,16 @@ class Database:
 database: Optional[Database] = None
 
 
-async def get_database() -> Database:
+async def getDatabase() -> Database:
     """Dependency to get the database instance"""
     if not database:
         raise RuntimeError("Database is not initialized.")
     return database
     
 
-async def get_db_session() -> AsyncSession:
+async def getDbSession() -> AsyncSession:
     """Dependency to get a database session"""
-    async with get_database().get_session() as session:
+    async with (await getDatabase()).getSession() as session:
         yield session
     
         

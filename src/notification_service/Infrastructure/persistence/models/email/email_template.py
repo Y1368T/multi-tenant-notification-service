@@ -3,20 +3,20 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class EmailTemplateModel(BaseModel):
-    __tablename__ = "email_templates"
+    __tablename__ = "emailTemplates"
 
-    templateName = Column(String, name="template_name", unique=True, index=True, nullable=False)
+    templateName = Column(String, name="templateName", unique=True, index=True, nullable=False)
     subject = Column(String, nullable=False)
-    bodyType = Column(String, name="body_type", nullable=False, default="html")  # e.g., 'html' or 'text'
+    bodyType = Column(String, name="bodyType", nullable=False, default="html")  # e.g., 'html' or 'text'
     body = Column(JSONB, nullable=False, default=dict)
-    fileUrls = Column(String, name="file_urls", nullable=True)
-    isActive = Column(Boolean, name="is_active", default=True)
+    fileUrls = Column(String, name="fileUrls", nullable=True)
+    isActive = Column(Boolean, name="isActive", default=True)
     version = Column(Integer, nullable=False, default=1)
-    serviceName = Column(String, name="service_name", nullable=False)
-    tenantId = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), name="tenant_id", nullable=False)
+    serviceName = Column(String, name="serviceName", nullable=False)
+    tenantId = Column(UUID, ForeignKey("tenants.id", ondelete="CASCADE"), name="tenantId", nullable=False)
     tenant = relationship("TenantModel", back_populates="emailTemplates")
     emailNotifications = relationship("EmailNotificationModel", back_populates="template")
     emailOutboxes = relationship("EmailOutboxModel", back_populates="template")
     __table_args__ = (
-        UniqueConstraint('tenant_id', 'service_name', 'template_name', 'version', name='uix_email_template'),
+        UniqueConstraint('tenantId', 'serviceName', 'templateName', 'version', name='uix_email_template'),
     )

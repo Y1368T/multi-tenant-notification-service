@@ -23,7 +23,7 @@ class ProcessMessageUseCase:
             logger.warning(f"Message validation failed for channel {channel}: {error_msg}")
             return NotificationResponse(
                 success=False,
-                message=error_msg
+                errorMessage=error_msg
             )
         return await self.messageRouter.doRoute(channel, tenant, message)
     
@@ -55,20 +55,20 @@ class ProcessMessageUseCase:
                 match channel.lower():
                     case "sms":
                         if not self.isValidPhoneNumber(recipient.address):
-                            raise ValueError(message=f"Invalid phone number: {recipient.address}",field="recipient.address")
+                            return {"success": False, "error": f"Invalid phone number: {recipient.address}"}
                     case "email":
                         if not self.isValidEmail(recipient.address):
-                            raise ValueError(message=f"Invalid email address: {recipient.address}",field="recipient.address")
+                            return {"success": False, "error": f"Invalid email address: {recipient.address}"}
                 # Add more channel validations as needed
         
-        return True
+        return {"success": True}
     def isValidPhoneNumber(self, phone: str) -> bool:
         """Validate phone number format"""
         # Basic phone number validation (adjust regex as needed)
-        phone_pattern = r'^\+?[1-9]\d{1,14}$'
+        phone_pattern = r'^\+?[1-9]\d{1,14}$' 
         return bool(re.match(phone_pattern, phone.strip()))
         
     def isValidEmail(self, email: str) -> bool:
         """Validate email address format"""
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return bool(re.match(email_pattern, email.strip()))
+        emailPattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return bool(re.match(emailPattern, email.strip()))

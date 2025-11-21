@@ -3,6 +3,7 @@ Notification request value object.
 Contract for external systems sending notifications via RabbitMQ/Kafka/REST.
 """
 from dataclasses import dataclass, field
+from importlib import metadata
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import uuid
@@ -43,6 +44,7 @@ class NotificationRequest:
     payload: Dict[str, Any]  # Template variables
     idempotencyKey: str = field(default_factory=lambda: str(uuid.uuid4()))
     lang: str = "en"  # Optional, defaults to "en"
+    metadata:Optional[Dict[str, Any]] = field(default_factory=dict)
     
     def __post_init__(self):
         """Validate request."""
@@ -67,7 +69,8 @@ class NotificationRequest:
             templateName=data.get("templateName") or data.get("template_name"),
             payload=data["payload"],
             idempotencyKey=data.get("idempotencyKey") or data.get("idempotency_key", str(uuid.uuid4())),
-            lang=data.get("lang", "en")
+            lang=data.get("lang", "en"),
+            metadata=data.get("metadata", {})
         )
     def toDict(self) -> Dict[str, Any]:
         """Convert NotificationRequest to dictionary."""
@@ -77,5 +80,6 @@ class NotificationRequest:
             "templateName": self.templateName,
             "payload": self.payload,
             "idempotencyKey": self.idempotencyKey,
-            "lang": self.lang
+            "lang": self.lang,
+            "metadata": self.metadata
         }

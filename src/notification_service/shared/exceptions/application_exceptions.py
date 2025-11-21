@@ -20,7 +20,7 @@ class ApplicationException(Exception):
         self.details = details or {}
         super().__init__(message)
     
-    def to_error_response(self, status_code: int) -> Dict[str, Any]:
+    def toErrorResponse(self, status_code: int) -> Dict[str, Any]:
         """Convert exception to standardized error response format."""
         return {
             "error": {
