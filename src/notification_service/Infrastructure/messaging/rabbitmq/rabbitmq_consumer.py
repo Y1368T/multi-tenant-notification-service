@@ -120,7 +120,7 @@ class RabbitMQConsumer(IMessageConsumer):
                         raise
             
             # Start consuming messages
-            await queue.consume(message_handler)
+            await queue.consume(messageHandler)
             
         except Exception as e:
             logger.error(f"Error subscribing to queue '{queueName}': {e}")
