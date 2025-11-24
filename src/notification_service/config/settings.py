@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # RabbitMQ - default for local development
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
 
+    enable_customer_language_rpc: bool = True
+    customer_rpc_queue: str = "NotificationCustomerManagementRPC"
+    customer_rpc_timeout: float = 5.0
     class Config:
         env_file = str(BASE_DIR / ".env")
         env_file_encoding = "utf-8"

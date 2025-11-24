@@ -1,2 +1,4 @@
 from .rabbitmq_consumer import RabbitMQConsumer
-__all__ = ["RabbitMQConsumer"]
+from .rabbitmq_rpc_client import RabbitMQRPCClient
+
+__all__ = ["RabbitMQConsumer", "RabbitMQRPCClient"]

@@ -1,0 +1,44 @@
+{
+    "customers": [
+      {
+        "customerId": "test_customer_123",
+        "phone": "+251911123456",
+        "languagePreference": "AM",
+        "fullName": "Alemayehu Bekele",
+        "email": "alemayehu.bekele@example.com",
+        "status": "active"
+      },
+      {
+        "customerId": "test_customer_456",
+        "phone": "+251922234567",
+        "languagePreference": "EN",
+        "fullName": "John Smith",
+        "email": "john.smith@example.com",
+        "status": "active"
+      },
+      {
+        "customerId": "test_customer_789",
+        "phone": "+251933345678",
+        "languagePreference": "OM",
+        "fullName": "Hassan Mohammed",
+        "email": "hassan.mohammed@example.com",
+        "status": "active"
+      },
+      {
+        "customerId": "CUST001",
+        "phone": "+251944445678",
+        "languagePreference": "AM",
+        "fullName": "Meron Tadesse",
+        "email": "meron.tadesse@example.com",
+        "status": "active"
+      },
+      {
+        "customerId": "CUST002",
+        "phone": "+251955556789",
+        "languagePreference": "EN",
+        "fullName": "Sarah Johnson",
+        "email": "sarah.johnson@example.com",
+        "status": "active"
+      }
+    ]
+  }

@@ -16,6 +16,8 @@ from notification_service.domain.entities.tenant.tenant_sms_configuration import
 from notification_service.domain.value_objects.notification_status import NotificationStatus
 from uuid import UUID
 from notification_service.infrastructure.cache.redis_cache import RedisCache
+from notification_service.infrastructure.services.customer_service_client import CustomerServiceClient
+
 logger = logging.getLogger(__name__)
 
 class SMSChannelHandler(IChannelHandler):
@@ -29,8 +31,10 @@ class SMSChannelHandler(IChannelHandler):
         kannel_service: KannelSMSProvider,
         jasmin_service: JasminSMSProvider,
         redis: RedisCache,
+        customer_service: CustomerServiceClient,
     ):
         self.unitofWork = unitofWork
+        self.customer_service = customer_service
         self.redis = redis
         self.__handlers = {
             SMSProvider.AFROMESSAGE: afro_service,
@@ -76,8 +80,29 @@ class SMSChannelHandler(IChannelHandler):
         if not tenantConfig:
             logger.error(f"No SMS channel config for tenant {tenantdb.id}")
             return NotificationResponse(success=False, errorMessage=f"No SMS channel config for tenant {tenantdb.id}")
-        # send grpc request to customer management service to get customer language preference for Qena system
-        language = message.lang if message.lang else "en"
+        # Fetch customer language preference from customer service via RPC
+        language = message.lang  # Start with provided language
+        
+        if not language:
+            # If no language provided, try to fetch from customer service
+            if message.recipients:
+                customer_id = message.recipients[0].address
+                try:
+                    logger.info(f"Fetching language preference for customer: {customer_id}")
+                    phone, language = await self.customer_service.get_customer_language_preference(
+                        customer_id=customer_id
+                    )
+                    if language:
+                        logger.info(f"Fetched language '{language}' for customer {customer_id}")
+                    else:
+                        logger.info(f"No language preference found for customer {customer_id}, using default")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch customer language preference: {e}")
+                    
+        # Fall back to default language if still not set
+        if not language:
+            language = "en"
+            logger.info("Using default language: en")
         template = await self.loadTemplate(tenantdb.id, message.templateName,message.serviceName)
         if not template:
             logger.error(f"Template {message.templateName} not found for tenant {tenantdb.id}")
