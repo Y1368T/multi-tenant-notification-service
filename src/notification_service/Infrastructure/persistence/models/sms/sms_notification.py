@@ -1,4 +1,4 @@
-from sqlalchemy import UUID, Column, Integer, String, ForeignKey
+from sqlalchemy import UUID, Column, Integer, String, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
@@ -11,3 +11,6 @@ class SMSNotificationModel(BaseModel):
     idempotencyKey = Column(String, name="idempotencyKey", unique=True, nullable=False)
     templateId = Column(UUID, ForeignKey("smsTemplates.id", ondelete="SET NULL"), name="templateId", nullable=True)
     template = relationship("SmsTemplateModel", back_populates="smsNotifications")
+    __table_args__ = (
+        UniqueConstraint('templateId', 'recipientNumber', 'idempotencyKey', name='uix_sms_notification'),
+    )
