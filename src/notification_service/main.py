@@ -8,22 +8,24 @@ from notification_service.application.use_cases.process_message_usecase import P
 from notification_service.application.services import tenant_service
 from notification_service.adapters.inbound.rabbitmq.rabbitmq_consumer import NotificationRabbitMQConsumer
 from notification_service.infrastructure.persistence.unit_of_work import UnitOfWork
-from  notification_service.config.settings import settings
-from notification_service.infrastructure.persistence.mappers.tenant_mapper import TenantMapper
-from notification_service.infrastructure.persistence.repositories.tenant_repository import TenantRepository
 import asyncio
 import types
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.adapters.inbound.rest.routers import register_controllers
 from notification_service.config.settings import Settings
 from qena_shared_lib.dependencies.http import get_service
+from notification_service.application.services import in_app_notification_service
 from notification_service.application.services import tenant_sms_configuration_service
+from notification_service.application.services import in_app_template_service
 from notification_service.application.services import sms_notification_service
+from notification_service.application.services import tenant_inapp_configuration_service
+from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.domain.interfaces.imessage_handler import IMessageHandler
+from notification_service.application.services import sms_outbox_service
 from notification_service.application.handlers.message_router import MessageRouter
+from notification_service.application.services import in_app_outbox_service
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
 from notification_service.application.handlers.sms_channel_handler import SMSChannelHandler
-from notification_service.domain.interfaces.iprovider_service import IProviderService
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.application.services.sms_template_service import SMSTemplateService
 from notification_service.infrastructure.providers.sms.kifiyaSmsProvider import KifiyaSMSProvider
@@ -45,7 +47,9 @@ from notification_service.shared.exceptions.application_exceptions import (
     ApplicationException,
     EntityNotFoundError,
     ValidationError,
-    ConflictError
+    ConflictError,
+    UnauthorizedError,
+    InvalidAPIKeyError
 )
 from sqlalchemy.exc import IntegrityError
 import logging
@@ -75,7 +79,7 @@ def customOpenapi(app: FastAPI) -> Dict[str, Any]:
     )
     
     # Fix OpenAPI version format
-    openapi_schema["openapi"] = "3.0.0"
+    openapi_schema["openapi"] = "3.0.3"
     
     # Fix anyOf with null type issues - convert to nullable
     def fixSchema(schema: Any) -> Any:
@@ -315,6 +319,24 @@ def registerExceptionHandlers(app: FastAPI):
                 content=custom_exc.to_error_response(status.HTTP_400_BAD_REQUEST)
             )
     
+    @app.exception_handler(UnauthorizedError)
+    async def unauthorizedErrorHandler(request: Request, exc: UnauthorizedError):
+        """Handle unauthorized access errors (401)."""
+        logger.warning(f"UnauthorizedError: {exc.message}")
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content=exc.to_error_response(status.HTTP_401_UNAUTHORIZED)
+        )
+    
+    @app.exception_handler(InvalidAPIKeyError)
+    async def invalidAPIKeyErrorHandler(request: Request, exc: InvalidAPIKeyError):
+        """Handle invalid API key errors (401)."""
+        logger.warning(f"InvalidAPIKeyError: {exc.message}")
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content=exc.to_error_response(status.HTTP_401_UNAUTHORIZED)
+        )
+    
     @app.exception_handler(ApplicationException)
     async def applicationExceptionHandler(request: Request, exc: ApplicationException):
         logger.error(f"ApplicationException: {exc}", exc_info=True)
@@ -364,19 +386,15 @@ def main()->FastAPI:
     builder.with_transient(SMSChannelHandler)
     builder.with_transient(InAppChannelHandler)
     builder.with_transient(IMessageHandler,MessageRouter)
-    builder.with_singleton(IMessageConsumer, RabbitMQConsumer)
+    # Register TenantService before RabbitMQConsumer so it can be injected
     builder.with_transient(tenant_service.TenantService)
+    builder.with_singleton(IMessageConsumer, RabbitMQConsumer)
     builder.with_transient(tenant_sms_configuration_service.TenantSMSConfigurationService)
     builder.with_transient(sms_notification_service.SMSNotificationService)
-    from notification_service.application.services import in_app_notification_service
     builder.with_transient(in_app_notification_service.InAppNotificationService)
-    from notification_service.application.services import in_app_template_service
     builder.with_transient(in_app_template_service.InAppTemplateService)
-    from notification_service.application.services import tenant_inapp_configuration_service
     builder.with_transient(tenant_inapp_configuration_service.TenantInAppConfigurationService)
-    from notification_service.application.services import sms_outbox_service
     builder.with_transient(sms_outbox_service.SMSOutboxService)
-    from notification_service.application.services import in_app_outbox_service
     builder.with_transient(in_app_outbox_service.InAppOutboxService)
     builder.with_transient(SMSTemplateService)
     builder.with_transient(ProviderService)
@@ -404,6 +422,7 @@ def main()->FastAPI:
     allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
     allow_headers=["*"],
       )
+    
     return app
 
 

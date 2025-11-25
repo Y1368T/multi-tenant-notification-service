@@ -20,7 +20,10 @@ class TenantSMSConfigurationController(ControllerBase):
         self.tenantSmsConfigurationService = tenantSmsConfigurationService
     
     @get("/get", response_model=PaginatedResponseDTO[TenantSMSConfigurationResponseDTO])
-    async def get(self, params: TenantSMSConfigurationFilterDTO = Depends()) -> PaginatedResponseDTO[TenantSMSConfigurationResponseDTO]:
+    async def get(
+        self, 
+        params: TenantSMSConfigurationFilterDTO = Depends()
+    ) -> PaginatedResponseDTO[TenantSMSConfigurationResponseDTO]:
         """Get tenant SMS configurations by filters."""
         # Build PaginatedRequest using service method
         # Exceptions will be handled by global exception handlers
@@ -29,7 +32,10 @@ class TenantSMSConfigurationController(ControllerBase):
         return result
     
     @post("/create", response_model=TenantSMSConfigurationResponseDTO)
-    async def create(self, request_dto: TenantSMSConfigurationRequestDto) -> TenantSMSConfigurationResponseDTO:
+    async def create(
+        self, 
+        request_dto: TenantSMSConfigurationRequestDto
+    ) -> TenantSMSConfigurationResponseDTO:
         """
         Create a new tenant SMS configuration.
         POST /tenant-sms-configurations/create
@@ -50,7 +56,11 @@ class TenantSMSConfigurationController(ControllerBase):
             return created_entity
     
     @put("/{id}", response_model=TenantSMSConfigurationResponseDTO)
-    async def update(self, id: UUID, request_dto: TenantSMSConfigurationRequestDto) -> TenantSMSConfigurationResponseDTO:
+    async def update(
+        self, 
+        id: UUID, 
+        request_dto: TenantSMSConfigurationRequestDto
+    ) -> TenantSMSConfigurationResponseDTO:
         """
         Full update of a tenant SMS configuration.
         PUT /tenant-sms-configurations/{id}
@@ -72,7 +82,11 @@ class TenantSMSConfigurationController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=TenantSMSConfigurationResponseDTO)
-    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> TenantSMSConfigurationResponseDTO:
+    async def partialUpdate(
+        self, 
+        id: UUID, 
+        updates: Dict[str, Any]
+    ) -> TenantSMSConfigurationResponseDTO:
         """
         Partial update of a tenant SMS configuration.
         PATCH /tenant-sms-configurations/{id}
@@ -87,7 +101,10 @@ class TenantSMSConfigurationController(ControllerBase):
             return updated_entity
     
     @delete("/{id}", response_model=Dict[str, str])
-    async def delete(self, id: UUID) -> Dict[str, str]:
+    async def delete(
+        self, 
+        id: UUID
+    ) -> Dict[str, str]:
         """
         Delete a tenant SMS configuration.
         DELETE /tenant-sms-configurations/{id}

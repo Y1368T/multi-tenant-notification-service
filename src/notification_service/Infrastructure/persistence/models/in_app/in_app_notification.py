@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, UUID, ForeignKey
+from sqlalchemy import Column, String, UUID, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class InAppNotificationModel(BaseModel):
@@ -11,3 +11,6 @@ class InAppNotificationModel(BaseModel):
     templateId = Column(UUID, ForeignKey("inAppTemplates.id"), name="templateId", nullable=True)
     
     template = relationship("InAppTemplateModel", back_populates="inAppNotifications")
+    __table_args__ = (
+        UniqueConstraint('templateId', 'recipientUserId', 'idempotencyKey', name='uix_in_app_notification'),
+    )

@@ -20,7 +20,10 @@ class TenantInAppConfigurationController(ControllerBase):
         self.tenantInAppConfigurationService = tenantInAppConfigurationService
     
     @get("/get", response_model=PaginatedResponseDTO[TenantInAppConfigurationResponseDTO])
-    async def get(self, params: TenantInAppConfigurationFilterDTO = Depends()) -> PaginatedResponseDTO[TenantInAppConfigurationResponseDTO]:
+    async def get(
+        self, 
+        params: TenantInAppConfigurationFilterDTO = Depends()
+    ) -> PaginatedResponseDTO[TenantInAppConfigurationResponseDTO]:
         """Get tenant in-app configurations by filters."""
         # Build PaginatedRequest using service method
         # Exceptions will be handled by global exception handlers
@@ -29,7 +32,10 @@ class TenantInAppConfigurationController(ControllerBase):
         return result
     
     @post("/create", response_model=TenantInAppConfigurationResponseDTO)
-    async def create(self, request_dto: TenantInAppConfigurationRequestDto) -> TenantInAppConfigurationResponseDTO:
+    async def create(
+        self, 
+        request_dto: TenantInAppConfigurationRequestDto
+    ) -> TenantInAppConfigurationResponseDTO:
         """
         Create a new tenant in-app configuration.
         POST /tenant-inapp-configurations/create
@@ -50,7 +56,11 @@ class TenantInAppConfigurationController(ControllerBase):
             return created_entity
     
     @put("/{id}", response_model=TenantInAppConfigurationResponseDTO)
-    async def update(self, id: UUID, request_dto: TenantInAppConfigurationRequestDto) -> TenantInAppConfigurationResponseDTO:
+    async def update(
+        self, 
+        id: UUID, 
+        request_dto: TenantInAppConfigurationRequestDto
+    ) -> TenantInAppConfigurationResponseDTO:
         """
         Full update of a tenant in-app configuration.
         PUT /tenant-inapp-configurations/{id}
@@ -72,7 +82,11 @@ class TenantInAppConfigurationController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=TenantInAppConfigurationResponseDTO)
-    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> TenantInAppConfigurationResponseDTO:
+    async def partialUpdate(
+        self, 
+        id: UUID, 
+        updates: Dict[str, Any]
+    ) -> TenantInAppConfigurationResponseDTO:
         """
         Partial update of a tenant in-app configuration.
         PATCH /tenant-inapp-configurations/{id}
@@ -87,7 +101,10 @@ class TenantInAppConfigurationController(ControllerBase):
             return updated_entity
     
     @delete("/{id}", response_model=Dict[str, str])
-    async def delete(self, id: UUID) -> Dict[str, str]:
+    async def delete(
+        self, 
+        id: UUID
+    ) -> Dict[str, str]:
         """
         Delete a tenant in-app configuration.
         DELETE /tenant-inapp-configurations/{id}
