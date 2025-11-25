@@ -32,6 +32,10 @@ class ApplicationException(Exception):
                 "details": self.details if self.details else None
             }
         }
+    
+    def to_error_response(self, status_code: int) -> Dict[str, Any]:
+        """Alias for toErrorResponse for snake_case compatibility."""
+        return self.toErrorResponse(status_code)
 
 
 class MessageRoutingError(ApplicationException):
@@ -103,3 +107,29 @@ class ValueError(ApplicationException):
         elif field and "field" not in details:
             details["field"] = field
         super().__init__(message, code=error_code, details=details)
+
+
+class UnauthorizedError(ApplicationException):
+    """Raised when authentication fails (401)."""
+    
+    def __init__(
+        self, 
+        message: str = "Unauthorized access",
+        code: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_code = code or "UNAUTHORIZED"
+        super().__init__(message, code=error_code, details=details or {})
+
+
+class InvalidAPIKeyError(UnauthorizedError):
+    """Raised when API key is invalid or missing (401)."""
+    
+    def __init__(
+        self, 
+        message: str = "Invalid or missing API key",
+        code: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_code = code or "INVALID_API_KEY"
+        super().__init__(message, code=error_code, details=details or {})

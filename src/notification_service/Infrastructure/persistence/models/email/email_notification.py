@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String,UUID, ForeignKey
+from sqlalchemy import Column, String,UUID, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
@@ -12,3 +12,6 @@ class EmailNotificationModel(BaseModel):
     templateId = Column(UUID, ForeignKey("emailTemplates.id", ondelete="SET NULL"), name="templateId", nullable=True)
 
     template = relationship("EmailTemplateModel", back_populates="emailNotifications")
+    __table_args__ = (
+        UniqueConstraint('templateId', 'recipientEmail', 'idempotencyKey', name='uix_email_notification'),
+    )

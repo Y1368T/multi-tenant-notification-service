@@ -9,6 +9,7 @@ from notification_service.adapters.inbound.dto.tenant_request_dto import (
     TenantFilterDTO
 )
 from notification_service.domain.value_objects.paginated_result import PaginatedResponseDTO
+from notification_service.infrastructure.messaging.rabbitmq.rabbitmq_consumer import RabbitMQConsumer
 from notification_service.shared.exceptions.application_exceptions import ValidationError
 from qena_shared_lib.http import ControllerBase, api_controller, get, post, put, patch, delete
 
@@ -18,9 +19,11 @@ class TenantController(ControllerBase):
     
     def __init__(self, tenantService: TenantService = Depends()):
         self.tenantService = tenantService
-    
     @get("/get", response_model=PaginatedResponseDTO[TenantResponseDTO])
-    async def get(self, params: TenantFilterDTO = Depends())->PaginatedResponseDTO[TenantResponseDTO]:
+    async def get(
+        self, 
+        params: TenantFilterDTO = Depends()
+    )->PaginatedResponseDTO[TenantResponseDTO]:
         """
         Get tenants by filters.
         GET /tenants/get?id={uuid}  → single tenant (paginated with 1 item)
@@ -35,7 +38,10 @@ class TenantController(ControllerBase):
         return result
     
     @post("/create", response_model=TenantResponseDTO)
-    async def create(self, request_dto: TenantRequestDTO) -> TenantResponseDTO:
+    async def create(
+        self, 
+        request_dto: TenantRequestDTO
+    ) -> TenantResponseDTO:
         """
         Create a new tenant with validation.
         POST /tenants/create
@@ -53,16 +59,27 @@ class TenantController(ControllerBase):
             raise ValidationError("Request DTO must have toEntity() method")
         
         # Call service - exceptions will be handled by global exception handlers
-        created_entity = await self.tenantService.create(entity)
+        createdTenant = await self.tenantService.create(entity)
+        # # Add custom RabbitMQ queue setup logic
+        # if(createdTenant.preferedCommunicationMethod == "rabbitmq" and createdTenant.isActive and createdTenant.supportedChannels and self.rabbitmqConsumer):
+        #     # Additional logic for rabbitmq preferred communication method can be added here
+        #     for channel in createdTenant.supportedChannels:
+        #         queueName = f"notification.{channel}.{createdTenant.prefix}"
+        #         # Here you might want to initialize or configure the queue for the tenant
+        #         await self.rabbitmqConsumer.ensureQueueExistsAndSubscribe(queueName=queueName,channel=channel)
         
         # Convert entity to response DTO
         if hasattr(TenantResponseDTO, 'fromEntityWithRelations'):
-            return TenantResponseDTO.fromEntityWithRelations(created_entity)
+            return TenantResponseDTO.fromEntityWithRelations(createdTenant)
         else:
-            return created_entity
+            return createdTenant
     
     @put("/{id}", response_model=TenantResponseDTO)
-    async def update(self, id: UUID, request_dto: TenantRequestDTO) -> TenantResponseDTO:
+    async def update(
+        self, 
+        id: UUID, 
+        request_dto: TenantRequestDTO
+    ) -> TenantResponseDTO:
         """
         Full update of a tenant.
         PUT /tenants/{id}
@@ -86,7 +103,11 @@ class TenantController(ControllerBase):
             return updated_entity
     
     @patch("/{id}", response_model=TenantResponseDTO)
-    async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> TenantResponseDTO:
+    async def partialUpdate(
+        self, 
+        id: UUID, 
+        updates: Dict[str, Any]
+    ) -> TenantResponseDTO:
         """
         Partial update of a tenant.
         PATCH /tenants/{id}
@@ -108,7 +129,10 @@ class TenantController(ControllerBase):
             return updated_entity
     
     @delete("/{id}", response_model=Dict[str, str])
-    async def delete(self, id: UUID) -> Dict[str, str]:
+    async def delete(
+        self, 
+        id: UUID
+    ) -> Dict[str, str]:
         """
         Delete a tenant.
         DELETE /tenants/{id}
@@ -116,3 +140,29 @@ class TenantController(ControllerBase):
         # Call service - exceptions will be handled by global exception handlers
         await self.tenantService.delete(id)
         return {"message": "Tenant deleted successfully"}
+    
+    @post("/{id}/regenerate-api-key", response_model=TenantResponseDTO)
+    async def regenerate_api_key(
+        self,
+        id: UUID
+    ) -> TenantResponseDTO:
+        """
+        Regenerate API key for a tenant.
+        POST /tenants/{id}/regenerate-api-key
+        
+        This endpoint allows:
+        - Admin users to regenerate API keys for any tenant
+        - Tenant users to regenerate their own API key (if id matches their tenant_id)
+        
+        The new API key will overwrite the existing one.
+        """
+       
+        
+        # Call service to regenerate API key
+        updated_tenant = await self.tenantService.regenerate_api_key(id)
+        
+        # Convert to response DTO
+        if hasattr(TenantResponseDTO, 'fromEntityWithRelations'):
+            return TenantResponseDTO.fromEntityWithRelations(updated_tenant)
+        else:
+            return updated_tenant

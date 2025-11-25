@@ -39,3 +39,44 @@ class TenantRepository(GenericRepository[TenantModel, Tenant], ITenantRepository
         result = await self.session.execute(query)
         return self.mapper.toListOfEntities(result.scalars().all())
     
+    async def get_by_api_key(self, api_key: str) -> Tenant | None:
+        """Get tenant by API key.
+        
+        Supports comma-separated API keys in the apiKeys field.
+        Matches if the provided api_key is found in the tenant's apiKeys string.
+        """
+        from sqlalchemy import or_, func
+        # Query where apiKeys contains the provided key
+        # Handle both exact match and comma-separated values
+        query = select(TenantModel).where(
+            or_(
+                TenantModel.apiKeys == api_key,  # Exact match
+                TenantModel.apiKeys.like(f"{api_key},%"),  # Key at start
+                TenantModel.apiKeys.like(f"%,{api_key}"),  # Key in middle
+                TenantModel.apiKeys.like(f"%,{api_key},%"),  # Key in middle with commas
+            )
+        )
+        result = await self.session.execute(query)
+        tenant_model = result.scalars().first()
+        return self.mapper.toEntity(tenant_model) if tenant_model else None
+    
+    async def get_by_api_key_and_prefix(self, api_key: str, prefix: str) -> Tenant | None:
+        """Get tenant by API key and prefix (for RabbitMQ queue validation).
+        
+        This ensures the API key belongs to the tenant that owns the queue.
+        """
+        from sqlalchemy import or_
+        query = select(TenantModel).where(
+            TenantModel.prefix == prefix
+        ).where(
+            or_(
+                TenantModel.apiKeys == api_key,
+                TenantModel.apiKeys.like(f"{api_key},%"),
+                TenantModel.apiKeys.like(f"%,{api_key}"),
+                TenantModel.apiKeys.like(f"%,{api_key},%"),
+            )
+        )
+        result = await self.session.execute(query)
+        tenant_model = result.scalars().first()
+        return self.mapper.toEntity(tenant_model) if tenant_model else None
+    

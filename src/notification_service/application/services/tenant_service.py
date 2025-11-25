@@ -2,7 +2,6 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant import Tenant
 from notification_service.domain.interfaces import IUnitOfWork
-from notification_service.infrastructure.messaging.rabbitmq import RabbitMQConsumer
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.adapters.inbound.dto.tenant_request_dto import TenantResponseDTO
@@ -13,9 +12,12 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
     FilterOp
 )
 from notification_service.application.services.base_service import BaseService
+from notification_service.shared.utils.api_key_generator import generate_api_key
+from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
+from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO, SortDirection
 
 class TenantService(BaseService[Tenant, TenantResponseDTO]):
-    def __init__(self, uow: IUnitOfWork, rabbitmqConsumer: IMessageConsumer):
+    def __init__(self, uow: IUnitOfWork, rabbitmqConsumer = None):
         super().__init__(uow, Tenant, TenantResponseDTO)
         self.rabbitmqConsumer = rabbitmqConsumer
     
@@ -100,14 +102,18 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
             tenants = await self.uow.tenants.list()
             return tenants
     async def create(self, tenant: Tenant) -> Tenant:
-        """Create a new tenant with RabbitMQ queue setup.
+        """Create a new tenant with RabbitMQ queue setup and API key generation.
         
         Args:
             tenant: Tenant entity to create
             
         Returns:
-            Created Tenant entity with generated ID
+            Created Tenant entity with generated ID and API key
         """
+        # Generate API key if not provided
+        if not tenant.apiKeys or tenant.apiKeys.strip() == "":
+            tenant.apiKeys = generate_api_key()
+        
         # Call base create method to handle the standard creation logic
         createdTenant = await super().create(tenant)
         
@@ -176,6 +182,59 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
                                                   and t.isActive)
             return tenants
     
+    async def get_tenant_by_api_key(self, api_key: str) -> Optional[Tenant]:
+        """Retrieve tenant by API key.
+        
+        Args:
+            api_key: API key string
+            
+        Returns:
+            Tenant entity if found, None otherwise
+        """
+        async with self.uow:
+            tenant = await self.uow.tenants.get_by_api_key(api_key)
+            return tenant
+    
+    async def get_tenant_by_api_key_and_prefix(self, api_key: str, prefix: str) -> Optional[Tenant]:
+        """Retrieve tenant by API key and prefix (for RabbitMQ validation).
+        
+        Args:
+            api_key: API key string
+            prefix: Tenant prefix string
+            
+        Returns:
+            Tenant entity if found and matches prefix, None otherwise
+        """
+        async with self.uow:
+            tenant = await self.uow.tenants.get_by_api_key_and_prefix(api_key, prefix)
+            return tenant
+    
+    async def regenerate_api_key(self, tenant_id: UUID) -> Tenant:
+        """Regenerate API key for a tenant, overwriting the existing one.
+        
+        Args:
+            tenant_id: ID of the tenant to regenerate API key for
+            
+        Returns:
+            Updated Tenant entity with new API key
+            
+        Raises:
+            EntityNotFoundError: If tenant is not found
+        """
+        async with self.uow:
+            tenant = await self.uow.tenants.getById(tenant_id)
+            if not tenant:
+                raise EntityNotFoundError("Tenant", str(tenant_id))
+            
+            # Generate new API key and overwrite existing one
+            tenant.apiKeys = generate_api_key()
+            
+            # Update the tenant
+            updated_tenant = await self.uow.tenants.update(tenant)
+            await self.uow.commit()
+            
+            return updated_tenant
+    
     # Keep old method for backward compatibility during migration
     async def getAllTenantsAdvanced(
         self,
@@ -186,7 +245,6 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         (Deprecated - use get() instead)
         """
         # Convert PaginatedRequest to PaginatedRequestDTO
-        from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO, SortDirection
         params = PaginatedRequestDTO(
             page=req.page,
             pageSize=req.pageSize,

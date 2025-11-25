@@ -133,6 +133,7 @@ class TenantResponseDTO(BaseModel):
     isActive: bool = Field(alias="isActive")
     supportedChannels: list[str] = Field(default_factory=list, alias="supportedChannels")
     preferedCommunicationMethod: Optional[str] = Field(default=None, alias="preferedCommunicationMethod")
+    apiKeys: Optional[str] = Field(default=None, alias="apiKeys", description="API key for tenant authentication")
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
    
     @classmethod
@@ -143,5 +144,6 @@ class TenantResponseDTO(BaseModel):
             prefix=tenant.prefix,
             isActive=getattr(tenant, "isActive", True),
             supportedChannels=getattr(tenant, "supportedChannels", None) or [],
-            preferedCommunicationMethod=getattr(tenant, "preferedCommunicationMethod", None)
+            preferedCommunicationMethod=getattr(tenant, "preferedCommunicationMethod", None),
+            apiKeys=getattr(tenant, "apiKeys", None) or ""
         )

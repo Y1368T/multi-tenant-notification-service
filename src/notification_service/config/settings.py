@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Optional
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
@@ -12,7 +13,8 @@ class Settings(BaseSettings):
     debug: bool = True
 
     # Database (async) - default for local development
-    database_url: str = "postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/qena_notification_service_db"
+    # When running in Docker, this is overridden by DATABASE_URL env var
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/qena_notification_service_db"
 
     # Redis - default for local development
     redis_url: str = "redis://:@localhost:6379/10"
@@ -20,6 +22,13 @@ class Settings(BaseSettings):
     # RabbitMQ - default for local development
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
 
+    enable_customer_language_rpc: bool = True
+    customer_rpc_queue: str = "NotificationCustomerManagementRPC"
+    customer_rpc_timeout: float = 5.0
+    
+    # Security settings
+    admin_api_key: Optional[str] = None  # Admin API key for bypassing tenant authentication
+    
     class Config:
         env_file = str(BASE_DIR / ".env")
         env_file_encoding = "utf-8"
