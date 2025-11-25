@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String, Boolean, UUID, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, String, Boolean, UUID, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 class SmsOutboxModel(BaseModel):
@@ -17,4 +17,7 @@ class SmsOutboxModel(BaseModel):
     sentAt = Column(DateTime, name="sentAt", nullable=True)
     status = Column(String, nullable=False, default="pending")
     template = relationship("SmsTemplateModel", back_populates="smsOutboxes")
+    __table_args__ = (
+        UniqueConstraint('templateId', 'recipientNumber', 'idempotencyKey', name='uix_sms_outbox'),
+    )
     
