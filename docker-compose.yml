@@ -89,7 +89,7 @@ services:
 
   web:
     image: registry.kifiya.et/qena_baas/multi-tenant-notification-service:development
-    container_name: notification-service
+    container_name: multi-tenant-notification-service
     ports:
       - "8000:8000"
     environment:
