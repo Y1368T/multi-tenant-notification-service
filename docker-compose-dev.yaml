@@ -14,25 +14,13 @@ services:
       - DB=qena_notification_service_db
       - DATABASE_URL=postgresql://postgres:postgres@172.28.0.8:5432/qena_notification_service_db
       - RABBITMQ_URL=amqp://microservices:moMOPx7Rnubed38VfHh8baZ7@machine-two:5672/%2F
+      - REDIS_URL=redis://:7c0qpx1d94vdul8y0o1hvp6v@machine-two:6379      
     depends_on: []
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 5s
       retries: 5
-  redis:
-    image: redis:7-alpine
-    container_name: notification-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - qena-network
-    restart: unless-stopped
   redis-insight:
     image: redis/redisinsight:latest
     container_name: notification-redis-insight
@@ -52,7 +40,7 @@ services:
     ports:
       - "8082:8081"
     environment:
-      - REDIS_HOSTS=local:redis:6379
+      - REDIS_URL=redis://:7c0qpx1d94vdul8y0o1hvp6v@machine-two:6379
     restart: unless-stopped
     networks:
       - qena-network
