@@ -107,7 +107,7 @@ services:
       - AFROMESSAGE_FROM=e80ad9d8-adf3-463f-80f4-7c4b39f7f164
       - ADMIN_API_KEY=admin-secret-key
       
-    # CRITICAL FIX 2: Wait loop to ensure Postgres is ready before starting the app
+    # CRITICAL FIX 2: Wait loop + Migrations (alembic upgrade head)
     command: >
       sh -c "
       echo 'Waiting for Postgres to become fully available...';
@@ -115,7 +115,9 @@ services:
         echo 'Postgres is unavailable - waiting 3 seconds...'; 
         sleep 3; 
       done; 
-      echo 'Postgres is ready. Starting application...';
+      echo 'Postgres is ready. Running migrations...';
+      poetry run alembic upgrade head;
+      echo 'Migrations applied. Starting application...';
       poetry run uvicorn notification_service.main:main --factory --host 0.0.0.0 --port 8000"
 
     depends_on:
