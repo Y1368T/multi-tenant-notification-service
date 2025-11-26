@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: qena_notification_service_db
     ports:
-      - "5432:5432"
+      - "5433:5433"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -88,9 +88,7 @@ services:
     restart: unless-stopped
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: registry.kifiya.et/qena_baas/multi-tenant-notification-service:development
     container_name: notification-service
     ports:
       - "8000:8000"
