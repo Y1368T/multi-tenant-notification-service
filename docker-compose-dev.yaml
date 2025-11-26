@@ -12,7 +12,6 @@ services:
       - PORT=8000
       - PRODUCTION=False
       - DB=qena_notification_service_db
-      - DATABASE_URL=postgresql://postgres:postgres@172.28.0.8:5432/qena_notification_service_db
       - RABBITMQ_URL=amqp://microservices:moMOPx7Rnubed38VfHh8baZ7@machine-two:5672/%2F
       - REDIS_URL=redis://:7c0qpx1d94vdul8y0o1hvp6v@machine-two:6379      
     depends_on: []
