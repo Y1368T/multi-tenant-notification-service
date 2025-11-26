@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   notification-service:
     image: registry.kifiya.et/qena_baas/multi-tenant-notification-service:development
@@ -33,7 +31,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - notification-network
+      - qena-network
     restart: unless-stopped
   redis-insight:
     image: redis/redisinsight:latest
