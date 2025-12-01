@@ -22,7 +22,7 @@ class TenantSMSConfigurationRequestDto(BaseModel):
     @classmethod
     def validateProviderName(cls, v: str) -> str:
         """Validate provider name."""
-        # allowedProviders = ["kifiya", "afromessage", "kannel", "jasmin"]
+        # allowedProviders = ["kifiya", "afromessage", "jasmin"]
         sanitized = validateStringInput(
             v,
             fieldName='providerName',
@@ -182,7 +182,7 @@ class TenantSMSConfigurationFilterDTO(PaginatedRequestDTO):
         )
         
         # Validate against allowed providers
-        # allowedProviders = ["kifiya", "afromessage", "kannel", "jasmin"]
+        # allowedProviders = ["kifiya", "afromessage", "jasmin"]
         normalized = sanitized.lower()
         # if normalized not in allowedProviders:
         #     raise ValueError(f"Provider name must be one of: {', '.join(allowedProviders)}")

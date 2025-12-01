@@ -8,7 +8,6 @@ from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.infrastructure.providers.sms.kifiyaSmsProvider  import KifiyaSMSProvider
-from notification_service.infrastructure.providers.sms.kannel_sms_provider import KannelSMSProvider
 from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.value_objects.notification_response import NotificationResponse
@@ -28,7 +27,6 @@ class SMSChannelHandler(IChannelHandler):
         unitofWork: IUnitOfWork,
         afro_service: AfromessageSMSProvider,
         kifiya_service: KifiyaSMSProvider,
-        kannel_service: KannelSMSProvider,
         jasmin_service: JasminSMSProvider,
         redis: RedisCache,
         customer_service: CustomerServiceClient,
@@ -39,7 +37,6 @@ class SMSChannelHandler(IChannelHandler):
         self.__handlers = {
             SMSProvider.AFROMESSAGE: afro_service,
             SMSProvider.KIFIYA: kifiya_service,
-            SMSProvider.KANNEL: kannel_service,
             SMSProvider.JASMIN: jasmin_service,
         }
         
@@ -221,13 +218,6 @@ class SMSChannelHandler(IChannelHandler):
                 
                 message_body= templateText.format(**request.payload)
                 response = await self.__handlers[SMSProvider.KIFIYA].send(
-                    request, config, message_body, templateId
-                )
-                return response
-            case SMSProvider.KANNEL.value:
-                # Kannel HTTP SMS provider
-                message_body = templateText.format(**request.payload)
-                response = await self.__handlers[SMSProvider.KANNEL].send(
                     request, config, message_body, templateId
                 )
                 return response

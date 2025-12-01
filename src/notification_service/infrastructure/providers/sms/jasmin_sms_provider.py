@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import json
 from typing import Any, Dict, List, Optional
 import asyncio
 import logging
@@ -7,12 +9,16 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 import httpx
+from notification_service.domain.entities.sms.sms_notification import SMSNotification
+from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
+from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from pydantic import BaseModel
 
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.interfaces.iprovider_service import IProviderService
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.value_objects.notification_response import (
+    NotifiationResponsePerRecipient,
     NotificationResponse,
     ProviderTestResponse,
 )
@@ -131,8 +137,9 @@ class JasminSMSProvider(IProviderService):
     For "smpp" mode, JasminSMPPConfig is used.
     """
 
-    def __init__(self) -> None:
+    def __init__(self,uow: IUnitOfWork) -> None:
         self.client = httpx.AsyncClient(timeout=30.0)
+        self.uow = uow
 
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
         """
@@ -142,106 +149,79 @@ class JasminSMSProvider(IProviderService):
         - For SMPP mode: currently a configuration validation only (no network dial).
         """
         try:
-            mode = (config or {}).get("mode", "http").lower()
-            if mode == "http":
-                http_conf = JasminHTTPConfig.fromDict(config or {})
-                if not http_conf.baseUrl or not http_conf.username or not http_conf.password:
+            
+            http_conf = JasminHTTPConfig.fromDict(config or {})
+            
+            if not http_conf.baseUrl or not http_conf.username or not http_conf.password:
                     return ProviderTestResponse(
                         success=False,
                         message="baseUrl, username and password are required for Jasmin HTTP configuration",
                     )
-                resp = await self.client.get(http_conf.baseUrl, timeout=http_conf.timeoutSeconds or 10)
-                resp.raise_for_status()
-                return ProviderTestResponse(success=True, message="Jasmin HTTP gateway reachable")
-            elif mode == "smpp":
-                smpp_conf = JasminSMPPConfig.fromDict(config or {})
-                if not smpp_conf.host or not smpp_conf.systemId or not smpp_conf.password:
-                    return ProviderTestResponse(
-                        success=False,
-                        message="host, systemId and password are required for Jasmin SMPP configuration",
-                    )
-                # For now we only validate configuration; full SMPP connectivity
-                # tests can be implemented later.
-                return ProviderTestResponse(success=True, message="Jasmin SMPP configuration looks valid")
-            else:
-                return ProviderTestResponse(success=False, message=f"Unsupported Jasmin mode: {mode}")
+            credentials = f"{http_conf.username}:{http_conf.password}"
+            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Basic {encoded_credentials}",
+            }
+            payload = {
+                "to": address,
+                "content": "Jasmin SMS gateway test message",
+                "from": http_conf.sender or "",  # Use sender if available
+            }
+            await self.client.post(
+                    http_conf.baseUrl,
+                    content=json.dumps(payload),
+                    headers=headers,
+                    timeout=http_conf.timeoutSeconds or 10,
+                )
+            return ProviderTestResponse(success=True, message="Jasmin SMS gateway reachable")
         except Exception as exc:  # pragma: no cover - network/config errors
             logger.error(f"Exception during Jasmin SMS test: {exc}")
             return ProviderTestResponse(success=False, message=f"Exception during test: {str(exc)}")
 
+    
     async def send(
-        self,
+         self,
         requestObject: NotificationRequest,
         tenantConfig: TenantSMSConfiguration,
         messageToSend: str,
         templateId: UUID,
     ) -> NotificationResponse:
-        """
-        Send SMS via Jasmin using HTTP or SMPP depending on tenantConfig.config["mode"].
-        """
-        config: Dict[str, Any] = tenantConfig.config or {}
-        mode = (config.get("mode") or "http").lower()
-
-        if mode == "http":
-            return await self._send_http(requestObject, tenantConfig, messageToSend)
-        if mode == "smpp":
-            return await self._send_smpp(requestObject, tenantConfig, messageToSend)
-
-        return NotificationResponse(
-            notificationId="",
-            status="failed",
-            channel="SMS",
-            recipients=[],
-            tenantId=str(tenantConfig.tenantId),
-            createdAt=datetime.utcnow(),
-            success=False,
-            message=f"Unsupported Jasmin mode: {mode}",
-        )
-
-    async def _send_http(
-        self,
-        requestObject: NotificationRequest,
-        tenantConfig: TenantSMSConfiguration,
-        messageToSend: str,
-    ) -> NotificationResponse:
         """Send SMS using Jasmin HTTP API."""
         http_conf = JasminHTTPConfig.fromDict(tenantConfig.config or {})
-
-        if not http_conf.baseUrl or not http_conf.username or not http_conf.password:
-            return NotificationResponse(
-                notificationId="",
-                status="failed",
-                channel="SMS",
-                recipients=[],
-                tenantId=str(tenantConfig.tenantId),
-                createdAt=datetime.utcnow(),
-                success=False,
-                message="Invalid Jasmin HTTP configuration: baseUrl, username and password are required",
-            )
-
         recipients: List[str] = [recipient.address for recipient in requestObject.recipients]
+        notificationResponsePerRecipient: Optional[List[NotifiationResponsePerRecipient]]=None
         if not recipients:
             return NotificationResponse(
-                notificationId="",
-                status="failed",
-                channel="SMS",
-                recipients=[],
-                tenantId=str(tenantConfig.tenantId),
-                createdAt=datetime.utcnow(),
                 success=False,
-                message="No recipients provided",
+                errorMessage="No recipients provided",
+            )
+        elif not http_conf.baseUrl or not http_conf.username or not http_conf.password:
+            return NotificationResponse(
+                success=False,
+                errorMessage="Invalid Jasmin HTTP configuration: baseUrl, username and password are required",
             )
 
-        successful_recipients: List[str] = []
-        failed_recipients: List[str] = []
-
+        
+        credentials = f"{http_conf.username}:{http_conf.password}"
+        encoded_credentials = base64.b64encode(credentials.encode()).decode()
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Basic {encoded_credentials}",
+        }
+        isAllSent:bool=False
         for to in recipients:
-            params = http_conf.toQueryParams(to=to, text=messageToSend, sender_override=None)
+            payload = {
+                "to": to,
+                "content": messageToSend,
+                "from": http_conf.sender or "",  # Use sender if available
+            }
             try:
                 logger.info(f"Sending SMS via Jasmin HTTP to {to}")
                 response = await self.client.post(
                     http_conf.baseUrl,
-                    params=params,
+                    content=json.dumps(payload),
+                    headers=headers,
                     timeout=http_conf.timeoutSeconds or 10,
                 )
                 response.raise_for_status()
@@ -251,161 +231,77 @@ class JasminSMSProvider(IProviderService):
                 except Exception:  # pragma: no cover - non-json body
                     body = {"raw": response.text}
 
-                status_val = str(body.get("status", "")).upper()
-                success_statuses = {"ESME_ROK", "ROK", "0"}
-                if status_val in success_statuses or status_val == "" and response.status_code < 300:
-                    successful_recipients.append(to)
+                # Parse Jasmin HTTP response for success/failure
+                # Success: {'data': 'Success "503f7101-3bb8-4966-992c-1bd3ff8d2ea2'}
+                # Failure: {'message': 'Error "Authentication failure for username:unified'}
+                if "data" in body and isinstance(body["data"], str) and body["data"].startswith("Success"):
+                    
                     logger.info(f"Jasmin HTTP SMS sent successfully to {to}, response: {body}")
-                else:
-                    failed_recipients.append(to)
-                    logger.error(f"Jasmin HTTP SMS failed for {to}, response: {body}")
-            except Exception as exc:  # pragma: no cover - network errors
-                failed_recipients.append(to)
+                    
+                    smsnotification=SMSNotification(
+                        notificationId=uuid4(),
+                        tenantId=tenantConfig.tenantId,
+                        recipientNumber=to,
+                        messageContent=messageToSend,
+                        templateId=templateId,
+                        status="sent",
+                        idempotencyKey=requestObject.idempotencyKey,
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow()
+                    )
+                    await self.unitOfWork.smsNotificationRepository.add(smsnotification)
+                    await self.unitOfWork.commit()
+                    notifcationResponse=NotifiationResponsePerRecipient(
+                        notificationId=str(smsnotification.id),
+                        status="sent",
+                        recipientResponse=to,
+                        createdAt=smsnotification.createdAt,
+                        updatedAt=smsnotification.updatedAt,
+                        success=True,
+                        message="SMS sent successfully"
+                    )
+                    notificationResponsePerRecipient.append(notifcationResponse)
+                    isAllSent = True
+                elif "message" in body and isinstance(body["message"], str) and body["message"].startswith("Error"):
+                    smsOutBox=SMSOutbox(
+                        id=uuid4(),
+                        recipientNumber=to,
+                        messageContent=messageToSend,
+                        idempotencyKey=requestObject.idempotencyKey,
+                        templateId=templateId,
+                        retryCount=0,
+                        status="failed",
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow()
+                    )
+                    await self.unitOfWork.smsOutboxRepository.add(smsOutBox)
+                    await self.unitOfWork.commit()
+                    logger.error(f"Failed to send SMS via Jasmin HTTP to {to}, response: {body}")
+                    notifcationResponse=NotifiationResponsePerRecipient(
+                        notificationId=str(smsOutBox.id),
+                        status="failed",
+                        recipientResponse=to,
+                        createdAt=smsOutBox.createdAt,
+                        updatedAt=smsOutBox.updatedAt,
+                        success=False,
+                        message="Saved to outbox for retrying later",
+                        errorMessage=body.get("message", body["message"]),
+                    )
+                    notificationResponsePerRecipient.append(notifcationResponse)
+                    isAllSent = False
+            except Exception as exc:  
                 logger.error(f"Error sending SMS via Jasmin HTTP to {to}: {exc}")
 
-        if successful_recipients:
-            return NotificationResponse(
-                notificationId=str(uuid4()),
-                status="sent",
-                channel="SMS",
-                recipients=successful_recipients,
-                tenantId=str(tenantConfig.tenantId),
-                createdAt=datetime.utcnow(),
-                success=True,
-                message=messageToSend,
-            )
+        
 
         return NotificationResponse(
-            notificationId="",
-            status="failed",
+            
             channel="SMS",
-            recipients=[],
             tenantId=str(tenantConfig.tenantId),
-            createdAt=datetime.utcnow(),
-            success=False,
-            message="Failed to send SMS via Jasmin HTTP to all recipients",
+            success=isAllSent,
+            message="Processing completed" if isAllSent else "Some messages failed to send",
+            recipientResponse=notificationResponsePerRecipient
         )
 
-    async def _send_smpp(
-        self,
-        requestObject: NotificationRequest,
-        tenantConfig: TenantSMSConfiguration,
-        messageToSend: str,
-    ) -> NotificationResponse:
-        """
-        Send SMS using Jasmin SMPP interface.
-
-        NOTE: This implementation uses a very minimal synchronous SMPP client
-        executed in a background thread. For production, consider replacing
-        this with a fully-featured async SMPP client and connection pooling.
-        """
-        smpp_conf = JasminSMPPConfig.fromDict(tenantConfig.config or {})
-
-        # Delay import so that environments that don't use SMPP are not forced
-        # to have smpplib installed.
-        try:
-            import smpplib.client  # type: ignore
-            import smpplib.consts  # type: ignore
-            import smpplib.gsm  # type: ignore
-        except ImportError as exc:  # pragma: no cover - missing dependency
-            logger.error(f"smpplib is required for Jasmin SMPP mode: {exc}")
-            return NotificationResponse(
-                notificationId="",
-                status="failed",
-                channel="SMS",
-                recipients=[],
-                tenantId=str(tenantConfig.tenantId),
-                createdAt=datetime.utcnow(),
-                success=False,
-                message="smpplib package is required for Jasmin SMPP mode",
-            )
-
-        recipients: List[str] = [recipient.address for recipient in requestObject.recipients]
-        if not recipients:
-            return NotificationResponse(
-                notificationId="",
-                status="failed",
-                channel="SMS",
-                recipients=[],
-                tenantId=str(tenantConfig.tenantId),
-                createdAt=datetime.utcnow(),
-                success=False,
-                message="No recipients provided",
-            )
-
-        def _send_sync() -> List[str]:
-            """Blocking SMPP send in a separate thread."""
-            successful: List[str] = []
-            client = smpplib.client.Client(smpp_conf.host, smpp_conf.port)
-
-            client.connect()
-            client.bind_transceiver(
-                system_id=smpp_conf.systemId,
-                password=smpp_conf.password,
-                system_type=smpp_conf.systemType or "",
-            )
-
-            for to in recipients:
-                try:
-                    pdu = client.send_message(
-                        source_addr_ton=smpplib.consts.SMPP_TON_ALNUM,
-                        source_addr_npi=smpplib.consts.SMPP_NPI_UNK,
-                        source_addr=smpp_conf.sourceAddr or "",
-                        dest_addr_ton=smpplib.consts.SMPP_TON_INTERNATIONAL,
-                        dest_addr_npi=smpplib.consts.SMPP_NPI_E164,
-                        destination_addr=to,
-                        short_message=smpplib.gsm.make_parts(messageToSend)[0],
-                        data_coding=smpp_conf.dataCoding or 0,
-                        registered_delivery=smpp_conf.registeredDelivery or 1,
-                    )
-                    logger.info(f"Jasmin SMPP sent to {to}, message_id={getattr(pdu, 'message_id', None)}")
-                    successful.append(to)
-                except Exception as exc_inner:
-                    logger.error(f"Failed to send Jasmin SMPP SMS to {to}: {exc_inner}")
-
-            try:
-                client.unbind()
-                client.disconnect()
-            except Exception:
-                # ignore disconnect errors
-                pass
-
-            return successful
-
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:  # pragma: no cover - no running loop
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        successful_recipients = await loop.run_in_executor(None, _send_sync)
-
-        if successful_recipients:
-            return NotificationResponse(
-                notificationId=str(uuid4()),
-                status="sent",
-                channel="SMS",
-                recipients=successful_recipients,
-                tenantId=str(tenantConfig.tenantId),
-                createdAt=datetime.utcnow(),
-                success=True,
-                message=messageToSend,
-            )
-
-        return NotificationResponse(
-            notificationId="",
-            status="failed",
-            channel="SMS",
-            recipients=[],
-            tenantId=str(tenantConfig.tenantId),
-            createdAt=datetime.utcnow(),
-            success=False,
-            message="Failed to send SMS via Jasmin SMPP to all recipients",
-        )
-
-
-    async def callback(self, providerCallback):
-        return await super().callback(providerCallback)
+   
     
-    async def saveToOutbox(self, notificationId, requestObject, retryCount = 0, nextRetryAt = None):
-        return await super().saveToOutbox(notificationId, requestObject, retryCount, nextRetryAt)
