@@ -5,7 +5,6 @@ from enum import Enum
 class SMSProvider(Enum):
     AFROMESSAGE = "afromessage"
     KIFIYA = "kifiya"
-    KANNEL = "kannel"
     JASMIN = "jasmin"
 
 class EmailProvider(Enum):

@@ -4,7 +4,6 @@ from notification_service.domain.entities.tenant.tenant_sms_configuration import
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.infrastructure import RedisCache
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
-from notification_service.infrastructure.providers.sms.kannel_sms_provider import KannelSMSProvider
 from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.adapters.inbound.dto.tenant_sms_confuguration_request_dto import TenantSMSConfigurationResponseDTO
@@ -25,7 +24,6 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
         self,
         uow: IUnitOfWork,
         afro_service: AfromessageSMSProvider,
-        kannel_service: KannelSMSProvider,
         jasmin_service: JasminSMSProvider,
         redis: RedisCache,
     ):
@@ -33,7 +31,6 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
         self.uow = uow
         self._handlers = {
             SMSProvider.AFROMESSAGE: afro_service,
-            SMSProvider.KANNEL: kannel_service,
             SMSProvider.JASMIN: jasmin_service,
         }
         self.redis = redis
@@ -222,9 +219,6 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
             case SMSProvider.AFROMESSAGE:
                 # Implement Afromessage-specific circuit breaker logic
                 return await self._handlers[provider].circuit_breaker_check(config)
-            case SMSProvider.KANNEL:
-                # Placeholder: implement Kannel-specific circuit breaker logic if needed
-                return True
             case SMSProvider.JASMIN:
                 # Placeholder: implement Jasmin-specific circuit breaker logic if needed
                 return True

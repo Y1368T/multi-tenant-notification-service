@@ -43,7 +43,7 @@ class NotificationRequest:
     templateName: str
     payload: Dict[str, Any]  # Template variables
     idempotencyKey: str = field(default_factory=lambda: str(uuid.uuid4()))
-    lang: str = "en"  # Optional, defaults to "en"
+    lang: Optional[str] = None  # Optional, defaults to "en"
     metadata:Optional[Dict[str, Any]] = field(default_factory=dict)
     
     def __post_init__(self):
