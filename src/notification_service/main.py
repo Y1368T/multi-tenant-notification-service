@@ -29,7 +29,6 @@ from notification_service.application.handlers.sms_channel_handler import SMSCha
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.application.services.sms_template_service import SMSTemplateService
 from notification_service.infrastructure.providers.sms.kifiyaSmsProvider import KifiyaSMSProvider
-from notification_service.infrastructure.providers.sms.kannel_sms_provider import KannelSMSProvider
 from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.infrastructure.providers.in_app.fcm_provider import FCMProvider
 from notification_service.application.handlers.in_app_channel_handler import InAppChannelHandler
@@ -37,6 +36,7 @@ from notification_service.application.handlers.in_app_channel_handler import InA
 from notification_service.application.services.provider_service import ProviderService
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.infrastructure.services.customer_service_client import CustomerServiceClient
+from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -378,7 +378,6 @@ def main()->FastAPI:
     builder.with_transient(IUnitOfWork,UnitOfWork)
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSProvider)
-    builder.with_transient(KannelSMSProvider)
     builder.with_transient(JasminSMSProvider)
     builder.with_transient(FCMProvider)
     builder.with_transient(ProcessMessageUseCase)
@@ -432,6 +431,11 @@ async def lifespan(app: FastAPI):
     
     db=get_service(app,Database)
     await db.connect()
+    try:
+        await seed_providers(db)
+    except Exception:
+        logging.getLogger(__name__).exception("Failed to seed providers during startup.")
+        raise
     redis=get_service(app,RedisCache)
     await redis.connect()
     tenantservice=get_service(app,tenant_service.TenantService)

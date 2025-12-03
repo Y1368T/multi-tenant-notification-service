@@ -54,7 +54,7 @@ class InAppChannelHandler(IChannelHandler):
             
             if checkIdempotency:
                 logger.info(f"Duplicate message detected for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
-                return NotificationResponse(success=True, message="Duplicate message ignored")
+                return NotificationResponse(success=False, errorMessage="Duplicate message ignored")
             else:
                 logger.info(f"Processing new message for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
         
@@ -143,9 +143,9 @@ class InAppChannelHandler(IChannelHandler):
         def formatPlaceholders(obj, payload: Dict[str, Any]):
             """Recursively format placeholders in nested dict/list structures."""
             if isinstance(obj, dict):
-                return {k: format_placeholders(v, payload) for k, v in obj.items()}
+                return {k: formatPlaceholders(v, payload) for k, v in obj.items()}
             elif isinstance(obj, list):
-                return [format_placeholders(item, payload) for item in obj]
+                return [formatPlaceholders(item, payload) for item in obj]
             elif isinstance(obj, str) and payload:
                 try:
                     return obj.format(**payload)
@@ -170,15 +170,15 @@ class InAppChannelHandler(IChannelHandler):
         
         # Format placeholders in data (recursively handles nested structures)
         if fcm_message["data"] and request.payload:
-            fcm_message["data"] = format_placeholders(fcm_message["data"], request.payload)
+            fcm_message["data"] = formatPlaceholders(fcm_message["data"], request.payload)
         
         # Format placeholders in android config (recursively handles nested structures)
         if fcm_message["android"] and request.payload:
-            fcm_message["android"] = format_placeholders(fcm_message["android"], request.payload)
+            fcm_message["android"] = formatPlaceholders(fcm_message["android"], request.payload)
         
         # Format placeholders in apns config (recursively handles nested structures)
         if fcm_message["apns"] and request.payload:
-            fcm_message["apns"] = format_placeholders(fcm_message["apns"], request.payload)
+            fcm_message["apns"] = formatPlaceholders(fcm_message["apns"], request.payload)
         
         match config.providerName.lower():
             case PushProvider.FIREBASE.value:

@@ -1,7 +1,7 @@
 from notification_service.domain.interfaces.iprovider_service import IProviderService
-from typing import Dict,Any
+from typing import Dict,Any, List
 from notification_service.domain.value_objects.notification_request import NotificationRequest
-from notification_service.domain.value_objects.notification_response import NotificationResponse
+from notification_service.domain.value_objects.notification_response import NotifiationResponsePerRecipient, NotificationResponse
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
 from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
@@ -9,7 +9,7 @@ from notification_service.domain.value_objects.notification_status import Notifi
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime
 import uuid
 import requests
@@ -59,6 +59,8 @@ class KifiyaSMSProvider(IProviderService):
         logger.info("Sending SMS via Kifiya SMS Gateway")
         
         config=KifiyaSMSConfig.fromDict(tenantConfig.config)
+        notificationResponsePerRecipient: Optional[List[NotifiationResponsePerRecipient]]=None
+        isAllSent:bool=True
         for recipient in requestObject.recipients:
             payload={
                 "tokenId": config.tokenId,
@@ -74,47 +76,60 @@ class KifiyaSMSProvider(IProviderService):
             logger.info(f"Response from Kifiya SMS Gateway: {responseData.json()}")
             response = KifiyaSMSResponse(**responseData.json())
             if response.status=="success":
-                logger.info(f"SMS sent successfully to {recipient.address}")
+                    logger.info(f"SMS sent successfully to {recipient.address}")
                 
-                smsNotification=SMSNotification(
-                    id=uuid.uuid4(),
-                    recipientNumber=recipient.address,
-                    messageContent=requestObject.payload,
-                    status=NotificationStatus.SENT,
-                    idempotencyKey = requestObject.idempotencyKey,
-                    templateId=templateId
-                )
-                # You might want to save smsNotification to a database or log it here
-                result=await self.uow.smsNotifications.add(smsNotification)
-                await self.uow.commit()
-                logger.info(f"SMSNotification saved with ID: {result.id}")
-                return NotificationResponse(
-                    notificationId=str(uuid.uuid4()),
-                    tenantId=tenantConfig.tenantId,
-                    channel="sms",
-                    recipients=[recipient.address],
-                    status="sent",
-                    createdAt=datetime.utcnow(),
-                    success=True, 
-                    message=f"SMS sent successfully to {recipient.address}")
+                    smsnotification=SMSNotification(
+                        notificationId=uuid4(),
+                        tenantId=tenantConfig.tenantId,
+                        recipientNumber=recipient.address,
+                        messageContent=messageToSend,
+                        templateId=templateId,
+                        status=NotificationStatus.SENT.value,
+                        idempotencyKey=requestObject.idempotencyKey,
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow()
+                    )
+                    await self.uow.smsNotificationRepository.add(smsnotification)
+                    await self.uow.commit()
+                    notifcationResponse=NotifiationResponsePerRecipient(
+                        notificationId=str(smsnotification.id),
+                        status="sent",
+                        recipientResponse=recipient.address,
+                        createdAt=smsnotification.createdAt,
+                        updatedAt=smsnotification.updatedAt,
+                        success=True,
+                        message="SMS sent successfully"
+                    )
+                    notificationResponsePerRecipient.append(notifcationResponse)
+                    isAllSent = True
             elif response.error:
-                logger.error(f"Failed to send SMS to {recipient.address}: {response.error}")
-                payloadStr = json.dumps(requestObject.payload) if isinstance(requestObject.payload, dict) else str(requestObject.payload)
-                outbox=SMSOutbox (
-                    id=uuid.uuid4(),
-                    recipientNumber=recipient.address,
-                    messageContent=payloadStr,
-                    idempotencyKey=requestObject.idempotencyKey,
-                    templateId=templateId,
-                    retryCount=1,
-                    nextRetryAt=None,
-                    lastRetryAt=None,
-                    providerAttempted=SMSProvider.KIFIYA.value,
-                    
-                         )
-                await self.uow.smsOutbox.add(outbox)
-                return NotificationResponse(success=False,message="Saved to outbox",notificationId=outbox.id,status="saved_to_outbox")
-            return NotificationResponse(success=False,message="Failed to send message")
+                    smsOutBox=SMSOutbox(
+                        id=uuid4(),
+                        recipientNumber=recipient.address,
+                        messageContent=messageToSend,
+                        idempotencyKey=requestObject.idempotencyKey,
+                        templateId=templateId,
+                        retryCount=0,
+                        status="failed",
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow()
+                    )
+                    await self.unitOfWork.smsOutboxRepository.add(smsOutBox)
+                    await self.unitOfWork.commit()
+                    logger.error(f"Failed to send SMS via Jasmin HTTP to {recipient.address}, response: {response.error}")
+                    notifcationResponse=NotifiationResponsePerRecipient(
+                        notificationId=str(smsOutBox.id),
+                        status="failed",
+                        recipientResponse=recipient.address,
+                        createdAt=smsOutBox.createdAt,
+                        updatedAt=smsOutBox.updatedAt,
+                        success=False,
+                        message="Saved to outbox for retrying later",
+                        errorMessage=response.error,
+                    )
+                    notificationResponsePerRecipient.append(notifcationResponse)
+                    isAllSent = False
+            return NotificationResponse(success=isAllSent,message="Processing completed" if isAllSent else "Some messages failed to send",recipientResponse=notificationResponsePerRecipient)
     
     
     async def test(self, config: Dict[str, Any],address:str) -> ProviderTestResponse:
@@ -139,9 +154,4 @@ class KifiyaSMSProvider(IProviderService):
                 return ProviderTestResponse(success=False,message=f"Exception during test: {str(e)}")
             
     
-    async def callback(self, providerCallback):
-        return await super().callback(providerCallback)
     
-    async def saveToOutbox(self, notificationId, requestObject, retryCount = 0, nextRetryAt = None):
-        return await super().saveToOutbox(notificationId, requestObject, retryCount, nextRetryAt)
-        

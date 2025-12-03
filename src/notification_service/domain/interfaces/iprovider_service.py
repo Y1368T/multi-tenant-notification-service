@@ -44,49 +44,5 @@ class IProviderService(ABC):
         """
         pass
     
-    @abstractmethod
-    async def callback(
-        self,
-        providerCallback: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Process delivery status callback from provider.
-        
-        Args:
-            providerCallback: Webhook payload from provider
-            
-        Returns:
-            Normalized callback data:
-            {
-                "notificationId": "uuid",
-                "status": "delivered",
-                "deliveredAt": "2024-01-15T10:30:05Z",
-                "errorMessage": null
-            }
-        """
-        pass
     
-    @abstractmethod
-    async def saveToOutbox(
-        self,
-        notificationId: str,
-        requestObject: Dict[str, Any],
-        retryCount: int = 0,
-        nextRetryAt: Optional[datetime] = None
-    ) -> None:
-        """
-        Save notification to outbox for guaranteed delivery.
-        
-        Args:
-            notificationId: Internal notification ID
-            requestObject: Provider request payload
-            retryCount: Current retry attempt number
-            nextRetryAt: Scheduled time for next retry
-            
-        The outbox pattern ensures:
-        1. Notifications are persisted before sending
-        2. Failed deliveries can be retried
-        3. Worker processes can pick up failed messages
-        4. Exactly-once delivery semantics
-        """
-        pass
+    

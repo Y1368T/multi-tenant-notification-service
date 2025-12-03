@@ -20,6 +20,20 @@ class DeliveryAttemptResponse:
     attempted_at: datetime
     error_message: Optional[str] = None
 
+@dataclass(frozen=True)
+class NotifiationResponsePerRecipient:
+    """
+    Notification status per recipient.
+    Used within bulk notification responses.
+    """
+    recipient: str
+    status: str
+    deliveredAt: Optional[datetime] = None
+    createdAt: Optional[datetime] = None
+    success: bool = True
+    errorMessage: Optional[str] = None
+    message: Optional[str] = None
+    notificationId: Optional[str] = None
 
 @dataclass(frozen=True)
 class NotificationResponse:
@@ -38,16 +52,12 @@ class NotificationResponse:
         "deliveredAt": "2024-01-15T10:30:05Z"
     }
     """
-    notificationId: Optional[str]=None
     tenantId: Optional[str]=None
     channel: Optional[str]=None
-    status: Optional[str]=None
-    recipients: Optional[List[str]]=None # List of Phone/Email/DeviceToken addresses
-    createdAt: Optional[datetime]=None
-    deliveredAt: Optional[datetime] = None
-    success: bool = True
-    errorMessage: Optional[str] = None
-    message: Optional[str] = None
+    success: bool=False
+    message: Optional[str]=None
+    errorMessage: Optional[str]=None
+    recipientResponse: Optional[List[NotifiationResponsePerRecipient]]=None
 
 
 @dataclass(frozen=True)
