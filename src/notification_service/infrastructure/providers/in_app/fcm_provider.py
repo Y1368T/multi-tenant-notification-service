@@ -4,17 +4,18 @@ import httpx
 import json
 import firebase_admin
 from firebase_admin import credentials, messaging
+from notification_service.domain.entities.in_app.in_app_outbox import InAppOutbox
 from notification_service.domain.interfaces.iprovider_service import IProviderService
 from typing import Dict, Any
 from notification_service.domain.value_objects.notification_request import NotificationRequest
-from notification_service.domain.value_objects.notification_response import NotificationResponse
+from notification_service.domain.value_objects.notification_response import NotifiationResponsePerRecipient, NotificationResponse
 from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
 from notification_service.domain.value_objects.notification_status import NotificationStatus
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import PushProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -137,7 +138,7 @@ class FCMProvider(IProviderService):
         logger.info(f"FCM config: {tenantConfig.config}")
         fcm_config = FCMConfig.fromDict(tenantConfig.config)
         app = self._get_firebase_app(fcm_config)
-        
+         
         # Prepare FCM message for each recipient
         for recipient in requestObject.recipients:
             try:
@@ -218,6 +219,9 @@ class FCMProvider(IProviderService):
                 
                 # Send message using Firebase Admin SDK
                 response = messaging.send(fcm_message)
+                # Firebase returns the message ID as a string if successful.
+                # If sending fails, a FirebaseError (or subclass) is raised.
+                # There is no explicit "failure response" object; errors are raised as exceptions.
                 logger.info(f"FCM message sent successfully. Message ID: {response}")
                 
                 # Save notification to database
@@ -238,31 +242,65 @@ class FCMProvider(IProviderService):
                     notificationId=str(result.id),
                     tenantId=tenantConfig.tenantId,
                     channel="in_app",
-                    recipients=[recipient.address],
-                    status="sent",
-                    createdAt=datetime.utcnow(),
                     success=True,
-                    message=f"In-app notification sent successfully to {recipient.address}"
+                    message="In-app notification sent successfully",
+                    recipientResponse=NotifiationResponsePerRecipient(
+                        notificationId=str(result.id),
+                        status=NotificationStatus.SENT.value,
+                        recipientResponse=recipient.address,
+                        createdAt=in_app_notification.createdAt,
+                        updatedAt=in_app_notification.updatedAt,
+                        success=True,
+                        message=f"In-app notification sent successfully to {recipient.address}"
+                    ),
+                   
                 )
                 
             except messaging.FirebaseError as e:
                 error_message = f"Firebase error: {str(e)}"
                 logger.error(f"Failed to send FCM notification to {recipient.address}: {error_message}")
-                
+                inAppOutbox=InAppOutbox(
+                    id=uuid.uuid4(),
+                    recipientUserId=recipient.address,
+                    messageContent=json.dumps(messageToSend) if isinstance(messageToSend, dict) else str
+                    (messageToSend),
+                    idempotencyKey=requestObject.idempotencyKey,
+                    templateId=templateId,
+                    retryCount=0,
+                    status=NotificationStatus.FAILED.value,
+                    lastRetryAt=datetime.utcnow(),
+                    nextRetryAt=datetime.utcnow()+ timedelta(minutes=5),
+                    createdAt=datetime.utcnow(),
+                    updatedAt=datetime.utcnow(),
+                    lastErrorMessage=error_message,
+                    
+                )
+                await self.uow.inAppOutboxRepository.add(inAppOutbox)
+                await self.uow.commit()
                 return NotificationResponse(
                     success=False,
-                    message=f"Failed to send notification: {error_message}",
-                    status="failed"
+                    errorMessage=f"Failed to send notification: {error_message}",
+                    status=NotificationStatus.FAILED.value,
+                    recipientResponse=NotifiationResponsePerRecipient(
+                        notificationId=str(inAppOutbox.id),
+                        status=NotificationStatus.FAILED.value,
+                        recipientResponse=recipient.address,
+                        createdAt=inAppOutbox.createdAt,
+                        updatedAt=inAppOutbox.updatedAt,
+                        success=False,
+                        message="Saved to outbox for retrying later",
+                        errorMessage=error_message,
+                    ),
                 )
             except Exception as e:
                 logger.error(f"Exception sending FCM notification to {recipient.address}: {e}", exc_info=True)
                 return NotificationResponse(
                     success=False,
-                    message=f"Exception sending notification: {str(e)}",
+                    errorMessage=f"Exception sending notification: {str(e)}",
                     status="failed"
                 )
         
-        return NotificationResponse(success=False, message="No recipients processed")
+        return NotificationResponse(success=False, errorMessage="No recipients processed")
     
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
         """
@@ -319,36 +357,4 @@ class FCMProvider(IProviderService):
                 message=f"Exception during test: {str(e)}"
             )
     
-    async def callback(self, providerCallback: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process FCM delivery status callback.
-        
-        Args:
-            providerCallback: Webhook payload from FCM
-            
-        Returns:
-            Normalized callback data
-        """
-        # FCM doesn't provide webhooks in the same way as SMS providers
-        # Delivery status is typically tracked via app-side acknowledgments
-        # This can be implemented if needed for delivery receipts
-        logger.info(f"FCM callback received: {providerCallback}")
-        return {
-            "status": "processed",
-            "message": "FCM callback processed"
-        }
     
-    async def saveToOutbox(self, notificationId: str, requestObject: Dict[str, Any], retryCount: int = 0, nextRetryAt: Optional[datetime] = None) -> None:
-        """
-        Save failed notification to outbox for retry.
-        
-        Args:
-            notificationId: Notification ID
-            requestObject: Original request object
-            retryCount: Number of retry attempts
-            nextRetryAt: Next retry timestamp
-        """
-        # In-app notifications might not need outbox if they're fire-and-forget
-        # This can be implemented if retry logic is needed
-        logger.warning(f"saveToOutbox called for FCM - not implemented yet. NotificationId: {notificationId}")
-

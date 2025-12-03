@@ -114,7 +114,6 @@ class SMSChannelHandler(IChannelHandler):
         unitofWork: IUnitOfWork,
         afro_service: AfromessageSMSProvider,
         kifiya_service: KifiyaSMSProvider,
-        kannel_service: KannelSMSProvider,
         jasmin_service: JasminSMSProvider,
         redis: RedisCache,
         customer_service: Optional[CustomerServiceClient] = None,  # ADD THIS
@@ -125,7 +124,6 @@ class SMSChannelHandler(IChannelHandler):
         self.__handlers = {
             SMSProvider.AFROMESSAGE: afro_service,
             SMSProvider.KIFIYA: kifiya_service,
-            SMSProvider.KANNEL: kannel_service,
             SMSProvider.JASMIN: jasmin_service,
         }
 ```
