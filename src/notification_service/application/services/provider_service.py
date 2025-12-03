@@ -114,7 +114,7 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         match dto.channel:
             case "sms":
                 # Add SMS provider testing logic here
-                match dto.provider_name:
+                match dto.providerName:
                     case "kifiya":
                         provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
                         return await self.kifiyaSmsProvider.test(provider_config, dto.address)
@@ -125,9 +125,9 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
                         provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
                         return await self.jasminSmsProvider.test(provider_config, dto.address)
                     case _:
-                        raise ValueError(f"Unsupported provider: {dto.provider_name}")
+                        raise ValueError(f"Unsupported provider: {dto.providerName}")
             case "inapp":
-                match dto.provider_name:
+                match dto.providerName:
                     case "fcm":
                         # Extract nested config if it exists, otherwise use config directly
                         provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config

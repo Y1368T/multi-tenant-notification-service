@@ -168,12 +168,28 @@ class JasminSMSProvider(IProviderService):
                 "content": "Jasmin SMS gateway test message",
                 "from": http_conf.sender or "",  # Use sender if available
             }
-            await self.client.post(
+            response= await self.client.post(
                     http_conf.baseUrl,
                     content=json.dumps(payload),
                     headers=headers,
                     timeout=http_conf.timeoutSeconds or 10,
                 )
+            response.raise_for_status()
+            try:
+                    body = response.json()
+            except Exception:  # pragma: no cover - non-json body
+                    body = {"raw": response.text}
+
+                # Parse Jasmin HTTP response for success/failure
+                # Success: {'data': 'Success "503f7101-3bb8-4966-992c-1bd3ff8d2ea2'}
+                # Failure: {'message': 'Error "Authentication failure for username:unified'}
+            if "data" in body and isinstance(body["data"], str) and body["data"].startswith("Success"):
+                    
+               logger.info(f"Jasmin HTTP SMS sent successfully to {address}, response: {body}")
+            else:
+                logger.error(f"Failed to send test SMS via Jasmin HTTP to {address}, response: {body}")
+                return ProviderTestResponse(success=False, message="Failed to send test SMS",)
+                
             return ProviderTestResponse(success=True, message="Jasmin SMS gateway reachable")
         except Exception as exc:  # pragma: no cover - network/config errors
             logger.error(f"Exception during Jasmin SMS test: {exc}")
