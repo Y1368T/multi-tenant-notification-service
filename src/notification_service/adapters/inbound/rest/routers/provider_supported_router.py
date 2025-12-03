@@ -103,5 +103,5 @@ class ProviderSupportedController(ControllerBase):
     @post("/test", response_model=ProviderTestResponse)
     async def testProvider(self, dto: TestRequestDto) -> ProviderTestResponse:
         """Test a provider (custom endpoint)."""
-        return await self.providerService.test_provider(dto)
+        return await self.providerService.testProvider(dto)
     
