@@ -4,6 +4,7 @@ import httpx
 import json
 import firebase_admin
 from firebase_admin import credentials, messaging
+from firebase_admin.exceptions import FirebaseError
 from notification_service.domain.entities.in_app.in_app_outbox import InAppOutbox
 from notification_service.domain.interfaces.iprovider_service import IProviderService
 from typing import Dict, Any
@@ -256,7 +257,7 @@ class FCMProvider(IProviderService):
                    
                 )
                 
-            except messaging.FirebaseError as e:
+            except FirebaseError as e:
                 error_message = f"Firebase error: {str(e)}"
                 logger.error(f"Failed to send FCM notification to {recipient.address}: {error_message}")
                 inAppOutbox=InAppOutbox(
@@ -313,12 +314,16 @@ class FCMProvider(IProviderService):
         Returns:
             ProviderTestResponse with test result
         """
+        # Use a unique app name for testing to avoid conflicts
+        test_app_name = f"fcm_test_{uuid.uuid4().hex[:8]}"
+        test_app = None
+        
         try:
-            fcm_config = FCMConfig.from_dict(config)
+            fcm_config = FCMConfig.fromDict(config)
             
-            # Initialize Firebase app with credentials
-            cred = fcm_config.get_credentials()
-            app = firebase_admin.initialize_app(cred)
+            # Initialize Firebase app with credentials using unique name
+            cred = fcm_config.getCredentials()
+            test_app = firebase_admin.initialize_app(cred, name=test_app_name)
             
             # Create test message
             message = messaging.Message(
@@ -329,8 +334,8 @@ class FCMProvider(IProviderService):
                 token=address
             )
             
-            # Send test message
-            response = messaging.send(message)
+            # Send test message using the specific app
+            response = messaging.send(message, app=test_app)
             logger.info(f"FCM test response: {response}")
             
             return ProviderTestResponse(
@@ -344,7 +349,7 @@ class FCMProvider(IProviderService):
                 success=False,
                 message=f"Configuration error: {str(e)}"
             )
-        except messaging.FirebaseError as e:
+        except FirebaseError as e:
             logger.error(f"Firebase error during FCM test: {str(e)}")
             return ProviderTestResponse(
                 success=False,
@@ -356,5 +361,12 @@ class FCMProvider(IProviderService):
                 success=False,
                 message=f"Exception during test: {str(e)}"
             )
+        finally:
+            # Clean up the test app to avoid memory leaks
+            if test_app is not None:
+                try:
+                    firebase_admin.delete_app(test_app)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup test Firebase app: {cleanup_error}")
     
     

@@ -394,6 +394,8 @@ PROVIDER_SEED_DATA: tuple[Provider, ...] = (
             },
             "url": {
                 "ui:widget": "uri",
+                "ui:placeholder": "https://api.afromessage.com/api",
+                "ui:help": "Enter the Afromessage API base URL.",
             },
             "ui:order": ["tokenId", "url", "address"],
         },
@@ -405,10 +407,10 @@ PROVIDER_SEED_DATA: tuple[Provider, ...] = (
 
 async def seed_providers(database: Database) -> bool:
     """Insert default providers if they are missing."""
-    session_factory = database.getSession
     mapper = ProviderMapper()
+    session = database.getSession()
 
-    async with session_factory() as session:
+    try:
         inserted = 0
 
         for provider in PROVIDER_SEED_DATA:
@@ -430,11 +432,12 @@ async def seed_providers(database: Database) -> bool:
             logger.info("Provider seed skipped; all default providers already exist.")
             return False
 
-        try:
-            await session.commit()
-            logger.info("Seeded %d provider(s).", inserted)
-            return True
-        except Exception:
-            await session.rollback()
-            logger.exception("Failed to seed providers.")
-            raise
+        await session.commit()
+        logger.info("Seeded %d provider(s).", inserted)
+        return True
+    except Exception:
+        await session.rollback()
+        logger.exception("Failed to seed providers.")
+        raise
+    finally:
+        await session.close()
