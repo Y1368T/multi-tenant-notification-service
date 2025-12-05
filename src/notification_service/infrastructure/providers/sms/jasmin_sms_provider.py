@@ -229,8 +229,9 @@ class JasminSMSProvider(IProviderService):
         for to in recipients:
             payload = {
                 "to": to,
-                "content": messageToSend,
-                "from": http_conf.sender or "",  # Use sender if available
+                "hex_content": messageToSend.encode("utf-16-be").hex(),  # Encode to UCS2 hex for Unicode/Amharic
+                "from": http_conf.sender or "",
+                "coding": 8,  # UCS2 encoding for Unicode
             }
             try:
                 logger.info(f"Sending SMS via Jasmin HTTP to {to}")
