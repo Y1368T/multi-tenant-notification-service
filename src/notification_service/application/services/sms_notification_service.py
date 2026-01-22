@@ -71,12 +71,12 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
             except (ValueError, AttributeError):
                 root_filters['id'] = params.id
         
-        if hasattr(params, 'tenantId') and params.tenantId:
-            try:
-                tenant_id_value = UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
-                root_filters['tenantId'] = tenant_id_value
-            except (ValueError, AttributeError):
-                root_filters['tenantId'] = params.tenantId
+        # if hasattr(params, 'tenantId') and params.tenantId:
+        #     try:
+        #         tenant_id_value = UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
+        #         root_filters['tenantId'] = tenant_id_value
+        #     except (ValueError, AttributeError):
+        #         root_filters['tenantId'] = params.tenantId
         
         # Extract custom filters
         custom_filters = self._extract_custom_filters(params)
@@ -129,7 +129,7 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
             
             response = await self.messageRouter.doRoute(
                 NotificationChannel.SMS, 
-                tenant,  # Pass Tenant object
+                tenant.prefix,  # Pass Tenant object
                 messageData
             )
             return response

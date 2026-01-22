@@ -248,9 +248,8 @@ class FCMProvider(IProviderService):
                     recipientResponse=NotifiationResponsePerRecipient(
                         notificationId=str(result.id),
                         status=NotificationStatus.SENT.value,
-                        recipientResponse=recipient.address,
+                        recipient=recipient.address,
                         createdAt=in_app_notification.createdAt,
-                        updatedAt=in_app_notification.updatedAt,
                         success=True,
                         message=f"In-app notification sent successfully to {recipient.address}"
                     ),
@@ -285,9 +284,8 @@ class FCMProvider(IProviderService):
                     recipientResponse=NotifiationResponsePerRecipient(
                         notificationId=str(inAppOutbox.id),
                         status=NotificationStatus.FAILED.value,
-                        recipientResponse=recipient.address,
+                        recipient=recipient.address,
                         createdAt=inAppOutbox.createdAt,
-                        updatedAt=inAppOutbox.updatedAt,
                         success=False,
                         message="Saved to outbox for retrying later",
                         errorMessage=error_message,

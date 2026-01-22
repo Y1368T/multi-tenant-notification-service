@@ -123,7 +123,7 @@ class AfromessageSMSProvider(IProviderService):
             
             isAllSent: bool = False
             
-            notificationResponsePerRecipient: Optional[List[NotifiationResponsePerRecipient]]=None
+            notificationResponsePerRecipient: List[NotifiationResponsePerRecipient]=[]
             
             for address in addresses:
                 try:
@@ -153,8 +153,7 @@ class AfromessageSMSProvider(IProviderService):
                     
                     if(response_data.get("status") == "success"):
                         smsNotification = SMSNotification(
-                            notificationId=uuid.uuid4(),
-                            tenantId=tenantConfig.tenantId,
+                            id=uuid.uuid4(),
                             recipientNumber=address,
                             messageContent=messageToSend,
                             templateId=templateId,
@@ -163,7 +162,7 @@ class AfromessageSMSProvider(IProviderService):
                             createdAt=datetime.utcnow(),
                             updatedAt=datetime.utcnow()
                         )
-                        await self.uow.smsNotificationRepository.add(smsNotification)
+                        await self.uow.smsNotifications.add(smsNotification)
                         await self.uow.commit()
                         notifcationResponse = NotifiationResponsePerRecipient(
                             notificationId=str(smsNotification.id),
@@ -187,7 +186,7 @@ class AfromessageSMSProvider(IProviderService):
                             createdAt=datetime.utcnow(),
                             updatedAt=datetime.utcnow()
                         )
-                        await self.uow.smsOutboxRepository.add(smsOutBox)
+                        await self.uow.smsOutboxes.add(smsOutBox)
                         await self.uow.commit()
                         isAllSent = False
                         notificationResponsePerRecipient.append(NotifiationResponsePerRecipient(

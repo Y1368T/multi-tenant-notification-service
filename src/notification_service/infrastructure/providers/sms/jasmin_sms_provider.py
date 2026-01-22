@@ -186,6 +186,7 @@ class JasminSMSProvider(IProviderService):
             if "data" in body and isinstance(body["data"], str) and body["data"].startswith("Success"):
                     
                logger.info(f"Jasmin HTTP SMS sent successfully to {address}, response: {body}")
+               
             else:
                 logger.error(f"Failed to send test SMS via Jasmin HTTP to {address}, response: {body}")
                 return ProviderTestResponse(success=False, message="Failed to send test SMS",)
@@ -206,7 +207,7 @@ class JasminSMSProvider(IProviderService):
         """Send SMS using Jasmin HTTP API."""
         http_conf = JasminHTTPConfig.fromDict(tenantConfig.config or {})
         recipients: List[str] = [recipient.address for recipient in requestObject.recipients]
-        notificationResponsePerRecipient: Optional[List[NotifiationResponsePerRecipient]]=None
+        notificationResponsePerRecipient: List[NotifiationResponsePerRecipient] = []
         if not recipients:
             return NotificationResponse(
                 success=False,
@@ -256,8 +257,7 @@ class JasminSMSProvider(IProviderService):
                     logger.info(f"Jasmin HTTP SMS sent successfully to {to}, response: {body}")
                     
                     smsnotification=SMSNotification(
-                        notificationId=uuid4(),
-                        tenantId=tenantConfig.tenantId,
+                        id=uuid4(),
                         recipientNumber=to,
                         messageContent=messageToSend,
                         templateId=templateId,
@@ -266,20 +266,76 @@ class JasminSMSProvider(IProviderService):
                         createdAt=datetime.utcnow(),
                         updatedAt=datetime.utcnow()
                     )
-                    await self.unitOfWork.smsNotificationRepository.add(smsnotification)
-                    await self.unitOfWork.commit()
+                    await self.uow.smsNotifications.add(smsnotification)
+                    await self.uow.commit()
                     notifcationResponse=NotifiationResponsePerRecipient(
                         notificationId=str(smsnotification.id),
                         status="sent",
-                        recipientResponse=to,
+                        recipient=to,
                         createdAt=smsnotification.createdAt,
-                        updatedAt=smsnotification.updatedAt,
+                        deliveredAt=smsnotification.createdAt,
                         success=True,
                         message="SMS sent successfully"
                     )
                     notificationResponsePerRecipient.append(notifcationResponse)
                     isAllSent = True
                 elif "message" in body and isinstance(body["message"], str) and body["message"].startswith("Error"):
+                    #check if smsoutbox exist by the idempotency key and recipient number
+                    existingOutbox = await self.uow.smsOutboxes.where(
+                        lambda x: x.idempotencyKey == requestObject.idempotencyKey and x.recipientNumber == to
+                    )
+                    if existingOutbox:
+                        logger.info(f"SMS outbox already exists for idempotencyKey {requestObject.idempotencyKey} and recipient {to}, skipping creation.")
+                        existingOutbox.updatedAt = datetime.utcnow()
+                        existingOutbox.lastErrorMessage = body.get("message", body["message"])
+                        existingOutbox.lastRetryAt = datetime.utcnow()
+                        existingOutbox.providerAttempted = "JasminHTTP"
+                        existingOutbox.status="failed"
+                        await self.uow.smsOutboxes.update(existingOutbox)
+                        await self.uow.commit()
+                        notifcationResponse=NotifiationResponsePerRecipient(
+                            notificationId=str(existingOutbox.id),
+                            status=existingOutbox.status,
+                            recipient=to,
+                            createdAt=existingOutbox.createdAt,
+                            updatedAt=existingOutbox.updatedAt,
+                            success=False,
+                            message="SMS outbox already exists, skipping creation",
+                            errorMessage=body.get("message", body["message"]),
+                        )
+                        notificationResponsePerRecipient.append(notifcationResponse)
+                        isAllSent = False
+                        continue  #skip to next recipient
+                    else:
+                        smsOutBox=SMSOutbox(
+                            id=uuid4(),
+                            recipientNumber=to,
+                            messageContent=messageToSend,
+                            idempotencyKey=requestObject.idempotencyKey,
+                            templateId=templateId,
+                            retryCount=0,
+                            status="failed",
+                            createdAt=datetime.utcnow(),
+                            updatedAt=datetime.utcnow()
+                        )
+                        await self.uow.smsOutboxes.add(smsOutBox)
+                        await self.uow.commit()
+                        logger.error(f"Failed to send SMS via Jasmin HTTP to {to}, response: {body}")
+                        notifcationResponse=NotifiationResponsePerRecipient(
+                            notificationId=str(smsOutBox.id),
+                            status="failed",
+                            recipient=to,
+                            createdAt=smsOutBox.createdAt,
+                            updatedAt=smsOutBox.updatedAt,
+                            success=False,
+                            message="Saved to outbox for retrying later",
+                            errorMessage=body.get("message", body["message"]),
+                        )
+                        notificationResponsePerRecipient.append(notifcationResponse)
+                        isAllSent = False
+            except Exception as exc:  
+                    logger.error(f"Error sending SMS via Jasmin HTTP to {to}: {exc}")
+                    
                     smsOutBox=SMSOutbox(
                         id=uuid4(),
                         recipientNumber=to,
@@ -289,25 +345,28 @@ class JasminSMSProvider(IProviderService):
                         retryCount=0,
                         status="failed",
                         createdAt=datetime.utcnow(),
-                        updatedAt=datetime.utcnow()
+                        updatedAt=datetime.utcnow(),
+                        lastErrorMessage=str(exc),
+                        lastretryAt=datetime.utcnow(),
+                        providerAttempted="JasminHTTP",
+                        
+                        
                     )
-                    await self.unitOfWork.smsOutboxRepository.add(smsOutBox)
-                    await self.unitOfWork.commit()
-                    logger.error(f"Failed to send SMS via Jasmin HTTP to {to}, response: {body}")
+                    await self.uow.smsOutboxes.add(smsOutBox)
+                    await self.uow.commit()
                     notifcationResponse=NotifiationResponsePerRecipient(
                         notificationId=str(smsOutBox.id),
                         status="failed",
-                        recipientResponse=to,
+                        recipient=to,
                         createdAt=smsOutBox.createdAt,
                         updatedAt=smsOutBox.updatedAt,
                         success=False,
                         message="Saved to outbox for retrying later",
-                        errorMessage=body.get("message", body["message"]),
+                        errorMessage=str(exc),
+                        
                     )
                     notificationResponsePerRecipient.append(notifcationResponse)
                     isAllSent = False
-            except Exception as exc:  
-                logger.error(f"Error sending SMS via Jasmin HTTP to {to}: {exc}")
 
         
 
