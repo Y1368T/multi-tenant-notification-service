@@ -59,7 +59,7 @@ class KifiyaSMSProvider(IProviderService):
         logger.info("Sending SMS via Kifiya SMS Gateway")
         
         config=KifiyaSMSConfig.fromDict(tenantConfig.config)
-        notificationResponsePerRecipient: Optional[List[NotifiationResponsePerRecipient]]=None
+        notificationResponsePerRecipient: List[NotifiationResponsePerRecipient]=[]
         isAllSent:bool=True
         for recipient in requestObject.recipients:
             payload={
@@ -79,8 +79,7 @@ class KifiyaSMSProvider(IProviderService):
                     logger.info(f"SMS sent successfully to {recipient.address}")
                 
                     smsnotification=SMSNotification(
-                        notificationId=uuid4(),
-                        tenantId=tenantConfig.tenantId,
+                        id=uuid4(),
                         recipientNumber=recipient.address,
                         messageContent=messageToSend,
                         templateId=templateId,
@@ -89,12 +88,12 @@ class KifiyaSMSProvider(IProviderService):
                         createdAt=datetime.utcnow(),
                         updatedAt=datetime.utcnow()
                     )
-                    await self.uow.smsNotificationRepository.add(smsnotification)
+                    await self.uow.smsNotifications.add(smsnotification)
                     await self.uow.commit()
                     notifcationResponse=NotifiationResponsePerRecipient(
                         notificationId=str(smsnotification.id),
                         status="sent",
-                        recipientResponse=recipient.address,
+                        recipient=recipient.address,
                         createdAt=smsnotification.createdAt,
                         updatedAt=smsnotification.updatedAt,
                         success=True,
@@ -114,13 +113,13 @@ class KifiyaSMSProvider(IProviderService):
                         createdAt=datetime.utcnow(),
                         updatedAt=datetime.utcnow()
                     )
-                    await self.unitOfWork.smsOutboxRepository.add(smsOutBox)
-                    await self.unitOfWork.commit()
+                    await self.uow.smsOutboxes.add(smsOutBox)
+                    await self.uow.commit()
                     logger.error(f"Failed to send SMS via Jasmin HTTP to {recipient.address}, response: {response.error}")
                     notifcationResponse=NotifiationResponsePerRecipient(
                         notificationId=str(smsOutBox.id),
                         status="failed",
-                        recipientResponse=recipient.address,
+                        recipient=recipient.address,
                         createdAt=smsOutBox.createdAt,
                         updatedAt=smsOutBox.updatedAt,
                         success=False,

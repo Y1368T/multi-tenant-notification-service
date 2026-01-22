@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from datetime import datetime
 from uuid import UUID
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
@@ -13,7 +13,7 @@ class SMSNotificationResponseDTO(BaseModel):
     # SMS Notification fields
     id: UUID
     recipientNumber: str = Field(alias="recipientNumber")
-    messageContent: Dict[str, Any] = Field(alias="messageContent")
+    messageContent: Union[Dict[str, Any], str] = Field(alias="messageContent")
     status: str
     idempotencyKey: Optional[str] = Field(default=None, alias="idempotencyKey")
     templateId: Optional[UUID] = Field(default=None, alias="templateId")
@@ -38,9 +38,8 @@ class SMSNotificationResponseDTO(BaseModel):
         tenant_prefix = None
         
         # First check if templateName is directly available on the notification entity
-        if hasattr(notification, 'templateName') and notification.templateName:
-            template_name = notification.templateName
-        elif hasattr(notification, 'template') and notification.template:
+        
+        if hasattr(notification, 'template') and notification.template:
             template_name = notification.template.templateName or None
             service_name = notification.template.serviceName or None
             # Check if tenant is loaded on the template
