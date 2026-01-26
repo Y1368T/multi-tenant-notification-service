@@ -1,5 +1,5 @@
 import logging
-from typing import Dict 
+from typing import Dict, Optional
 from notification_service.domain.interfaces.imessage_handler import IMessageHandler
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
@@ -10,7 +10,10 @@ from notification_service.domain.entities.tenant import Tenant
 from uuid import UUID
 from notification_service.application.handlers.sms_channel_handler import SMSChannelHandler
 from notification_service.application.handlers.in_app_channel_handler import InAppChannelHandler
+from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
+
 logger = logging.getLogger(__name__)
+
 
 class MessageRouter(IMessageHandler):
     """Concrete implementation of IMessageHandler for routing messages"""
@@ -19,13 +22,13 @@ class MessageRouter(IMessageHandler):
         self,
         smsHandler: SMSChannelHandler,
         inAppHandler: InAppChannelHandler = None,
-        # email_handler: IChannelHandler,
+        emailHandler: EmailChannelHandler = None,
         # whatsapp_handler: IChannelHandler
     ):
         self._handlers: Dict[NotificationChannel, IChannelHandler] = {
             NotificationChannel.SMS: smsHandler,
             NotificationChannel.INAPP: inAppHandler,
-            # NotificationChannel.EMAIL: emailHandler,
+            NotificationChannel.EMAIL: emailHandler,
             # NotificationChannel.WHATSAPP: whatsappHandler,
         }
 

@@ -48,6 +48,138 @@ _FCM_PRIVATE_KEY = (
 )
 
 PROVIDER_SEED_DATA: tuple[Provider, ...] = (
+    # SMTP Email Provider
+    Provider(
+        id=UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
+        providerName="smtp",
+        displayName="SMTP Email",
+        channel="email",
+        description="Send emails via SMTP server (Gmail, Outlook, custom SMTP servers).",
+        docsUrl="https://docs.python.org/3/library/smtplib.html",
+        testEndpoint="/api/providers/email/smtp/test",
+        configSchema={
+            "title": "SMTP Configuration",
+            "type": "object",
+            "required": ["host", "port", "username", "password", "fromEmail"],
+            "properties": {
+                "host": {
+                    "title": "SMTP Host",
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "SMTP server hostname (e.g., smtp.gmail.com)",
+                },
+                "port": {
+                    "title": "Port",
+                    "type": "integer",
+                    "default": 587,
+                    "description": "SMTP port (587 for TLS, 465 for SSL, 25 for plain)",
+                },
+                "username": {
+                    "title": "Username",
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "SMTP authentication username (usually your email)",
+                },
+                "password": {
+                    "title": "Password",
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "SMTP authentication password or app password",
+                },
+                "fromEmail": {
+                    "title": "From Email",
+                    "type": "string",
+                    "format": "email",
+                    "minLength": 1,
+                    "description": "Email address to send from",
+                },
+                "fromName": {
+                    "title": "From Name",
+                    "type": "string",
+                    "default": "",
+                    "description": "Display name for the sender (optional)",
+                },
+                "useTls": {
+                    "title": "Use TLS",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Use STARTTLS encryption (recommended for port 587)",
+                },
+                "useSsl": {
+                    "title": "Use SSL",
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Use SSL encryption (for port 465)",
+                },
+                "timeout": {
+                    "title": "Timeout",
+                    "type": "integer",
+                    "default": 30,
+                    "description": "Connection timeout in seconds",
+                },
+            },
+        },
+        uiSchema={
+            "host": {
+                "ui:widget": "text",
+                "ui:placeholder": "smtp.gmail.com",
+                "ui:help": "Enter your SMTP server hostname.",
+            },
+            "port": {
+                "ui:widget": "number",
+                "ui:placeholder": "587",
+                "ui:help": "SMTP port (587 for TLS, 465 for SSL).",
+            },
+            "username": {
+                "ui:widget": "text",
+                "ui:placeholder": "your-email@gmail.com",
+                "ui:help": "Your SMTP username (usually your email).",
+            },
+            "password": {
+                "ui:widget": "password",
+                "ui:placeholder": "******",
+                "ui:help": "Your SMTP password or app-specific password.",
+            },
+            "fromEmail": {
+                "ui:widget": "email",
+                "ui:placeholder": "noreply@yourcompany.com",
+                "ui:help": "The email address that will appear in the From field.",
+            },
+            "fromName": {
+                "ui:widget": "text",
+                "ui:placeholder": "Your Company",
+                "ui:help": "Display name for the sender (optional).",
+            },
+            "useTls": {
+                "ui:widget": "checkbox",
+                "ui:help": "Enable TLS encryption (recommended).",
+            },
+            "useSsl": {
+                "ui:widget": "checkbox",
+                "ui:help": "Enable SSL encryption (use for port 465).",
+            },
+            "timeout": {
+                "ui:widget": "number",
+                "ui:placeholder": "30",
+                "ui:help": "Connection timeout in seconds.",
+            },
+            "ui:order": [
+                "host",
+                "port",
+                "username",
+                "password",
+                "fromEmail",
+                "fromName",
+                "useTls",
+                "useSsl",
+                "timeout",
+            ],
+        },
+        isActive=True,
+        createdAt=datetime.fromisoformat("2025-01-26 10:00:00.000000"),
+        updatedAt=datetime.fromisoformat("2025-01-26 10:00:00.000000"),
+    ),
+    # Jasmin SMS Provider
     Provider(
         id=UUID("127bdcb3-d7f9-4d76-8660-8804cde5171e"),
         providerName="jasmin",
