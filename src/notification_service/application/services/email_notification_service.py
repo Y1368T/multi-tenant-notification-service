@@ -1,53 +1,176 @@
+"""Email notification service following the same pattern as SMSNotificationService."""
 from uuid import UUID
+from typing import Optional, List, Dict, Any
+
+from notification_service.application.services.base_service import BaseService
+from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
 from notification_service.domain.entities.email.email_notification import EmailNotification
-from notification_service.domain.value_objects.providers import EmailProvider
-from notification_service.application.services.tenant_email_configuration import TenantEmailConfigurationService
+from notification_service.domain.entities.tenant import Tenant
+from notification_service.domain.interfaces import IMessageHandler
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
+from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.notification_response import NotificationResponse
+from notification_service.domain.value_objects.notification_types import NotificationChannel
+from notification_service.adapters.inbound.dto.email_notification_response_dto import EmailNotificationResponseDTO
+from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    PaginatedRequestDTO,
+    RelatedFilter,
+    FilterOp,
+)
 
 
-class EmailNotificationService:
-    def __init__(self, email_config_service: TenantEmailConfigurationService, uow:IUnitOfWork):
-        self.email_config_service = email_config_service
+class EmailNotificationService(BaseService[EmailNotification, EmailNotificationResponseDTO]):
+    """Service for managing email notifications."""
+
+    def __init__(
+        self,
+        uow: IUnitOfWork,
+        processMessageUseCase: ProcessMessageUseCase,
+        messageRouter: IMessageHandler,
+    ):
+        super().__init__(uow, EmailNotification, EmailNotificationResponseDTO)
         self.uow = uow
+        self.processMessageUseCase = processMessageUseCase
+        self.messageRouter = messageRouter
 
-    async def sendEmailNotification(self, tenant_id: UUID, email_notification: EmailNotification) -> bool:
-        """Send an email notification using the tenant's email configuration.
-        
-        Args:
-            tenant_id: Tenant identifier
-            email_notification: EmailNotification entity to send
+    def _get_repository(self):
+        """Get Email notifications repository."""
+        return self.uow.emailNotifications
 
-        Returns:
-            True if the email was sent successfully, False otherwise
-        """
-        config = await self.email_config_service.get_configuration_by_tenant_id(tenant_id)
-        if not config or not config.is_active:
-            return False
-        
-        provider = EmailProvider(config.provider_name)
-        is_healthy = await self.email_config_service.do_a_circuit_breaker_check(config, provider)
-        if not is_healthy:
-            return False
-        
-        handler = self.email_config_service._handlers.get(provider)
-        if not handler:
-            return False
-        
-        success = await handler.send_email(config, email_notification)
-        return success
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        if hasattr(params, "status") and params.status:
+            filters["status"] = params.status
+        return filters
 
-    async def getEmailNotifications(self, tenant_id: UUID) -> list[EmailNotification]:
-        """Retrieve email notifications for a given tenant.
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
+        """Build related filters for Email notifications."""
+        related_filters: List[RelatedFilter] = []
+        if hasattr(params, "tenantId") and params.tenantId:
+            related_filters.append(
+                RelatedFilter(
+                    relationshipPath="template",
+                    field="tenantId",
+                    op=FilterOp.EQ,
+                    value=UUID(params.tenantId)
+                    if isinstance(params.tenantId, str)
+                    else params.tenantId,
+                )
+            )
+        return related_filters
 
-        Args:
-            tenant_id: Tenant identifier
+    def _get_includes(self) -> List[str]:
+        """Get relationship paths to eager load for Email notifications."""
+        return ["template", "template.tenant"]
 
-        Returns:
-            List of EmailNotification entities
-        """
+    def _get_search_fields(self) -> Optional[List[str]]:
+        """Get search fields for Email notifications."""
+        return [
+            "recipientEmail",
+            "template.templateName",
+            "template.tenant.name",
+            "template.tenant.prefix",
+        ]
+
+    def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
+        """Build PaginatedRequest for Email notifications."""
+        # Build root filters
+        root_filters = {}
+        if hasattr(params, "id") and params.id:
+            try:
+                root_filters["id"] = (
+                    UUID(params.id) if isinstance(params.id, str) else params.id
+                )
+            except (ValueError, AttributeError):
+                root_filters["id"] = params.id
+
+        # Extract custom filters
+        custom_filters = self._extract_custom_filters(params)
+        root_filters.update(custom_filters)
+
+        # Build related filters
+        related_filters = self._build_related_filters(params)
+
+        # Get search fields
+        search_fields = self._get_search_fields()
+
+        # Build and return PaginatedRequest
+        return PaginatedRequest(
+            page=params.page,
+            pageSize=params.pageSize,
+            sortBy=params.sortBy or "createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=search_fields,
+            filters=root_filters,
+            relatedFilters=related_filters,
+        )
+
+    async def prepareAndSendEmail(
+        self, tenantId: UUID, messageData: NotificationRequest
+    ) -> NotificationResponse:
+        """Prepare and send an Email notification."""
+        valid = self.processMessageUseCase.validateMessage(
+            message=messageData, channel=NotificationChannel.EMAIL
+        )
+
+        if not valid.get("success"):
+            return NotificationResponse(
+                success=False, message=valid.get("error", "Validation failed")
+            )
+
         async with self.uow:
-            notifications = await self.uow.email_notifications.get_by_tenant_id(tenant_id)
-            return notifications
+            tenant = await self.uow.tenants.getById(tenantId)
 
-    
-    
+            if not tenant:
+                return NotificationResponse(success=False, message="Tenant does not exist")
+
+            response = await self.messageRouter.doRoute(
+                NotificationChannel.EMAIL, tenant.prefix, messageData
+            )
+            return response
+
+    async def getNotificationStatus(self, notificationId: UUID) -> str:
+        """Get notification status by ID."""
+        async with self.uow:
+            notification = await self.uow.emailNotifications.getById(notificationId)
+            if not notification:
+                from notification_service.shared.exceptions.application_exceptions import (
+                    EntityNotFoundError,
+                )
+
+                raise EntityNotFoundError("EmailNotification", str(notificationId))
+            return notification.status
+
+    async def updateNotificationStatus(
+        self, notificationId: UUID, status: str
+    ) -> EmailNotification:
+        """Update notification status."""
+        async with self.uow:
+            notification = await self.uow.emailNotifications.getById(notificationId)
+            if not notification:
+                from notification_service.shared.exceptions.application_exceptions import (
+                    EntityNotFoundError,
+                )
+
+                raise EntityNotFoundError("EmailNotification", str(notificationId))
+            notification.status = status
+            updated = await self.uow.emailNotifications.update(notification)
+            await self.uow.commit()
+            return updated
+
+    async def deleteNotification(self, notificationId: UUID):
+        """Delete notification by ID."""
+        await self.delete(notificationId)
+
+    async def getAllNotificationsAdvanced(
+        self, req: PaginatedRequest
+    ) -> PaginatedResponseDTO[EmailNotificationResponseDTO]:
+        """
+        SQL-only filtering, deep relationship filtering, sorting and multi-field search.
+        (Deprecated - use get() instead)
+        """
+        return await self.get(req)

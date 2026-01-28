@@ -1,0 +1,176 @@
+"""Email outbox service following the same pattern as SMSOutboxService."""
+from uuid import UUID
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+
+from sqlalchemy.orm import selectinload
+
+from notification_service.application.services.base_service import BaseService
+from notification_service.domain.entities.email.email_outbox import EmailOutbox
+from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
+from notification_service.adapters.inbound.dto.email_outbox_dto import EmailOutboxResponseDTO
+from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
+from notification_service.adapters.inbound.dto.paginated_request_dto import (
+    PaginatedRequest,
+    PaginatedRequestDTO,
+    RelatedFilter,
+    FilterOp,
+)
+from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
+from notification_service.infrastructure.persistence.models.email.email_outbox import EmailOutboxModel
+from notification_service.infrastructure.persistence.models.email.email_template import EmailTemplateModel
+
+
+class EmailOutboxService(BaseService[EmailOutbox, EmailOutboxResponseDTO]):
+    """Service for managing email outbox entries."""
+
+    def __init__(self, uow: IUnitOfWork):
+        super().__init__(uow, EmailOutbox, EmailOutboxResponseDTO)
+        self.uow = uow
+
+    def _get_repository(self):
+        """Get Email outbox repository."""
+        return self.uow.emailOutbox
+
+    def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
+        """Extract custom filters from request DTO."""
+        filters = {}
+        if hasattr(params, "status") and params.status:
+            filters["status"] = params.status
+        if hasattr(params, "recipientEmail") and params.recipientEmail:
+            filters["recipientEmail"] = params.recipientEmail
+        return filters
+
+    def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
+        """Build related filters for Email outbox."""
+        related_filters: List[RelatedFilter] = []
+
+        # Filter by tenantId through template
+        if hasattr(params, "tenantId") and params.tenantId:
+            related_filters.append(
+                RelatedFilter(
+                    relationshipPath="template",
+                    field="tenantId",
+                    op=FilterOp.EQ,
+                    value=UUID(params.tenantId)
+                    if isinstance(params.tenantId, str)
+                    else params.tenantId,
+                )
+            )
+
+        # Filter by templateName
+        if hasattr(params, "templateName") and params.templateName:
+            related_filters.append(
+                RelatedFilter(
+                    relationshipPath="template",
+                    field="templateName",
+                    op=FilterOp.EQ,
+                    value=params.templateName,
+                )
+            )
+
+        # Filter by serviceName
+        if hasattr(params, "serviceName") and params.serviceName:
+            related_filters.append(
+                RelatedFilter(
+                    relationshipPath="template",
+                    field="serviceName",
+                    op=FilterOp.EQ,
+                    value=params.serviceName,
+                )
+            )
+
+        return related_filters
+
+    def _get_includes(self) -> List[str]:
+        """Get relationship paths to eager load for Email outbox."""
+        return ["template", "template.tenant"]
+
+    def _get_search_fields(self) -> Optional[List[str]]:
+        """Get search fields for Email outbox."""
+        return [
+            "recipientEmail",
+            "template.templateName",
+            "template.serviceName",
+            "template.tenant.name",
+        ]
+
+    def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
+        """Build PaginatedRequest for Email outbox."""
+        # Build root filters
+        root_filters = {}
+        if hasattr(params, "id") and params.id:
+            try:
+                root_filters["id"] = (
+                    UUID(params.id) if isinstance(params.id, str) else params.id
+                )
+            except (ValueError, AttributeError):
+                root_filters["id"] = params.id
+
+        # Extract custom filters
+        custom_filters = self._extract_custom_filters(params)
+        root_filters.update(custom_filters)
+
+        # Build related filters
+        related_filters = self._build_related_filters(params)
+
+        # Get search fields
+        search_fields = self._get_search_fields()
+
+        # Get includes
+        includes = self._get_includes()
+
+        # Build and return PaginatedRequest
+        return PaginatedRequest(
+            page=params.page,
+            pageSize=params.pageSize,
+            sortBy=params.sortBy or "createdAt",
+            sortDirection=params.sortDirection,
+            searchText=params.search,
+            searchFields=search_fields,
+            filters=root_filters,
+            relatedFilters=related_filters,
+            includes=includes,
+        )
+
+    async def retry(self, outbox_id: UUID) -> EmailOutboxResponseDTO:
+        """Retry a failed Email outbox message.
+
+        Args:
+            outbox_id: UUID of the outbox message to retry
+
+        Returns:
+            EmailOutboxResponseDTO with updated retry information
+
+        Raises:
+            EntityNotFoundError: If outbox message not found
+        """
+        async with self.uow:
+            # Get the outbox entity
+            outbox = await self.uow.emailOutbox.getById(outbox_id)
+            if not outbox:
+                raise EntityNotFoundError(f"Email outbox with id {outbox_id} not found")
+
+            # Reset retry information for manual retry
+            outbox.retryCount = 0
+            outbox.lastRetryAt = None
+            outbox.lastErrorMessage = None
+            outbox.nextRetryAt = None
+            outbox.status = "pending"
+            outbox.updatedAt = datetime.utcnow()
+
+            # Update the outbox
+            updated_outbox = await self.uow.emailOutbox.update(outbox)
+            await self.uow.commit()
+
+            # Reload with relationships for response
+            loader_options = [
+                selectinload(EmailOutboxModel.template).selectinload(
+                    EmailTemplateModel.tenant
+                )
+            ]
+            updated_outbox = await self.uow.emailOutbox.getById(
+                outbox_id, loader_options=loader_options
+            )
+
+            return EmailOutboxResponseDTO.fromEntityWithRelations(updated_outbox)

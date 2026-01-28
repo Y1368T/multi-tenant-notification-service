@@ -32,7 +32,13 @@ from notification_service.infrastructure.providers.sms.kifiyaSmsProvider import 
 from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.infrastructure.providers.in_app.fcm_provider import FCMProvider
 from notification_service.application.handlers.in_app_channel_handler import InAppChannelHandler
-# from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
+# Email imports
+from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
+from notification_service.infrastructure.providers.email.smtp_provider import SMTPProvider
+from notification_service.application.services.email_notification_service import EmailNotificationService
+from notification_service.application.services.email_template_service import EmailTemplateService
+from notification_service.application.services.email_outbox_service import EmailOutboxService
+from notification_service.application.services.tenant_email_configuration import TenantEmailConfigurationService
 from notification_service.application.services.provider_service import ProviderService
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.infrastructure.services.customer_service_client import CustomerServiceClient
@@ -376,26 +382,39 @@ def main()->FastAPI:
     builder.with_singleton(RabbitMQRPCClient)
     builder.with_singleton(CustomerServiceClient)
     builder.with_transient(IUnitOfWork,UnitOfWork)
+    # SMS Providers
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSProvider)
     builder.with_transient(JasminSMSProvider)
+    # In-App Providers
     builder.with_transient(FCMProvider)
+    # Email Providers
+    builder.with_transient(SMTPProvider)
     builder.with_transient(ProcessMessageUseCase)
     # Register concrete channel handlers directly (MessageRouter needs concrete types)
     builder.with_transient(SMSChannelHandler)
     builder.with_transient(InAppChannelHandler)
+    builder.with_transient(EmailChannelHandler)
     builder.with_transient(IMessageHandler,MessageRouter)
     # Register TenantService before RabbitMQConsumer so it can be injected
     builder.with_transient(tenant_service.TenantService)
     builder.with_singleton(IMessageConsumer, RabbitMQConsumer)
+    # SMS Services
     builder.with_transient(tenant_sms_configuration_service.TenantSMSConfigurationService)
     builder.with_transient(sms_notification_service.SMSNotificationService)
+    builder.with_transient(sms_outbox_service.SMSOutboxService)
+    builder.with_transient(SMSTemplateService)
+    # In-App Services
     builder.with_transient(in_app_notification_service.InAppNotificationService)
     builder.with_transient(in_app_template_service.InAppTemplateService)
     builder.with_transient(tenant_inapp_configuration_service.TenantInAppConfigurationService)
-    builder.with_transient(sms_outbox_service.SMSOutboxService)
     builder.with_transient(in_app_outbox_service.InAppOutboxService)
-    builder.with_transient(SMSTemplateService)
+    # Email Services
+    builder.with_transient(EmailNotificationService)
+    builder.with_transient(EmailTemplateService)
+    builder.with_transient(EmailOutboxService)
+    builder.with_transient(TenantEmailConfigurationService)
+    # Provider Service
     builder.with_transient(ProviderService)
     
     logging.basicConfig(
