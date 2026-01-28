@@ -396,8 +396,9 @@ def main()->FastAPI:
     builder.with_transient(InAppChannelHandler)
     builder.with_transient(EmailChannelHandler)
     builder.with_transient(IMessageHandler,MessageRouter)
-    # Register TenantService before RabbitMQConsumer so it can be injected
-    builder.with_transient(tenant_service.TenantService)
+    # Register TenantService as singleton so rabbitmqConsumer can be set at startup
+    # and reused when creating tenants via API
+    builder.with_singleton(tenant_service.TenantService)
     builder.with_singleton(IMessageConsumer, RabbitMQConsumer)
     # SMS Services
     builder.with_transient(tenant_sms_configuration_service.TenantSMSConfigurationService)
