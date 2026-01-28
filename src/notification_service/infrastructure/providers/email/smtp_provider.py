@@ -1,0 +1,286 @@
+"""SMTP Email Provider implementation following the same pattern as SMS providers."""
+import logging
+import smtplib
+import ssl
+import uuid
+from datetime import datetime
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
+
+from notification_service.domain.entities.email.email_notification import EmailNotification
+from notification_service.domain.entities.email.email_outbox import EmailOutbox
+from notification_service.domain.entities.tenant.tenant_email_configuration import TenantEmailConfiguration
+from notification_service.domain.interfaces.iprovider_service import IProviderService
+from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
+from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.notification_response import (
+    NotifiationResponsePerRecipient,
+    NotificationResponse,
+    ProviderTestResponse,
+)
+from notification_service.domain.value_objects.notification_status import NotificationStatus
+from uuid import UUID
+
+logger = logging.getLogger(__name__)
+
+
+class SMTPConfiguration(BaseModel):
+    """Configuration settings for SMTP Email provider."""
+    host: str
+    port: int = 587
+    username: str
+    password: str
+    fromEmail: str
+    fromName: str = ""
+    useTls: bool = True
+    useSsl: bool = False
+    timeout: int = 30
+
+    class Config:
+        from_attributes = True
+
+    def toDict(self) -> Dict[str, Any]:
+        return {
+            "host": self.host,
+            "port": self.port,
+            "username": self.username,
+            "password": self.password,
+            "fromEmail": self.fromEmail,
+            "fromName": self.fromName,
+            "useTls": self.useTls,
+            "useSsl": self.useSsl,
+            "timeout": self.timeout,
+        }
+
+    @classmethod
+    def fromDict(cls, data: Dict[str, Any]) -> "SMTPConfiguration":
+        return cls(
+            host=data.get("host", ""),
+            port=data.get("port", 587),
+            username=data.get("username", ""),
+            password=data.get("password", ""),
+            fromEmail=data.get("fromEmail", ""),
+            fromName=data.get("fromName", ""),
+            useTls=data.get("useTls", True),
+            useSsl=data.get("useSsl", False),
+            timeout=data.get("timeout", 30),
+        )
+
+
+class SMTPProvider(IProviderService):
+    """SMTP Email provider implementation."""
+
+    def __init__(self, uow: IUnitOfWork):
+        self.uow = uow
+
+    async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
+        """Test SMTP configuration by sending a test email."""
+        try:
+            smtp_config = SMTPConfiguration.fromDict(config)
+
+            # Create a test message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = "Test Email from Notification Service"
+            message["From"] = (
+                f"{smtp_config.fromName} <{smtp_config.fromEmail}>"
+                if smtp_config.fromName
+                else smtp_config.fromEmail
+            )
+            message["To"] = address
+
+            # Create plain text and HTML versions
+            text_content = "This is a test email from the Notification Service."
+            html_content = """
+            <html>
+                <body>
+                    <h1>Test Email</h1>
+                    <p>This is a test email from the Notification Service.</p>
+                    <p>If you received this, your SMTP configuration is working correctly.</p>
+                </body>
+            </html>
+            """
+
+            message.attach(MIMEText(text_content, "plain"))
+            message.attach(MIMEText(html_content, "html"))
+
+            # Send the email
+            self._send_email(smtp_config, address, message)
+
+            logger.info(f"Test email sent successfully to {address}")
+            return ProviderTestResponse(success=True, message="Test email sent successfully")
+
+        except Exception as e:
+            logger.error(f"Exception during SMTP email test: {e}")
+            return ProviderTestResponse(success=False, message=f"Exception during test: {str(e)}")
+
+    def _send_email(
+        self, config: SMTPConfiguration, recipient: str, message: MIMEMultipart
+    ) -> None:
+        """Send email using SMTP."""
+        context = ssl.create_default_context()
+
+        if config.useSsl:
+            # Use SSL from the start (usually port 465)
+            with smtplib.SMTP_SSL(
+                config.host, config.port, context=context, timeout=config.timeout
+            ) as server:
+                server.login(config.username, config.password)
+                server.sendmail(config.fromEmail, recipient, message.as_string())
+        else:
+            # Use STARTTLS (usually port 587)
+            with smtplib.SMTP(config.host, config.port, timeout=config.timeout) as server:
+                if config.useTls:
+                    server.starttls(context=context)
+                server.login(config.username, config.password)
+                server.sendmail(config.fromEmail, recipient, message.as_string())
+
+    async def send(
+        self,
+        requestObject: NotificationRequest,
+        tenantConfig: TenantEmailConfiguration,
+        messageToSend: Dict[str, Any],
+        templateId: UUID,
+    ) -> NotificationResponse:
+        """
+        Send Email via SMTP.
+        Loads configuration from database (tenantConfig.config).
+
+        Args:
+            requestObject: The notification request
+            tenantConfig: Tenant email configuration
+            messageToSend: Dictionary containing subject, body, bodyType
+            templateId: Template ID for tracking
+        """
+        try:
+            # Load configuration from database (tenantConfig.config)
+            smtp_config = SMTPConfiguration.fromDict(tenantConfig.config)
+
+            # Get recipient addresses
+            addresses = [recipient.address for recipient in requestObject.recipients]
+
+            if not addresses:
+                return NotificationResponse(
+                    success=False,
+                    message="No recipients provided",
+                )
+
+            isAllSent: bool = True
+            notificationResponsePerRecipient: List[NotifiationResponsePerRecipient] = []
+
+            for address in addresses:
+                try:
+                    # Create email message
+                    message = MIMEMultipart("alternative")
+                    message["Subject"] = messageToSend.get("subject", "Notification")
+                    message["From"] = (
+                        f"{smtp_config.fromName} <{smtp_config.fromEmail}>"
+                        if smtp_config.fromName
+                        else smtp_config.fromEmail
+                    )
+                    message["To"] = address
+
+                    # Get body content
+                    body = messageToSend.get("body", "")
+                    bodyType = messageToSend.get("bodyType", "html")
+
+                    # Create message content based on body type
+                    if bodyType == "html":
+                        # Add both plain text fallback and HTML
+                        # Simple HTML to text conversion for fallback
+                        import re
+                        plain_text = re.sub(r'<[^>]+>', '', body)
+                        message.attach(MIMEText(plain_text, "plain"))
+                        message.attach(MIMEText(body, "html"))
+                    else:
+                        message.attach(MIMEText(body, "plain"))
+
+                    # Log information
+                    logger.info(f"Sending email to {address}")
+                    logger.info(f"Subject: {messageToSend.get('subject', 'Notification')}")
+                    logger.info(f"From: {smtp_config.fromEmail}")
+
+                    # Send the email
+                    self._send_email(smtp_config, address, message)
+
+                    # Save successful notification
+                    emailNotification = EmailNotification(
+                        id=uuid.uuid4(),
+                        recipientEmail=address,
+                        messageContent=messageToSend,
+                        templateId=templateId,
+                        status=NotificationStatus.SENT,
+                        idempotencyKey=requestObject.idempotencyKey,
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow(),
+                    )
+                    try:
+                        async with self.uow:
+                            await self.uow.emailNotifications.add(emailNotification)
+                    except Exception as save_exc:
+                        logger.error(
+                            f"Failed to save email notification for {address}: {save_exc}",
+                            exc_info=True,
+                        )
+
+                    notificationResponse = NotifiationResponsePerRecipient(
+                        notificationId=str(emailNotification.id),
+                        status=NotificationStatus.SENT,
+                        recipient=address,
+                        createdAt=emailNotification.createdAt,
+                        success=True,
+                        message="Email sent successfully",
+                    )
+                    notificationResponsePerRecipient.append(notificationResponse)
+
+                except Exception as exc:
+                    logger.error(f"Error sending email to {address} via SMTP: {exc}", exc_info=True)
+
+                    # Save to outbox for retry
+                    emailOutbox = EmailOutbox(
+                        id=uuid.uuid4(),
+                        recipientEmail=address,
+                        messageContent=messageToSend,
+                        idempotencyKey=requestObject.idempotencyKey,
+                        templateId=templateId,
+                        retryCount=0,
+                        status="failed",
+                        lastErrorMessage=str(exc),
+                        providerAttempted="smtp",
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow(),
+                    )
+                    try:
+                        async with self.uow:
+                            await self.uow.emailOutbox.add(emailOutbox)
+                    except Exception as save_exc:
+                        logger.error(
+                            f"Failed to save email outbox for {address}: {save_exc}",
+                            exc_info=True,
+                        )
+
+                    notificationResponsePerRecipient.append(
+                        NotifiationResponsePerRecipient(
+                            notificationId=str(emailOutbox.id),
+                            status="failed",
+                            recipient=address,
+                            createdAt=emailOutbox.createdAt,
+                            success=False,
+                            errorMessage=str(exc),
+                        )
+                    )
+                    isAllSent = False
+
+            return NotificationResponse(
+                success=isAllSent,
+                message="Processing completed" if isAllSent else "Some messages failed to send",
+                recipientResponse=notificationResponsePerRecipient,
+            )
+
+        except Exception as e:
+            logger.error(f"Error sending email via SMTP: {e}", exc_info=True)
+            return NotificationResponse(
+                success=False, errorMessage=f"Error sending email via SMTP: {str(e)}"
+            )
