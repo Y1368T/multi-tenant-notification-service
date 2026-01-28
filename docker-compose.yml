@@ -100,7 +100,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/qena_notification_service_db
       - DATABASE_URL_SYNC=postgresql://postgres:postgres@postgres:5432/qena_notification_service_db
       
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:15672/
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - REDIS_URL=redis://:@redis:6379/0
       
       - AFROMESSAGE_BASEURL=https://api.afromessage.com/api
