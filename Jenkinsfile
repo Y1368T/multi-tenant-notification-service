@@ -8,9 +8,9 @@ pipeline {
 
     environment {
         DOCKER_IMAGE_PREFIX = 'qena_baas/'
-        PROJECT_NAME = 'multi-tenant-notification-service-frontend'
-        TARGET_FOLDER_DEV = '/root/source/containers/multi-tenant-notification-service-frontend'
-        GIT_URL = 'https://gitlab.kifiya.et/ifi/bpass/multi-tenant-notification-service-frontend.git'
+        PROJECT_NAME = 'multi-tenant-notification-service'
+        TARGET_FOLDER_DEV = '/root/source/containers/multi-tenant-notification-service'
+        GIT_URL = 'https://gitlab.kifiya.et/ifi/bpass/multi-tenant-notification-service.git'
         GIT_CREDENTIALS_ID = 'gitlab-credentials'
         SSH_CRED_ID = 'DEV_SERVER_IP'
         CONTAINER_NAME = 'multi-tenant-notification-service'
@@ -68,27 +68,27 @@ pipeline {
                     sh """
                         chmod 400 ${SSH_KEY_PATH}
 
-                        # Copy the compose file to the target server
+                        # 1. Copy the compose file to the remote server
                         scp -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no \
                           docker-compose.yml \
                           ${SSH_USER}@${DEV_SERVER}:${TARGET_FOLDER_DEV}/docker-compose.yml
 
-                        # Execute Deployment on Remote Server
+                        # 2. Execute Deployment via SSH Heredoc
                         ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no ${SSH_USER}@${DEV_SERVER} << EOF
                             set -e
                             cd ${TARGET_FOLDER_DEV}
                             
-                            # 1. Login to Registry
+                            # Login to Registry
                             echo "${DOCKER_PASS}" | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin
                             
-                            # 2. Pull latest images
+                            # Pull the latest image we just pushed
                             docker compose pull
                             
-                            # 3. Deploy (Without -v to preserve data)
-                            # We use up -d which recreates only what changed.
+                            # Recreate the containers (preserves volumes automatically)
+                            # We use 'docker compose' (V2) to avoid ContainerConfig errors
                             docker compose up -d --remove-orphans
                             
-                            # 4. Cleanup
+                            # Cleanup
                             docker logout ${DOCKER_REGISTRY}
                             docker image prune -f
 EOF
@@ -103,9 +103,10 @@ EOF
             echo "✅ Successfully deployed ${PROJECT_NAME} to Development Server!"
         }
         failure {
-            echo "❌ Pipeline failed. Check console output."
+            echo "❌ Pipeline failed. Please check Jenkins console output for errors."
         }
         always {
+            // Clean up the agent's login state
             sh 'docker logout || true'
         }
     }
