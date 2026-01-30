@@ -83,11 +83,12 @@ stage('Deploy to Development Server') {
                             
                             # 2. Fix the Conflict
                             echo 'Clearing existing container conflict...'
-                            # docker rm -f ${CONTAINER_NAME} || true
+                            docker compose down || true
+                            docker rm -f ${CONTAINER_NAME} || true
                             
                             # 3. Deploy
-                            docker-compose pull
-                            docker-compose up -d --force-recreate --remove-orphans
+                            docker compose pull
+                            docker compose up -d --force-recreate --remove-orphans
                             
                             # 4. Cleanup
                             docker logout ${DOCKER_REGISTRY}
