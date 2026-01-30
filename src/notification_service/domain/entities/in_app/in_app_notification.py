@@ -14,6 +14,8 @@ class InAppNotification:
     recipientUserId: str
     messageContent: str
     status: str = "unread"
+    isRead: bool = False
+    externalId: Optional[str] = None  # User ID in tenant's system for notification retrieval
     idempotencyKey: Optional[str] = None
     templateId: Optional[UUID] = None
     template: Optional[InAppTemplate] = None

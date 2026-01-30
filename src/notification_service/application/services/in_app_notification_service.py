@@ -1,5 +1,6 @@
 from uuid import UUID
 from typing import Optional, List, Dict, Any
+from datetime import datetime
 from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
 from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
 from notification_service.domain.value_objects.notification_types import NotificationChannel
@@ -19,6 +20,9 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
     FilterOp
 )
 from notification_service.application.services.base_service import BaseService
+import logging
+
+logger = logging.getLogger(__name__)
         
 class InAppNotificationService(BaseService[InAppNotification, InAppNotificationResponseDTO]):
     def __init__(self, uow: IUnitOfWork, processMessageUseCase: ProcessMessageUseCase, messageRouter: IMessageHandler):
@@ -36,6 +40,10 @@ class InAppNotificationService(BaseService[InAppNotification, InAppNotificationR
         filters = {}
         if hasattr(params, 'status') and params.status:
             filters["status"] = params.status
+        if hasattr(params, 'externalId') and params.externalId:
+            filters["externalId"] = params.externalId
+        if hasattr(params, 'isRead') and params.isRead is not None:
+            filters["isRead"] = params.isRead
         return filters
     
     def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
@@ -58,7 +66,7 @@ class InAppNotificationService(BaseService[InAppNotification, InAppNotificationR
     
     def _get_search_fields(self) -> Optional[List[str]]:
         """Get search fields for in-app notifications."""
-        return ["recipientUserId", "template.templateName", "template.tenant.name", "template.tenant.prefix"]
+        return ["recipientUserId", "externalId", "template.templateName", "template.tenant.name", "template.tenant.prefix"]
     
     def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
         """Build PaginatedRequest for in-app notifications."""
@@ -126,10 +134,16 @@ class InAppNotificationService(BaseService[InAppNotification, InAppNotificationR
                     message="Tenant does not exist"
                 )
             
+            # Determine mode based on whether request has a callbackUrl
+            # If callbackUrl is provided, it's immediate mode (caller handles retries)
+            # If no callbackUrl, it's fire-and-forget mode (outbox handles retries)
+            isImmediateMode = messageData.callbackUrl is not None
+            
             response = await self.messageRouter.doRoute(
                 NotificationChannel.INAPP, 
                 tenant.prefix,  # Pass Tenant object
-                messageData
+                messageData,
+                isImmediateMode=isImmediateMode
             )
             return response
     
@@ -168,4 +182,202 @@ class InAppNotificationService(BaseService[InAppNotification, InAppNotificationR
         (Deprecated - use get() instead)
         """
         return await self.get(req)
+    
+    # =========================================================================
+    # External ID based methods for tenant applications
+    # =========================================================================
+    
+    async def getByExternalId(
+        self,
+        externalId: str,
+        tenantId: UUID,
+        page: int = 1,
+        pageSize: int = 20,
+        isRead: Optional[bool] = None
+    ) -> PaginatedResponseDTO[InAppNotificationResponseDTO]:
+        """
+        Get notifications for a user by their external ID.
+        
+        Args:
+            externalId: User ID in tenant's system
+            tenantId: Tenant ID to filter notifications
+            page: Page number
+            pageSize: Items per page
+            isRead: Optional filter for read/unread status
+            
+        Returns:
+            Paginated list of notifications
+        """
+        logger.info(f"Getting notifications for externalId={externalId}, tenantId={tenantId}")
+        
+        # Build filters
+        filters = {"externalId": externalId}
+        if isRead is not None:
+            filters["isRead"] = isRead
+        
+        # Build related filter for tenant
+        related_filters = [
+            RelatedFilter(
+                relationshipPath="template",
+                field="tenantId",
+                op=FilterOp.EQ,
+                value=tenantId
+            )
+        ]
+        
+        paginated_request = PaginatedRequest(
+            page=page,
+            pageSize=pageSize,
+            sortBy="createdAt",
+            sortDirection="desc",
+            filters=filters,
+            relatedFilters=related_filters
+        )
+        
+        return await self.get(paginated_request)
+    
+    async def getUnreadCountByExternalId(
+        self,
+        externalId: str,
+        tenantId: UUID
+    ) -> int:
+        """
+        Get count of unread notifications for a user by their external ID.
+        
+        Args:
+            externalId: User ID in tenant's system
+            tenantId: Tenant ID to filter notifications
+            
+        Returns:
+            Count of unread notifications
+        """
+        logger.info(f"Getting unread count for externalId={externalId}, tenantId={tenantId}")
+        
+        async with self.uow:
+            # Query notifications with externalId and isRead=False
+            notifications = await self.uow.inAppNotifications.find(
+                lambda n: n.externalId == externalId and n.isRead == False
+            )
+            
+            # Filter by tenant through template relationship
+            count = 0
+            for notif in notifications:
+                if notif.templateId:
+                    template = await self.uow.inAppTemplates.getById(notif.templateId)
+                    if template and template.tenantId == tenantId:
+                        count += 1
+            
+            return count
+    
+    async def markAsReadByExternalId(
+        self,
+        externalId: str,
+        tenantId: UUID,
+        notificationIds: Optional[List[UUID]] = None
+    ) -> int:
+        """
+        Mark notifications as read for a user by their external ID.
+        
+        Args:
+            externalId: User ID in tenant's system
+            tenantId: Tenant ID
+            notificationIds: Optional list of specific notification IDs to mark as read.
+                           If None, all notifications for the user are marked as read.
+            
+        Returns:
+            Number of notifications marked as read
+        """
+        logger.info(f"Marking notifications as read for externalId={externalId}, tenantId={tenantId}")
+        
+        async with self.uow:
+            # Get notifications by externalId
+            if notificationIds:
+                # Mark specific notifications
+                notifications = await self.uow.inAppNotifications.find(
+                    lambda n: n.externalId == externalId and n.id in notificationIds and n.isRead == False
+                )
+            else:
+                # Mark all notifications for this user
+                notifications = await self.uow.inAppNotifications.find(
+                    lambda n: n.externalId == externalId and n.isRead == False
+                )
+            
+            updated_count = 0
+            for notif in notifications:
+                # Verify tenant ownership through template
+                if notif.templateId:
+                    template = await self.uow.inAppTemplates.getById(notif.templateId)
+                    if template and template.tenantId == tenantId:
+                        notif.isRead = True
+                        notif.status = "read"
+                        notif.updatedAt = datetime.utcnow()
+                        await self.uow.inAppNotifications.update(notif)
+                        updated_count += 1
+            
+            await self.uow.commit()
+            logger.info(f"Marked {updated_count} notifications as read for externalId={externalId}")
+            return updated_count
+    
+    async def markAsReadById(self, notificationId: UUID) -> None:
+        """
+        Mark a single notification as read by its ID.
+        
+        Args:
+            notificationId: The notification ID
+        """
+        async with self.uow:
+            notification = await self.uow.inAppNotifications.getById(notificationId)
+            if not notification:
+                from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
+                raise EntityNotFoundError("InAppNotification", str(notificationId))
+            
+            notification.isRead = True
+            notification.status = "read"
+            notification.updatedAt = datetime.utcnow()
+            await self.uow.inAppNotifications.update(notification)
+            await self.uow.commit()
+    
+    async def clearByExternalId(
+        self,
+        externalId: str,
+        tenantId: UUID,
+        notificationIds: Optional[List[UUID]] = None
+    ) -> int:
+        """
+        Clear (delete) notifications for a user by their external ID.
+        
+        Args:
+            externalId: User ID in tenant's system
+            tenantId: Tenant ID
+            notificationIds: Optional list of specific notification IDs to delete.
+                           If None, all notifications for the user are deleted.
+            
+        Returns:
+            Number of notifications deleted
+        """
+        logger.info(f"Clearing notifications for externalId={externalId}, tenantId={tenantId}")
+        
+        async with self.uow:
+            # Get notifications by externalId
+            if notificationIds:
+                notifications = await self.uow.inAppNotifications.find(
+                    lambda n: n.externalId == externalId and n.id in notificationIds
+                )
+            else:
+                notifications = await self.uow.inAppNotifications.find(
+                    lambda n: n.externalId == externalId
+                )
+            
+            deleted_count = 0
+            for notif in notifications:
+                # Verify tenant ownership through template
+                if notif.templateId:
+                    template = await self.uow.inAppTemplates.getById(notif.templateId)
+                    if template and template.tenantId == tenantId:
+                        await self.uow.inAppNotifications.delete(notif.id)
+                        deleted_count += 1
+            
+            await self.uow.commit()
+            logger.info(f"Deleted {deleted_count} notifications for externalId={externalId}")
+            return deleted_count
 

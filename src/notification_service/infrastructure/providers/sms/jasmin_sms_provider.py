@@ -203,8 +203,14 @@ class JasminSMSProvider(IProviderService):
         tenantConfig: TenantSMSConfiguration,
         messageToSend: str,
         templateId: UUID,
+        saveToOutbox: bool = True
     ) -> NotificationResponse:
-        """Send SMS using Jasmin HTTP API."""
+        """Send SMS using Jasmin HTTP API.
+        
+        Args:
+            saveToOutbox: If True, save failed messages to outbox for retry (fire-and-forget mode).
+                         If False, just return failure (immediate mode, caller handles retry).
+        """
         http_conf = JasminHTTPConfig.fromDict(tenantConfig.config or {})
         recipients: List[str] = [recipient.address for recipient in requestObject.recipients]
         notificationResponsePerRecipient: List[NotifiationResponsePerRecipient] = []
@@ -280,33 +286,79 @@ class JasminSMSProvider(IProviderService):
                     notificationResponsePerRecipient.append(notifcationResponse)
                     isAllSent = True
                 elif "message" in body and isinstance(body["message"], str) and body["message"].startswith("Error"):
-                    #check if smsoutbox exist by the idempotency key and recipient number
-                    existingOutbox = await self.uow.smsOutboxes.where(
-                        lambda x: x.idempotencyKey == requestObject.idempotencyKey and x.recipientNumber == to
-                    )
-                    if existingOutbox:
-                        logger.info(f"SMS outbox already exists for idempotencyKey {requestObject.idempotencyKey} and recipient {to}, skipping creation.")
-                        existingOutbox.updatedAt = datetime.utcnow()
-                        existingOutbox.lastErrorMessage = body.get("message", body["message"])
-                        existingOutbox.lastRetryAt = datetime.utcnow()
-                        existingOutbox.providerAttempted = "JasminHTTP"
-                        existingOutbox.status="failed"
-                        await self.uow.smsOutboxes.update(existingOutbox)
-                        await self.uow.commit()
+                    error_msg = body.get("message", body["message"])
+                    # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
+                    if saveToOutbox:
+                        #check if smsoutbox exist by the idempotency key and recipient number
+                        existingOutbox = await self.uow.smsOutboxes.where(
+                            lambda x: x.idempotencyKey == requestObject.idempotencyKey and x.recipientNumber == to
+                        )
+                        if existingOutbox:
+                            logger.info(f"SMS outbox already exists for idempotencyKey {requestObject.idempotencyKey} and recipient {to}, skipping creation.")
+                            existingOutbox.updatedAt = datetime.utcnow()
+                            existingOutbox.lastErrorMessage = error_msg
+                            existingOutbox.lastRetryAt = datetime.utcnow()
+                            existingOutbox.providerAttempted = "JasminHTTP"
+                            existingOutbox.status="failed"
+                            await self.uow.smsOutboxes.update(existingOutbox)
+                            await self.uow.commit()
+                            notifcationResponse=NotifiationResponsePerRecipient(
+                                notificationId=str(existingOutbox.id),
+                                status=existingOutbox.status,
+                                recipient=to,
+                                createdAt=existingOutbox.createdAt,
+                                success=False,
+                                message="SMS outbox already exists, skipping creation",
+                                errorMessage=error_msg,
+                            )
+                            notificationResponsePerRecipient.append(notifcationResponse)
+                            isAllSent = False
+                            continue  #skip to next recipient
+                        else:
+                            smsOutBox=SMSOutbox(
+                                id=uuid4(),
+                                recipientNumber=to,
+                                messageContent=messageToSend,
+                                idempotencyKey=requestObject.idempotencyKey,
+                                templateId=templateId,
+                                retryCount=0,
+                                status="failed",
+                                createdAt=datetime.utcnow(),
+                                updatedAt=datetime.utcnow()
+                            )
+                            await self.uow.smsOutboxes.add(smsOutBox)
+                            await self.uow.commit()
+                            logger.error(f"Failed to send SMS via Jasmin HTTP to {to}, saved to outbox: {body}")
+                            notifcationResponse=NotifiationResponsePerRecipient(
+                                notificationId=str(smsOutBox.id),
+                                status="failed",
+                                recipient=to,
+                                createdAt=smsOutBox.createdAt,
+                                success=False,
+                                message="Saved to outbox for retrying later",
+                                errorMessage=error_msg,
+                            )
+                            notificationResponsePerRecipient.append(notifcationResponse)
+                            isAllSent = False
+                    else:
+                        # Immediate mode - just return failure, caller handles retry
+                        logger.error(f"Failed to send SMS via Jasmin HTTP to {to}: {error_msg}")
                         notifcationResponse=NotifiationResponsePerRecipient(
-                            notificationId=str(existingOutbox.id),
-                            status=existingOutbox.status,
+                            notificationId=None,
+                            status="failed",
                             recipient=to,
-                            createdAt=existingOutbox.createdAt,
-                            updatedAt=existingOutbox.updatedAt,
+                            createdAt=datetime.utcnow(),
                             success=False,
-                            message="SMS outbox already exists, skipping creation",
-                            errorMessage=body.get("message", body["message"]),
+                            message="Failed to send SMS",
+                            errorMessage=error_msg,
                         )
                         notificationResponsePerRecipient.append(notifcationResponse)
                         isAllSent = False
-                        continue  #skip to next recipient
-                    else:
+            except Exception as exc:  
+                    logger.error(f"Error sending SMS via Jasmin HTTP to {to}: {exc}")
+                    
+                    # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
+                    if saveToOutbox:
                         smsOutBox=SMSOutbox(
                             id=uuid4(),
                             recipientNumber=to,
@@ -316,55 +368,33 @@ class JasminSMSProvider(IProviderService):
                             retryCount=0,
                             status="failed",
                             createdAt=datetime.utcnow(),
-                            updatedAt=datetime.utcnow()
+                            updatedAt=datetime.utcnow(),
+                            lastErrorMessage=str(exc),
+                            lastretryAt=datetime.utcnow(),
+                            providerAttempted="JasminHTTP",
                         )
                         await self.uow.smsOutboxes.add(smsOutBox)
                         await self.uow.commit()
-                        logger.error(f"Failed to send SMS via Jasmin HTTP to {to}, response: {body}")
                         notifcationResponse=NotifiationResponsePerRecipient(
                             notificationId=str(smsOutBox.id),
                             status="failed",
                             recipient=to,
                             createdAt=smsOutBox.createdAt,
-                            updatedAt=smsOutBox.updatedAt,
                             success=False,
                             message="Saved to outbox for retrying later",
-                            errorMessage=body.get("message", body["message"]),
+                            errorMessage=str(exc),
                         )
-                        notificationResponsePerRecipient.append(notifcationResponse)
-                        isAllSent = False
-            except Exception as exc:  
-                    logger.error(f"Error sending SMS via Jasmin HTTP to {to}: {exc}")
-                    
-                    smsOutBox=SMSOutbox(
-                        id=uuid4(),
-                        recipientNumber=to,
-                        messageContent=messageToSend,
-                        idempotencyKey=requestObject.idempotencyKey,
-                        templateId=templateId,
-                        retryCount=0,
-                        status="failed",
-                        createdAt=datetime.utcnow(),
-                        updatedAt=datetime.utcnow(),
-                        lastErrorMessage=str(exc),
-                        lastretryAt=datetime.utcnow(),
-                        providerAttempted="JasminHTTP",
-                        
-                        
-                    )
-                    await self.uow.smsOutboxes.add(smsOutBox)
-                    await self.uow.commit()
-                    notifcationResponse=NotifiationResponsePerRecipient(
-                        notificationId=str(smsOutBox.id),
-                        status="failed",
-                        recipient=to,
-                        createdAt=smsOutBox.createdAt,
-                        updatedAt=smsOutBox.updatedAt,
-                        success=False,
-                        message="Saved to outbox for retrying later",
-                        errorMessage=str(exc),
-                        
-                    )
+                    else:
+                        # Immediate mode - just return failure, caller handles retry
+                        notifcationResponse=NotifiationResponsePerRecipient(
+                            notificationId=None,
+                            status="failed",
+                            recipient=to,
+                            createdAt=datetime.utcnow(),
+                            success=False,
+                            message="Failed to send SMS",
+                            errorMessage=str(exc),
+                        )
                     notificationResponsePerRecipient.append(notifcationResponse)
                     isAllSent = False
 
@@ -379,5 +409,65 @@ class JasminSMSProvider(IProviderService):
             recipientResponse=notificationResponsePerRecipient
         )
 
-   
+    async def send_raw(
+        self,
+        recipient: str,
+        message: str,
+        tenantConfig: TenantSMSConfiguration
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Send a raw SMS message (used for outbox retry).
+        
+        Args:
+            recipient: Phone number to send to
+            message: Already-rendered message content
+            tenantConfig: Tenant SMS configuration with provider credentials
+            
+        Returns:
+            Tuple of (success: bool, error_message: Optional[str])
+        """
+        try:
+            http_conf = JasminHTTPConfig.fromDict(tenantConfig.config or {})
+            
+            if not http_conf.baseUrl or not http_conf.username or not http_conf.password:
+                return (False, "Invalid Jasmin HTTP configuration: baseUrl, username and password are required")
+            
+            credentials = f"{http_conf.username}:{http_conf.password}"
+            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Basic {encoded_credentials}",
+            }
+            
+            payload = {
+                "to": recipient,
+                "hex_content": message.encode("utf-16-be").hex(),  # Encode to UCS2 hex for Unicode/Amharic
+                "from": http_conf.sender or "",
+                "coding": 8,  # UCS2 encoding for Unicode
+            }
+            
+            response = await self.client.post(
+                http_conf.baseUrl,
+                content=json.dumps(payload),
+                headers=headers,
+                timeout=http_conf.timeoutSeconds or 10,
+            )
+            response.raise_for_status()
+            
+            try:
+                body = response.json()
+            except Exception:
+                body = {"raw": response.text}
+            
+            if "data" in body and isinstance(body["data"], str) and body["data"].startswith("Success"):
+                logger.info(f"SMS sent successfully to {recipient} via Jasmin HTTP (retry)")
+                return (True, None)
+            else:
+                error_msg = body.get("message", str(body))
+                logger.error(f"Failed to send SMS to {recipient} via Jasmin HTTP: {error_msg}")
+                return (False, error_msg)
+                
+        except Exception as e:
+            logger.error(f"Exception sending SMS to {recipient} via Jasmin HTTP: {e}")
+            return (False, str(e))
     

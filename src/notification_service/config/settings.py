@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # Security settings
     admin_api_key: Optional[str] = None  # Admin API key for bypassing tenant authentication
     
+    # Outbox retry settings
+    outbox_poll_interval_seconds: int = 60  # Poll every 1 minute
+    outbox_max_retries: int = 5  # Maximum retry attempts before marking as permanently failed
+    outbox_base_retry_delay_minutes: int = 5  # Base delay for exponential backoff
+    outbox_batch_size: int = 50  # Messages to process per poll cycle
+    
 
 @lru_cache()
 def getSettings() -> Settings:

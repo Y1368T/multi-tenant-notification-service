@@ -128,8 +128,14 @@ class EmailNotificationService(BaseService[EmailNotification, EmailNotificationR
             if not tenant:
                 return NotificationResponse(success=False, message="Tenant does not exist")
 
+            # Determine mode based on whether request has a callbackUrl
+            # If callbackUrl is provided, it's immediate mode (caller handles retries)
+            # If no callbackUrl, it's fire-and-forget mode (outbox handles retries)
+            isImmediateMode = messageData.callbackUrl is not None
+            
             response = await self.messageRouter.doRoute(
-                NotificationChannel.EMAIL, tenant.prefix, messageData
+                NotificationChannel.EMAIL, tenant.prefix, messageData,
+                isImmediateMode=isImmediateMode
             )
             return response
 

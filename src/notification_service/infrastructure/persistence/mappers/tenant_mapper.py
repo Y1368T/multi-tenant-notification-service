@@ -31,6 +31,8 @@ class TenantMapper:
             rateLimitPerMinute=model.rateLimitPerMinute,
             rateLimitPerHour=model.rateLimitPerHour,
             rateLimitPerDay=model.rateLimitPerDay,
+            callbackUrl=model.callbackUrl,
+            callbackHeaders=model.callbackHeaders,
             createdAt=model.createdAt,
             updatedAt=model.updatedAt
         )
@@ -59,6 +61,8 @@ class TenantMapper:
             rateLimitPerMinute=entity.rateLimitPerMinute,
             rateLimitPerHour=entity.rateLimitPerHour,
             rateLimitPerDay=entity.rateLimitPerDay,
+            callbackUrl=entity.callbackUrl,
+            callbackHeaders=entity.callbackHeaders,
             createdAt=entity.createdAt,
             updatedAt=entity.updatedAt
         )
@@ -107,6 +111,8 @@ class TenantMapper:
         model.rateLimitPerMinute = entity.rateLimitPerMinute
         model.rateLimitPerHour = entity.rateLimitPerHour
         model.rateLimitPerDay = entity.rateLimitPerDay
+        model.callbackUrl = entity.callbackUrl
+        model.callbackHeaders = entity.callbackHeaders
         model.updatedAt = entity.updatedAt
         
         return model

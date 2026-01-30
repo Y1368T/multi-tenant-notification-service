@@ -43,6 +43,8 @@ class InAppNotificationMapper:
             recipientUserId=model.recipientUserId,
             messageContent=model.messageContent,
             status=model.status,
+            isRead=model.isRead if hasattr(model, 'isRead') else False,
+            externalId=model.externalId if hasattr(model, 'externalId') else None,
             idempotencyKey=model.idempotencyKey,
             templateId=model.templateId,
             template=template_entity,
@@ -69,6 +71,8 @@ class InAppNotificationMapper:
             recipientUserId=entity.recipientUserId,
             messageContent=entity.messageContent,
             status=entity.status,
+            isRead=entity.isRead if hasattr(entity, 'isRead') else False,
+            externalId=entity.externalId if hasattr(entity, 'externalId') else None,
             idempotencyKey=entity.idempotencyKey,
             templateId=entity.templateId,
             createdAt=entity.createdAt,
@@ -113,6 +117,8 @@ class InAppNotificationMapper:
         model.recipientUserId = entity.recipientUserId
         model.messageContent = entity.messageContent
         model.status = entity.status
+        model.isRead = entity.isRead if hasattr(entity, 'isRead') else model.isRead
+        model.externalId = entity.externalId if hasattr(entity, 'externalId') else model.externalId
         model.idempotencyKey = entity.idempotencyKey
         model.templateId = entity.templateId
         model.updatedAt = entity.updatedAt

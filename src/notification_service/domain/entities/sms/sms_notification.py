@@ -14,9 +14,11 @@ class SMSNotification:
     recipientNumber: str
     messageContent: Dict[str, Any]
     status: str = "pending"
+    isRead: bool = False
+    externalId: Optional[str] = None  # User ID in tenant's system for notification retrieval
     idempotencyKey: Optional[str] = None
     templateId: UUID = None
-    template:Optional[SmsTemplate]=None
-    templateName:Optional[str]=None
+    template: Optional[SmsTemplate] = None
+    templateName: Optional[str] = None
     createdAt: datetime = field(default_factory=datetime.utcnow)
     updatedAt: datetime = field(default_factory=datetime.utcnow)

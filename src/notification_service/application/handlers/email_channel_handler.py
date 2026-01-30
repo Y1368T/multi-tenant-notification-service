@@ -36,11 +36,14 @@ class EmailChannelHandler(IChannelHandler):
         }
 
     async def receiveMessage(
-        self, tenantPrefix: str, message: NotificationRequest
+        self, 
+        tenantPrefix: str, 
+        message: NotificationRequest,
+        isImmediateMode: bool = False
     ) -> NotificationResponse:
         """Receive a message from the message router."""
         logger.info(
-            f"Receiving Email message for tenant {tenantPrefix} with template {message.templateName}"
+            f"Receiving Email message for tenant {tenantPrefix} with template {message.templateName} (immediate={isImmediateMode})"
         )
 
         tenantdb: Tenant = None
@@ -158,7 +161,7 @@ class EmailChannelHandler(IChannelHandler):
             )
 
         return await self.routeToProvider(
-            message, tenantdb, tenantConfig, template.id, template.subject, templateBody, template.bodyType
+            message, tenantdb, tenantConfig, template.id, template.subject, templateBody, template.bodyType, isImmediateMode
         )
 
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantEmailConfiguration]:
@@ -236,9 +239,10 @@ class EmailChannelHandler(IChannelHandler):
         subject: str,
         templateBody: str,
         bodyType: str,
+        isImmediateMode: bool = False
     ) -> NotificationResponse:
         """Route Email notification to the appropriate provider for delivery."""
-        logger.info(f"Routing Email notification for tenant {tenant.name} to provider")
+        logger.info(f"Routing Email notification for tenant {tenant.name} to provider (immediate={isImmediateMode})")
 
         config = configs[0]
 
@@ -280,7 +284,7 @@ class EmailChannelHandler(IChannelHandler):
         match provider_name:
             case EmailProvider.SMTP.value:
                 response = await self.__handlers[EmailProvider.SMTP].send(
-                    request, config, message_to_send, templateId
+                    request, config, message_to_send, templateId, saveToOutbox=not isImmediateMode
                 )
                 return response
             case _:
