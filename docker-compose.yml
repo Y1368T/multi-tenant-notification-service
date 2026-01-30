@@ -4,16 +4,15 @@ services:
     container_name: notification-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: postgres  # This must match DATABASE_URL below
       POSTGRES_DB: qena_notification_service_db
     ports:
-      # Host port 5433 maps to container port 5432 (for external host access)
       - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres -d qena_notification_service_db"]
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
@@ -24,16 +23,13 @@ services:
     image: rabbitmq:3-management
     container_name: notification-rabbitmq
     ports:
-      - "5672:5672"    # AMQP port
-      - "15672:15672"  # Management UI
-      - "1883:1883"    # MQTT port
-      - "8883:8883"    # MQTT/SSL port
-      - "15675:15675"  # MQTT over WebSockets
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
-      test: rabbitmq-diagnostics -q ping
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,20 +71,33 @@ services:
     restart: unless-stopped
 
   redis-commander:
+
     image: rediscommander/redis-commander:latest
+
     container_name: notification-redis-commander
+
     ports:
+
       - "8082:8081"
+
     environment:
+
       - REDIS_HOSTS=local:redis:6379
+
     depends_on:
+
       redis:
+
         condition: service_healthy
+
     networks:
+
       - notification-network
-    restart: unless-stopped
+
+    restart: unless-stopped    
 
   web:
+    # In production/Jenkins, this is usually replaced by the image: tag
     build:
       context: .
       dockerfile: Dockerfile
@@ -96,32 +105,26 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # CRITICAL FIX 1: Host is 'postgres' and Port is '5432' (internal port)
+      # Use the service name 'postgres' to connect internally
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/qena_notification_service_db
       - DATABASE_URL_SYNC=postgresql://postgres:postgres@postgres:5432/qena_notification_service_db
-      
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - REDIS_URL=redis://:@redis:6379/0
-      
       - AFROMESSAGE_BASEURL=https://api.afromessage.com/api
       - AFROMESSAGE_APIKEY=eyJhbGciOiJIUzI1NiJ9.eyJpZGVudGlmaWVyIjoiYk9uSVBBaVlzcllPVGswRDR1MmlDTktmMUplUHFoZmkiLCJleHAiOjE5MjAwMTg3NzksImlhdCI6MTc2MjI1MjM3OSwianRpIjoiZDY1NGM3MmItZmFjMS00ZjQ5LWE1MmUtMzY4NmZjZjRiZTBkIn0.Gx4_ihJZmGqbYQZyjRZq9e-XoBMgNRkvJr3L388UrBc
       - AFROMESSAGE_SENDER=AfroMessage
       - AFROMESSAGE_FROM=e80ad9d8-adf3-463f-80f4-7c4b39f7f164
       - ADMIN_API_KEY=admin-secret-key
-      
-    # CRITICAL FIX 2: Wait loop + Migrations (alembic upgrade head)
     command: >
       sh -c "
-      echo 'Waiting for Postgres to become fully available...';
-      until pg_isready -h postgres -p 5432 -U postgres; do 
-        echo 'Postgres is unavailable - waiting 3 seconds...'; 
-        sleep 3; 
-      done; 
-      echo 'Postgres is ready. Running migrations...';
+      echo 'Waiting for Postgres...';
+      until pg_isready -h postgres -p 5432 -U postgres; do
+        sleep 2;
+      done;
+      echo 'Running migrations...';
       poetry run alembic upgrade head;
-      echo 'Migrations applied. Starting application...';
+      echo 'Starting app...';
       poetry run uvicorn notification_service.main:main --factory --host 0.0.0.0 --port 8000"
-
     depends_on:
       postgres:
         condition: service_healthy
@@ -135,7 +138,7 @@ services:
 
 volumes:
   redisinsight-data:
-  postgres-data:
+  postgres-data: # This ensures your data is NOT lost on build
 
 networks:
   notification-network:
