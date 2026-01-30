@@ -87,11 +87,16 @@ class AfromessageSMSProvider(IProviderService):
         requestObject: NotificationRequest,
         tenantConfig: TenantSMSConfiguration,
         messageToSend: str,
-        templateId: UUID
+        templateId: UUID,
+        saveToOutbox: bool = True
     ) -> NotificationResponse:
         """
         Send SMS via Afromessage API.
         Loads configuration from database (tenantConfig.config) instead of environment variables.
+        
+        Args:
+            saveToOutbox: If True, save failed messages to outbox for retry (fire-and-forget mode).
+                         If False, just return failure (immediate mode, caller handles retry).
         """
         try:
             # Load configuration from database (tenantConfig.config)
@@ -157,7 +162,7 @@ class AfromessageSMSProvider(IProviderService):
                             recipientNumber=address,
                             messageContent=messageToSend,
                             templateId=templateId,
-                            status=NotificationStatus.SENT.value,
+                            status=NotificationStatus.SENT,
                             idempotencyKey=requestObject.idempotencyKey,
                             createdAt=datetime.utcnow(),
                             updatedAt=datetime.utcnow()
@@ -166,7 +171,7 @@ class AfromessageSMSProvider(IProviderService):
                         await self.uow.commit()
                         notifcationResponse = NotifiationResponsePerRecipient(
                             notificationId=str(smsNotification.id),
-                            status=NotificationStatus.SENT.value,
+                            status=NotificationStatus.SENT,
                             recipient=address,
                             createdAt=smsNotification.createdAt,
                             success=True,
@@ -175,6 +180,45 @@ class AfromessageSMSProvider(IProviderService):
                         isAllSent = True
                         notificationResponsePerRecipient.append(notifcationResponse)
                     else:
+                        # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
+                        if saveToOutbox:
+                            smsOutBox = SMSOutbox(
+                                id=uuid.uuid4(),
+                                recipientNumber=address,
+                                messageContent=messageToSend,
+                                idempotencyKey=requestObject.idempotencyKey,
+                                templateId=templateId,
+                                retryCount=0,
+                                status="failed",
+                                createdAt=datetime.utcnow(),
+                                updatedAt=datetime.utcnow()
+                            )
+                            await self.uow.smsOutboxes.add(smsOutBox)
+                            await self.uow.commit()
+                            notificationResponsePerRecipient.append(NotifiationResponsePerRecipient(
+                                notificationId=str(smsOutBox.id),
+                                status="failed",
+                                recipient=address,
+                                createdAt=smsOutBox.createdAt,
+                                success=False,
+                                errorMessage=response_data.get("error", "Failed to send SMS")
+                            ))
+                        else:
+                            # Immediate mode - just return failure, caller handles retry
+                            notificationResponsePerRecipient.append(NotifiationResponsePerRecipient(
+                                notificationId=None,
+                                status="failed",
+                                recipient=address,
+                                createdAt=datetime.utcnow(),
+                                success=False,
+                                errorMessage=response_data.get("error", "Failed to send SMS")
+                            ))
+                        isAllSent = False
+                    
+                except Exception as exc:
+                    logger.error(f"Error sending SMS to {address} via Afromessage: {exc}", exc_info=True)
+                    # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
+                    if saveToOutbox:
                         smsOutBox = SMSOutbox(
                             id=uuid.uuid4(),
                             recipientNumber=address,
@@ -188,40 +232,24 @@ class AfromessageSMSProvider(IProviderService):
                         )
                         await self.uow.smsOutboxes.add(smsOutBox)
                         await self.uow.commit()
-                        isAllSent = False
                         notificationResponsePerRecipient.append(NotifiationResponsePerRecipient(
                             notificationId=str(smsOutBox.id),
                             status="failed",
                             recipient=address,
                             createdAt=smsOutBox.createdAt,
                             success=False,
-                            errorMessage=response_data.get("error", "Failed to send SMS")
+                            errorMessage=str(exc)
                         ))
-                    
-                except Exception as exc:
-                    logger.error(f"Error sending SMS to {address} via Afromessage: {exc}", exc_info=True)
-                    # Save to outbox for retry
-                    smsOutBox = SMSOutbox(
-                        id=uuid.uuid4(),
-                        recipientNumber=address,
-                        messageContent=messageToSend,
-                        idempotencyKey=requestObject.idempotencyKey,
-                        templateId=templateId,
-                        retryCount=0,
-                        status="failed",
-                        createdAt=datetime.utcnow(),
-                        updatedAt=datetime.utcnow()
-                    )
-                    await self.uow.smsOutboxRepository.add(smsOutBox)
-                    await self.uow.commit()
-                    notificationResponsePerRecipient.append(NotifiationResponsePerRecipient(
-                        notificationId=str(smsOutBox.id),
-                        status="failed",
-                        recipient=address,
-                        createdAt=smsOutBox.createdAt,
-                        success=False,
-                        errorMessage=str(exc)
-                    ))
+                    else:
+                        # Immediate mode - just return failure, caller handles retry
+                        notificationResponsePerRecipient.append(NotifiationResponsePerRecipient(
+                            notificationId=None,
+                            status="failed",
+                            recipient=address,
+                            createdAt=datetime.utcnow(),
+                            success=False,
+                            errorMessage=str(exc)
+                        ))
                     isAllSent = False
             # Return response based on results
             
@@ -239,5 +267,54 @@ class AfromessageSMSProvider(IProviderService):
                 errorMessage=f"Error sending SMS via Afromessage: {str(e)}"
             )
 
-  
-
+    async def send_raw(
+        self,
+        recipient: str,
+        message: str,
+        tenantConfig: TenantSMSConfiguration
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Send a raw SMS message (used for outbox retry).
+        
+        Args:
+            recipient: Phone number to send to
+            message: Already-rendered message content
+            tenantConfig: Tenant SMS configuration with provider credentials
+            
+        Returns:
+            Tuple of (success: bool, error_message: Optional[str])
+        """
+        try:
+            afro_config = AfromessageConfiguration.fromDict(tenantConfig.config)
+            url = f"{afro_config.baseUrl}/send"
+            
+            headers = {
+                "Authorization": f"Bearer {afro_config.apiKey}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "from": afro_config.from_,
+                "sender": afro_config.sender,
+                "to": recipient,
+                "message": message
+            }
+            
+            if afro_config.callbackUrl:
+                payload["callback"] = afro_config.callbackUrl
+            
+            response = await self.client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            response_data = response.json()
+            
+            if response_data.get("status") == "success":
+                logger.info(f"SMS sent successfully to {recipient} via Afromessage (retry)")
+                return (True, None)
+            else:
+                error_msg = response_data.get("error", "Unknown error from Afromessage")
+                logger.error(f"Failed to send SMS to {recipient} via Afromessage: {error_msg}")
+                return (False, error_msg)
+                
+        except Exception as e:
+            logger.error(f"Exception sending SMS to {recipient} via Afromessage: {e}")
+            return (False, str(e))

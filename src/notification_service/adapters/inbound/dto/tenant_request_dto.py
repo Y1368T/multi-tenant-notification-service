@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pydantic import ConfigDict, BaseModel, field_validator
 from uuid import UUID, uuid4
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 import re
 
@@ -16,6 +16,9 @@ class TenantRequestDTO(BaseModel):
     isActive: bool = Field(alias="isActive")
     supportedChannels: list[str] = Field(alias="supportedChannels")
     preferedCommunicationMethod: str = Field(alias="preferedCommunicationMethod")
+    # Callback configuration for fire-and-forget mode
+    callbackUrl: Optional[str] = Field(default=None, alias="callbackUrl", description="Webhook URL for notification status callbacks")
+    callbackHeaders: Optional[Dict[str, str]] = Field(default=None, alias="callbackHeaders", description="Optional HTTP headers for callback authentication")
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,
@@ -25,7 +28,9 @@ class TenantRequestDTO(BaseModel):
                 "prefix": "TENANTA",
                 "isActive": True,
                 "supportedChannels": ["sms", "email"],
-                "preferedCommunicationMethod": "rabbitmq"
+                "preferedCommunicationMethod": "rabbitmq",
+                "callbackUrl": "https://service.internal/webhooks/notification",
+                "callbackHeaders": {"Authorization": "Bearer secret-token"}
             }
         })
     
@@ -92,6 +97,8 @@ class TenantRequestDTO(BaseModel):
             isActive=self.isActive,
             supportedChannels=self.supportedChannels,
             preferedCommunicationMethod=self.preferedCommunicationMethod,
+            callbackUrl=self.callbackUrl,
+            callbackHeaders=self.callbackHeaders,
             createdAt=datetime.utcnow(),
             updatedAt=datetime.utcnow()
         )
@@ -134,6 +141,8 @@ class TenantResponseDTO(BaseModel):
     supportedChannels: list[str] = Field(default_factory=list, alias="supportedChannels")
     preferedCommunicationMethod: Optional[str] = Field(default=None, alias="preferedCommunicationMethod")
     apiKeys: Optional[str] = Field(default=None, alias="apiKeys", description="API key for tenant authentication")
+    callbackUrl: Optional[str] = Field(default=None, alias="callbackUrl", description="Webhook URL for notification status callbacks")
+    callbackHeaders: Optional[Dict[str, str]] = Field(default=None, alias="callbackHeaders", description="HTTP headers for callback authentication")
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
    
     @classmethod
@@ -145,5 +154,7 @@ class TenantResponseDTO(BaseModel):
             isActive=getattr(tenant, "isActive", True),
             supportedChannels=getattr(tenant, "supportedChannels", None) or [],
             preferedCommunicationMethod=getattr(tenant, "preferedCommunicationMethod", None),
-            apiKeys=getattr(tenant, "apiKeys", None) or ""
+            apiKeys=getattr(tenant, "apiKeys", None) or "",
+            callbackUrl=getattr(tenant, "callbackUrl", None),
+            callbackHeaders=getattr(tenant, "callbackHeaders", None)
         )

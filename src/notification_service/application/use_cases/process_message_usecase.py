@@ -13,9 +13,24 @@ class ProcessMessageUseCase:
     def __init__(self, messageRouter:IMessageHandler):
         self.messageRouter = messageRouter
 
-    async def execute(self, channel, tenant:str, message:NotificationRequest) -> NotificationResponse:
-        """Process the incoming message"""
-        logger.info(f"Processing message: {message}")
+    async def execute(
+        self, 
+        channel, 
+        tenant: str, 
+        message: NotificationRequest,
+        isImmediateMode: bool = False
+    ) -> NotificationResponse:
+        """
+        Process the incoming message.
+        
+        Args:
+            channel: Notification channel (SMS, EMAIL, INAPP)
+            tenant: Tenant prefix
+            message: Notification request
+            isImmediateMode: If True, caller expects immediate response and handles retry.
+                           If False, failed messages go to outbox for automatic retry.
+        """
+        logger.info(f"Processing message in {'immediate' if isImmediateMode else 'fire-and-forget'} mode: {message}")
         
         validated = self.validateMessage(message, channel)
         if not validated.get("success", False):
@@ -25,7 +40,7 @@ class ProcessMessageUseCase:
                 success=False,
                 errorMessage=error_msg
             )
-        return await self.messageRouter.doRoute(channel, tenant, message)
+        return await self.messageRouter.doRoute(channel, tenant, message, isImmediateMode=isImmediateMode)
     
     
     def validateMessage(self, message:NotificationRequest, channel:str) -> dict:

@@ -1,16 +1,16 @@
 # ===========================================
-# LOCAL ENVIRONMENT DOCKER COMPOSE
+# PRODUCTION ENVIRONMENT DOCKER COMPOSE
 # ===========================================
-# Usage: docker-compose -f docker-compose.local.yml up -d
+# Usage: docker-compose -f docker-compose.production.yml up -d
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15.4-alpine
     container_name: notification-postgres
     env_file:
-      - .env.local
+      - .env.production
     ports:
-      - "${POSTGRES_EXTERNAL_PORT:-5437}:5432"
+      - "${POSTGRES_EXTERNAL_PORT:-5433}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -26,7 +26,7 @@ services:
     image: rabbitmq:3-management
     container_name: notification-rabbitmq
     env_file:
-      - .env.local
+      - .env.production
     ports:
       - "5672:5672"    # AMQP port
       - "15672:15672"  # Management UI
@@ -43,15 +43,15 @@ services:
     restart: unless-stopped
     command: >
       bash -c "rabbitmq-plugins enable rabbitmq_mqtt rabbitmq_web_mqtt &&
-               rabbitmq-server"
+              rabbitmq-server"
 
   redis:
     image: redis:7-alpine
     container_name: notification-redis
     env_file:
-      - .env.local
+      - .env.production
     ports:
-      - "${REDIS_EXTERNAL_PORT:-6380}:6379"
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -65,7 +65,7 @@ services:
     image: redis/redisinsight:latest
     container_name: notification-redis-insight
     env_file:
-      - .env.local
+      - .env.production
     ports:
       - "8001:8001"
     volumes:
@@ -81,7 +81,7 @@ services:
     image: rediscommander/redis-commander:latest
     container_name: notification-redis-commander
     env_file:
-      - .env.local
+      - .env.production
     ports:
       - "8082:8081"
     depends_on:
@@ -95,9 +95,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: notification-service
+    container_name: multi-tenant-notification-service
     env_file:
-      - .env.local
+      - .env.production
     ports:
       - "${PORT:-8000}:8000"
     command: >

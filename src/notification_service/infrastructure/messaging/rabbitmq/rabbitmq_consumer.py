@@ -10,6 +10,7 @@ from aio_pika import Message, DeliveryMode, ExchangeType
 from aio_pika.abc import AbstractRobustConnection, AbstractChannel, AbstractQueue, AbstractIncomingMessage
 from notification_service.infrastructure.persistence.mappers.tenant_mapper import TenantMapper
 from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.value_objects.notification_types import NotificationChannel
 from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
 from notification_service.config.settings import Settings
@@ -224,73 +225,212 @@ class RabbitMQConsumer(IMessageConsumer):
         
         return handler
     
+    def _is_rpc_mode(self, message: AbstractIncomingMessage) -> bool:
+        """
+        Check if message expects RPC response (immediate mode).
+        
+        RPC mode is detected when message has both reply_to and correlation_id.
+        """
+        return bool(message.reply_to and message.correlation_id)
+    
+    async def _send_rpc_response(
+        self, 
+        original_message: AbstractIncomingMessage, 
+        response: NotificationResponse
+    ) -> None:
+        """
+        Send RPC response to caller's reply_to queue.
+        
+        Args:
+            original_message: The incoming message with reply_to and correlation_id
+            response: NotificationResponse to send back
+        """
+        if not original_message.reply_to or not original_message.correlation_id:
+            logger.warning("Cannot send RPC response: missing reply_to or correlation_id")
+            return
+        
+        if not self._channel:
+            logger.error("Cannot send RPC response: channel not initialized")
+            return
+        
+        try:
+            # Convert response to dict for JSON serialization
+            response_dict = {
+                "success": response.success,
+                "message": response.message,
+                "errorMessage": response.errorMessage,
+                "status": response.status,
+                "notificationId": response.notificationId,
+                "channel": response.channel,
+                "tenantId": response.tenantId
+            }
+            
+            # Include recipient responses if available
+            if response.recipientResponse:
+                if isinstance(response.recipientResponse, list):
+                    response_dict["recipientResponse"] = [
+                        {
+                            "notificationId": r.notificationId,
+                            "status": r.status,
+                            "recipient": r.recipient,
+                            "success": r.success,
+                            "message": r.message,
+                            "errorMessage": r.errorMessage
+                        } for r in response.recipientResponse
+                    ]
+                else:
+                    r = response.recipientResponse
+                    response_dict["recipientResponse"] = {
+                        "notificationId": r.notificationId,
+                        "status": r.status,
+                        "recipient": r.recipient,
+                        "success": r.success,
+                        "message": r.message,
+                        "errorMessage": r.errorMessage
+                    }
+            
+            response_message = Message(
+                body=json.dumps(response_dict).encode(),
+                correlation_id=original_message.correlation_id,
+                content_type="application/json"
+            )
+            
+            await self._channel.default_exchange.publish(
+                response_message,
+                routing_key=original_message.reply_to
+            )
+            
+            logger.info(
+                f"RPC response sent to {original_message.reply_to}: "
+                f"correlation_id={original_message.correlation_id}, success={response.success}"
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to send RPC response: {e}", exc_info=True)
+    
     async def handleEmailMessage(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming email notification message."""
+        response = None
         try:
-                # Parse message body
-                payload = json.loads(message.body.decode())
-                queue_name = message.routing_key
-                
-                queue_parts = queue_name.split('.')
-                if len(queue_parts) != 3 or queue_parts[0] != "notification":
-                    raise ValueError(f"Invalid queue name format: {queue_name}")
-                tenant_prefix = queue_parts[2]
-                
-                
-                # Convert to domain value object
-                notification_request = NotificationRequest.fromDict(payload)
-                
-                # Call use case to process notification
-                await self.processMessageUseCase.execute(NotificationChannel.EMAIL, tenant_prefix, notification_request)
-                
-                logger.info(f"Successfully processed email notification")
-                
+            # Parse message body
+            payload = json.loads(message.body.decode())
+            queue_name = message.routing_key
+            
+            queue_parts = queue_name.split('.')
+            if len(queue_parts) != 3 or queue_parts[0] != "notification":
+                raise ValueError(f"Invalid queue name format: {queue_name}")
+            tenant_prefix = queue_parts[2]
+            
+            # Detect processing mode
+            is_immediate_mode = self._is_rpc_mode(message)
+            logger.info(f"Processing email notification in {'immediate' if is_immediate_mode else 'fire-and-forget'} mode")
+            
+            # Convert to domain value object
+            notification_request = NotificationRequest.fromDict(payload)
+            
+            # Call use case to process notification with mode flag
+            response = await self.processMessageUseCase.execute(
+                NotificationChannel.EMAIL, 
+                tenant_prefix, 
+                notification_request,
+                isImmediateMode=is_immediate_mode
+            )
+            
+            logger.info(f"Successfully processed email notification")
+            
         except Exception as e:
-                logger.error(f"Error processing email message: {e}")
-                raise  # Will be requeued
+            logger.error(f"Error processing email message: {e}")
+            # Create error response for RPC mode
+            response = NotificationResponse(
+                success=False,
+                errorMessage=str(e),
+                message="Failed to process notification"
+            )
+            raise  # Will be requeued
+        finally:
+            # Send RPC response if in immediate mode
+            if self._is_rpc_mode(message) and response:
+                await self._send_rpc_response(message, response)
     
     async def handleSmsMessage(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming SMS notification message."""
+        response = None
         try:
-                payload = json.loads(message.body.decode())
-                
-                logger.info(f"Received SMS notification: {payload}")
-                
-                notification_request = NotificationRequest.fromDict(payload)
-                queue_name = message.routing_key
-                
-                queue_parts = queue_name.split('.')
-                if len(queue_parts) != 3 or queue_parts[0] != "notification":
-                    raise ValueError(f"Invalid queue name format: {queue_name}")
-                tenant_prefix = queue_parts[2]
-                await self.processMessageUseCase.execute(NotificationChannel.SMS, tenant_prefix, notification_request)
+            payload = json.loads(message.body.decode())
+            
+            logger.info(f"Received SMS notification: {payload}")
+            
+            notification_request = NotificationRequest.fromDict(payload)
+            queue_name = message.routing_key
+            
+            queue_parts = queue_name.split('.')
+            if len(queue_parts) != 3 or queue_parts[0] != "notification":
+                raise ValueError(f"Invalid queue name format: {queue_name}")
+            tenant_prefix = queue_parts[2]
+            
+            # Detect processing mode
+            is_immediate_mode = self._is_rpc_mode(message)
+            logger.info(f"Processing SMS notification in {'immediate' if is_immediate_mode else 'fire-and-forget'} mode")
+            
+            response = await self.processMessageUseCase.execute(
+                NotificationChannel.SMS, 
+                tenant_prefix, 
+                notification_request,
+                isImmediateMode=is_immediate_mode
+            )
 
-                logger.info(f"Successfully processed SMS notification")
+            logger.info(f"Successfully processed SMS notification")
                 
         except Exception as e:
-                logger.error(f"Error processing SMS message: {e}")
-                raise
+            logger.error(f"Error processing SMS message: {e}")
+            response = NotificationResponse(
+                success=False,
+                errorMessage=str(e),
+                message="Failed to process notification"
+            )
+            raise
+        finally:
+            if self._is_rpc_mode(message) and response:
+                await self._send_rpc_response(message, response)
     
     async def handleInAppMessage(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming in-app notification message."""
+        response = None
         try:
-                payload = json.loads(message.body.decode())
-                
-                logger.info(f"Received in-app notification: {payload}")
-                
-                notification_request = NotificationRequest.fromDict(payload)
-                queue_name = message.routing_key
-                
-                queue_parts = queue_name.split('.')
-                if len(queue_parts) != 3 or queue_parts[0] != "notification":
-                    raise ValueError(f"Invalid queue name format: {queue_name}")
-                tenant_prefix = queue_parts[2]
+            payload = json.loads(message.body.decode())
+            
+            logger.info(f"Received in-app notification: {payload}")
+            
+            notification_request = NotificationRequest.fromDict(payload)
+            queue_name = message.routing_key
+            
+            queue_parts = queue_name.split('.')
+            if len(queue_parts) != 3 or queue_parts[0] != "notification":
+                raise ValueError(f"Invalid queue name format: {queue_name}")
+            tenant_prefix = queue_parts[2]
+            
+            # Detect processing mode
+            is_immediate_mode = self._is_rpc_mode(message)
+            logger.info(f"Processing in-app notification in {'immediate' if is_immediate_mode else 'fire-and-forget'} mode")
 
-                await self.processMessageUseCase.execute(NotificationChannel.INAPP, tenant_prefix, notification_request)
+            response = await self.processMessageUseCase.execute(
+                NotificationChannel.INAPP, 
+                tenant_prefix, 
+                notification_request,
+                isImmediateMode=is_immediate_mode
+            )
 
-                logger.info(f"Successfully processed in-app notification")
+            logger.info(f"Successfully processed in-app notification")
                 
         except Exception as e:
-                logger.error(f"Error processing in-app message: {e}")
-                raise
+            logger.error(f"Error processing in-app message: {e}")
+            response = NotificationResponse(
+                success=False,
+                errorMessage=str(e),
+                message="Failed to process notification"
+            )
+            raise
+        finally:
+            if self._is_rpc_mode(message) and response:
+                await self._send_rpc_response(message, response)
     

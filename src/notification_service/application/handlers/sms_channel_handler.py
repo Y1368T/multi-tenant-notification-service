@@ -40,9 +40,14 @@ class SMSChannelHandler(IChannelHandler):
             SMSProvider.JASMIN: jasmin_service,
         }
         
-    async def receiveMessage(self, tenantPrefix: str, message: NotificationRequest) -> NotificationResponse:
+    async def receiveMessage(
+        self, 
+        tenantPrefix: str, 
+        message: NotificationRequest,
+        isImmediateMode: bool = False
+    ) -> NotificationResponse:
         """Receive a message from the message router."""
-        logger.info(f"Receiving SMS message for tenant {tenantPrefix} with template {message.templateName}")
+        logger.info(f"Receiving SMS message for tenant {tenantPrefix} with template {message.templateName} (immediate={isImmediateMode})")
         # Implementation for receiving SMS message
         tenantdb: Tenant = None
         async with self.unitofWork:
@@ -109,7 +114,7 @@ class SMSChannelHandler(IChannelHandler):
         if templateText is None or templateText.strip() == "":
             logger.error(f"Template text not found for tenant {tenantdb.id} and language {language}")
             return NotificationResponse(success=False, errorMessage=f"Template text not found for tenant {tenantdb.name} and language {language}")
-        return await self.routeToProvider(message, tenantdb, tenantConfig, template.id, templateText)
+        return await self.routeToProvider(message, tenantdb, tenantConfig, template.id, templateText, isImmediateMode)
 
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantSMSConfiguration]:
         """Load the SMS channel configuration for a given tenant."""
@@ -177,13 +182,14 @@ class SMSChannelHandler(IChannelHandler):
         request: NotificationRequest,
         tenant: Tenant,
         configs: list[TenantSMSConfiguration],
-        templateId:UUID,
-        templateText: str
+        templateId: UUID,
+        templateText: str,
+        isImmediateMode: bool = False
     ) -> NotificationResponse:
         """Route SMS notification to the appropriate provider for delivery."""
         # Implementation for routing to SMS provider
         
-        logger.info(f"Routing SMS notification for tenant {tenant.name} to provider")
+        logger.info(f"Routing SMS notification for tenant {tenant.name} to provider (immediate={isImmediateMode})")
         config = configs[0]
         if request.metadata and request.metadata.get("shortcode"):
             config = next((c for c in configs if (c.config.get("shortcode") or "").lower() == (request.metadata.get("shortcode") or "").lower()), None)
@@ -208,7 +214,7 @@ class SMSChannelHandler(IChannelHandler):
                 
                 message_body= templateText.format(**request.payload)
                 response = await self.__handlers[SMSProvider.AFROMESSAGE].send(
-                    request, config, message_body, templateId
+                    request, config, message_body, templateId, saveToOutbox=not isImmediateMode
                 )
                 return response
             case SMSProvider.KIFIYA.value:
@@ -218,14 +224,14 @@ class SMSChannelHandler(IChannelHandler):
                 
                 message_body= templateText.format(**request.payload)
                 response = await self.__handlers[SMSProvider.KIFIYA].send(
-                    request, config, message_body, templateId
+                    request, config, message_body, templateId, saveToOutbox=not isImmediateMode
                 )
                 return response
             case SMSProvider.JASMIN.value:
                 # Jasmin SMS provider (HTTP or SMPP based on tenant configuration)
                 message_body = templateText.format(**request.payload)
                 response = await self.__handlers[SMSProvider.JASMIN].send(
-                    request, config, message_body, templateId
+                    request, config, message_body, templateId, saveToOutbox=not isImmediateMode
                 )
                 return response
             case _:

@@ -32,16 +32,31 @@ class MessageRouter(IMessageHandler):
             # NotificationChannel.WHATSAPP: whatsappHandler,
         }
 
-    async def doRoute(self,  channel: NotificationChannel, tenant:str, message: NotificationRequest) -> NotificationResponse:
-        """Route message to appropriate channel handler."""
-        logger.info(f'Routing message to {channel.value} channel')
+    async def doRoute(
+        self, 
+        channel: NotificationChannel, 
+        tenant: str, 
+        message: NotificationRequest,
+        isImmediateMode: bool = False
+    ) -> NotificationResponse:
+        """
+        Route message to appropriate channel handler.
+        
+        Args:
+            channel: Notification channel (SMS, EMAIL, INAPP)
+            tenant: Tenant prefix
+            message: Notification request
+            isImmediateMode: If True, caller expects immediate response and handles retry.
+                           If False, failed messages go to outbox for automatic retry.
+        """
+        logger.info(f'Routing message to {channel.value} channel in {"immediate" if isImmediateMode else "fire-and-forget"} mode')
         
         handler = self._handlers.get(channel)
         if not handler:
             raise MessageRoutingError(channel.value, f'No handler configured for channel: {channel.value}')
         
         try:
-           return await handler.receiveMessage(tenant, message)
+           return await handler.receiveMessage(tenant, message, isImmediateMode=isImmediateMode)
         except Exception as e:
             logger.error(f'Failed to route to {channel.value}: {str(e)}', exc_info=True)
             raise MessageRoutingError(channel.value, f'Routing failed: {str(e)}') from e

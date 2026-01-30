@@ -12,7 +12,8 @@ import uuid
 @dataclass(frozen=True)
 class Recipient:
     """Individual recipient information."""
-    address: str  # e.g., phone number or email
+    address: str  # e.g., phone number, email, or Firebase token
+    externalId: Optional[str] = None  # User ID in tenant's system for notification retrieval
 
 
 @dataclass(frozen=True)
@@ -34,8 +35,9 @@ class NotificationRequest:
         "templateName": "account_balance",
         "payload": {"balance": "1000.00", "currency": "ETB"},
         "idempotencyKey": "unique-transaction-id-12345",
-        "lang": "en"  # Optional, defaults to "en",
-        
+        "lang": "en",  # Optional, defaults to "en"
+        "callbackUrl": "https://service.internal/webhook",  # Optional, for immediate mode
+        "callbackHeaders": {"Authorization": "Bearer token"}  # Optional
     }
     """
     serviceName: str  # service identifier (e.g., "payment-service")
@@ -44,7 +46,10 @@ class NotificationRequest:
     payload: Dict[str, Any]  # Template variables
     idempotencyKey: str = field(default_factory=lambda: str(uuid.uuid4()))
     lang: Optional[str] = None  # Optional, defaults to "en"
-    metadata:Optional[Dict[str, Any]] = field(default_factory=dict)
+    metadata: Optional[Dict[str, Any]] = field(default_factory=dict)
+    # Callback for immediate mode (per-request, optional)
+    callbackUrl: Optional[str] = None  # Webhook URL for status notification
+    callbackHeaders: Optional[Dict[str, str]] = None  # Optional auth headers for callback
     
     def __post_init__(self):
         """Validate request."""
@@ -62,7 +67,13 @@ class NotificationRequest:
     @classmethod
     def fromDict(cls, data: Dict[str, Any]) -> "NotificationRequest":
         """Create NotificationRequest from dictionary."""
-        recipients = [Recipient(**rec) for rec in data.get("recipients", [])]
+        recipients = [
+            Recipient(
+                address=rec.get("address"),
+                externalId=rec.get("externalId") or rec.get("external_id")
+            ) 
+            for rec in data.get("recipients", [])
+        ]
         return cls(
             serviceName=data.get("serviceName") or data.get("service_name"),
             recipients=recipients,
@@ -70,16 +81,27 @@ class NotificationRequest:
             payload=data["payload"],
             idempotencyKey=data.get("idempotencyKey") or data.get("idempotency_key", str(uuid.uuid4())),
             lang=data.get("lang", "en"),
-            metadata=data.get("metadata", {})
+            metadata=data.get("metadata", {}),
+            callbackUrl=data.get("callbackUrl") or data.get("callback_url"),
+            callbackHeaders=data.get("callbackHeaders") or data.get("callback_headers")
         )
+    
     def toDict(self) -> Dict[str, Any]:
         """Convert NotificationRequest to dictionary."""
-        return {
+        result = {
             "serviceName": self.serviceName,
-            "recipients": [vars(recipient) for recipient in self.recipients],
+            "recipients": [
+                {"address": r.address, "externalId": r.externalId} 
+                for r in self.recipients
+            ],
             "templateName": self.templateName,
             "payload": self.payload,
             "idempotencyKey": self.idempotencyKey,
             "lang": self.lang,
             "metadata": self.metadata
         }
+        if self.callbackUrl:
+            result["callbackUrl"] = self.callbackUrl
+        if self.callbackHeaders:
+            result["callbackHeaders"] = self.callbackHeaders
+        return result

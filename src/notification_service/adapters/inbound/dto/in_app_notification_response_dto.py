@@ -15,6 +15,8 @@ class InAppNotificationResponseDTO(BaseModel):
     recipientUserId: str = Field(alias="recipientUserId")
     messageContent: str = Field(alias="messageContent")
     status: str
+    isRead: bool = Field(default=False, alias="isRead")
+    externalId: Optional[str] = Field(default=None, alias="externalId")
     idempotencyKey: Optional[str] = Field(default=None, alias="idempotencyKey")
     templateId: Optional[UUID] = Field(default=None, alias="templateId")
     createdAt: datetime = Field(alias="createdAt")
@@ -48,6 +50,8 @@ class InAppNotificationResponseDTO(BaseModel):
             recipientUserId=notification.recipientUserId,
             messageContent=notification.messageContent,
             status=notification.status,
+            isRead=notification.isRead if hasattr(notification, 'isRead') else False,
+            externalId=notification.externalId if hasattr(notification, 'externalId') else None,
             idempotencyKey=notification.idempotencyKey,
             templateId=notification.templateId,
             createdAt=notification.createdAt,
