@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Boolean,Integer
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from ..base import BaseModel
-from sqlalchemy.dialects.postgresql import ARRAY
 
 class TenantModel(BaseModel):
     __tablename__ = "tenants"
@@ -15,6 +15,9 @@ class TenantModel(BaseModel):
     rateLimitPerMinute = Column(Integer, name="rateLimitPerMinute", default=60)
     rateLimitPerHour = Column(Integer, name="rateLimitPerHour", default=1000)
     rateLimitPerDay = Column(Integer, name="rateLimitPerDay", default=10000)
+    # Callback configuration for fire-and-forget mode
+    callbackUrl = Column(String, name="callbackUrl", nullable=True)  # Webhook URL for notification status
+    callbackHeaders = Column(JSON, name="callbackHeaders", nullable=True)  # Optional auth headers
     
     emailConfigurations = relationship("TenantEmailConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
     smsConfigurations = relationship("TenantSMSConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")

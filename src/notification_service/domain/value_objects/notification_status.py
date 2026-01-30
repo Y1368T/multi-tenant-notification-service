@@ -5,3 +5,4 @@ class NotificationStatus:
     FAILED = "failed"
     DELIVERED = "delivered"
     READ = "read"
+    PERMANENTLY_FAILED = "permanently_failed"  # After max retries exceeded

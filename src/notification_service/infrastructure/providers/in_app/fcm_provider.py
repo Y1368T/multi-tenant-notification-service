@@ -120,7 +120,8 @@ class FCMProvider(IProviderService):
         requestObject: NotificationRequest,
         tenantConfig: Any,  # TenantInAppConfiguration
         messageToSend: Dict[str, Any],  # FCM message payload
-        templateId: UUID
+        templateId: UUID,
+        saveToOutbox: bool = True
     ) -> NotificationResponse:
         """
         Send in-app notification via FCM.
@@ -130,6 +131,8 @@ class FCMProvider(IProviderService):
             tenantConfig: Tenant in-app configuration
             messageToSend: FCM message payload (dict with title, body, data, etc.)
             templateId: Template ID
+            saveToOutbox: If True, save failed messages to outbox for retry (fire-and-forget mode).
+                         If False, just return failure (immediate mode, caller handles retry).
             
         Returns:
             NotificationResponse with success status
@@ -231,6 +234,8 @@ class FCMProvider(IProviderService):
                     recipientUserId=recipient.address,
                     messageContent=json.dumps(messageToSend) if isinstance(messageToSend, dict) else str(messageToSend),
                     status=NotificationStatus.SENT,
+                    isRead=False,
+                    externalId=recipient.externalId,  # User ID in tenant's system for retrieval
                     idempotencyKey=requestObject.idempotencyKey,
                     templateId=templateId
                 )
@@ -247,7 +252,7 @@ class FCMProvider(IProviderService):
                     message="In-app notification sent successfully",
                     recipientResponse=NotifiationResponsePerRecipient(
                         notificationId=str(result.id),
-                        status=NotificationStatus.SENT.value,
+                        status=NotificationStatus.SENT,
                         recipient=recipient.address,
                         createdAt=in_app_notification.createdAt,
                         success=True,
@@ -259,38 +264,57 @@ class FCMProvider(IProviderService):
             except FirebaseError as e:
                 error_message = f"Firebase error: {str(e)}"
                 logger.error(f"Failed to send FCM notification to {recipient.address}: {error_message}")
-                inAppOutbox=InAppOutbox(
-                    id=uuid.uuid4(),
-                    recipientUserId=recipient.address,
-                    messageContent=json.dumps(messageToSend) if isinstance(messageToSend, dict) else str
-                    (messageToSend),
-                    idempotencyKey=requestObject.idempotencyKey,
-                    templateId=templateId,
-                    retryCount=0,
-                    status=NotificationStatus.FAILED.value,
-                    lastRetryAt=datetime.utcnow(),
-                    nextRetryAt=datetime.utcnow()+ timedelta(minutes=5),
-                    createdAt=datetime.utcnow(),
-                    updatedAt=datetime.utcnow(),
-                    lastErrorMessage=error_message,
-                    
-                )
-                await self.uow.inAppOutboxRepository.add(inAppOutbox)
-                await self.uow.commit()
-                return NotificationResponse(
-                    success=False,
-                    errorMessage=f"Failed to send notification: {error_message}",
-                    status=NotificationStatus.FAILED.value,
-                    recipientResponse=NotifiationResponsePerRecipient(
-                        notificationId=str(inAppOutbox.id),
-                        status=NotificationStatus.FAILED.value,
-                        recipient=recipient.address,
-                        createdAt=inAppOutbox.createdAt,
+                
+                # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
+                if saveToOutbox:
+                    inAppOutbox=InAppOutbox(
+                        id=uuid.uuid4(),
+                        recipientUserId=recipient.address,
+                        messageContent=json.dumps(messageToSend) if isinstance(messageToSend, dict) else str
+                        (messageToSend),
+                        idempotencyKey=requestObject.idempotencyKey,
+                        templateId=templateId,
+                        retryCount=0,
+                        status=NotificationStatus.FAILED,
+                        lastRetryAt=datetime.utcnow(),
+                        nextRetryAt=datetime.utcnow()+ timedelta(minutes=5),
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow(),
+                        lastErrorMessage=error_message,
+                        
+                    )
+                    await self.uow.inAppOutboxRepository.add(inAppOutbox)
+                    await self.uow.commit()
+                    return NotificationResponse(
                         success=False,
-                        message="Saved to outbox for retrying later",
-                        errorMessage=error_message,
-                    ),
-                )
+                        errorMessage=f"Failed to send notification: {error_message}",
+                        status=NotificationStatus.FAILED,
+                        recipientResponse=NotifiationResponsePerRecipient(
+                            notificationId=str(inAppOutbox.id),
+                            status=NotificationStatus.FAILED,
+                            recipient=recipient.address,
+                            createdAt=inAppOutbox.createdAt,
+                            success=False,
+                            message="Saved to outbox for retrying later",
+                            errorMessage=error_message,
+                        ),
+                    )
+                else:
+                    # Immediate mode - just return failure, caller handles retry
+                    return NotificationResponse(
+                        success=False,
+                        errorMessage=f"Failed to send notification: {error_message}",
+                        status=NotificationStatus.FAILED,
+                        recipientResponse=NotifiationResponsePerRecipient(
+                            notificationId=None,
+                            status=NotificationStatus.FAILED,
+                            recipient=recipient.address,
+                            createdAt=datetime.utcnow(),
+                            success=False,
+                            message="Failed to send notification",
+                            errorMessage=error_message,
+                        ),
+                    )
             except Exception as e:
                 logger.error(f"Exception sending FCM notification to {recipient.address}: {e}", exc_info=True)
                 return NotificationResponse(
@@ -367,4 +391,65 @@ class FCMProvider(IProviderService):
                 except Exception as cleanup_error:
                     logger.warning(f"Failed to cleanup test Firebase app: {cleanup_error}")
     
-    
+    async def send_raw(
+        self,
+        recipient: str,
+        messageContent: Dict[str, Any],
+        tenantConfig: Any  # TenantInAppConfiguration
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Send a raw in-app notification (used for outbox retry).
+        
+        Args:
+            recipient: Device token to send to
+            messageContent: FCM message payload (dict with title, body, data, etc.)
+            tenantConfig: Tenant in-app configuration with FCM credentials
+            
+        Returns:
+            Tuple of (success: bool, error_message: Optional[str])
+        """
+        try:
+            # Parse message content if it's a string (from outbox storage)
+            if isinstance(messageContent, str):
+                try:
+                    messageContent = json.loads(messageContent)
+                except json.JSONDecodeError:
+                    messageContent = {"title": "Notification", "body": messageContent}
+            
+            fcm_config = FCMConfig.fromDict(tenantConfig.config)
+            app = self._get_firebase_app(fcm_config)
+            
+            # Convert data to FCM-compatible format (all values must be strings)
+            fcm_data = {}
+            if messageContent.get("data"):
+                data_dict = messageContent["data"]
+                for key, value in data_dict.items():
+                    if value is None:
+                        fcm_data[str(key)] = ""
+                    elif isinstance(value, (dict, list)):
+                        fcm_data[str(key)] = json.dumps(value)
+                    else:
+                        fcm_data[str(key)] = str(value)
+            
+            # Build FCM message
+            fcm_message = messaging.Message(
+                notification=messaging.Notification(
+                    title=messageContent.get("title", "Notification"),
+                    body=messageContent.get("body", "")
+                ),
+                data=fcm_data if fcm_data else None,
+                token=recipient
+            )
+            
+            # Send message
+            response = messaging.send(fcm_message)
+            logger.info(f"FCM message sent successfully to {recipient} (retry). Message ID: {response}")
+            return (True, None)
+            
+        except FirebaseError as e:
+            error_msg = f"Firebase error: {str(e)}"
+            logger.error(f"Failed to send FCM notification to {recipient} (retry): {error_msg}")
+            return (False, error_msg)
+        except Exception as e:
+            logger.error(f"Exception sending FCM notification to {recipient} (retry): {e}")
+            return (False, str(e))

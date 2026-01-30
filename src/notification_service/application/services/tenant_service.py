@@ -110,6 +110,9 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         Returns:
             Created Tenant entity with generated ID and API key
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Generate API key if not provided
         if not tenant.apiKeys or tenant.apiKeys.strip() == "":
             tenant.apiKeys = generate_api_key()
@@ -119,11 +122,23 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         
         # Add custom RabbitMQ queue setup logic
         if(createdTenant.preferedCommunicationMethod == "rabbitmq" and createdTenant.isActive and createdTenant.supportedChannels and self.rabbitmqConsumer):
-            # Additional logic for rabbitmq preferred communication method can be added here
-            for channel in createdTenant.supportedChannels:
-                queueName = f"notification.{channel}.{createdTenant.prefix}"
-                # Here you might want to initialize or configure the queue for the tenant
-                await self.rabbitmqConsumer.ensureQueueExistsAndSubscribe(queueName=queueName,channel=channel)
+            # Check if RabbitMQ is connected before attempting to create queues
+            if not self.rabbitmqConsumer.isConnected:
+                logger.warning(
+                    f"RabbitMQ not connected. Queues for tenant '{createdTenant.prefix}' will be created on next app restart. "
+                    f"Channels: {createdTenant.supportedChannels}"
+                )
+            else:
+                # RabbitMQ is connected, create queues for each channel
+                for channel in createdTenant.supportedChannels:
+                    queueName = f"notification.{channel}.{createdTenant.prefix}"
+                    try:
+                        await self.rabbitmqConsumer.ensureQueueExistsAndSubscribe(queueName=queueName, channel=channel)
+                        logger.info(f"Created queue '{queueName}' for tenant '{createdTenant.prefix}'")
+                    except Exception as e:
+                        logger.error(f"Failed to create queue '{queueName}' for tenant '{createdTenant.prefix}': {e}")
+                        # Don't fail tenant creation if queue creation fails
+                        # Queues will be created on next app restart
         
         return createdTenant
     

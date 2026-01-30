@@ -26,9 +26,14 @@ class InAppChannelHandler(IChannelHandler):
         }
         logger.info('InAppChannelHandler initialized')
         
-    async def receiveMessage(self, tenantPrefix: str, message: NotificationRequest) -> NotificationResponse:
+    async def receiveMessage(
+        self, 
+        tenantPrefix: str, 
+        message: NotificationRequest,
+        isImmediateMode: bool = False
+    ) -> NotificationResponse:
         """Receive a message from the message router."""
-        logger.info(f"Receiving in-app message for tenant {tenantPrefix} with template {message.templateName}")
+        logger.info(f"Receiving in-app message for tenant {tenantPrefix} with template {message.templateName} (immediate={isImmediateMode})")
         
         tenantdb: Tenant = None
         async with self.unitofWork:
@@ -72,7 +77,7 @@ class InAppChannelHandler(IChannelHandler):
         
         # Build FCM message from template
         template_body = template.body.get(language, template.body.get("en", {}))
-        return await self.routeToProvider(message, tenantdb, tenantConfig, template.id, template_body)
+        return await self.routeToProvider(message, tenantdb, tenantConfig, template.id, template_body, isImmediateMode)
 
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantInAppConfiguration]:
         """Load the in-app channel configuration for a given tenant."""
@@ -112,10 +117,11 @@ class InAppChannelHandler(IChannelHandler):
         tenant: Tenant,
         configs: list[TenantInAppConfiguration],
         templateId: UUID,
-        templateBody: Dict[str, Any]
+        templateBody: Dict[str, Any],
+        isImmediateMode: bool = False
     ) -> NotificationResponse:
         """Route in-app notification to the appropriate provider for delivery."""
-        logger.info(f"Routing in-app notification for tenant {tenant.name} to provider")
+        logger.info(f"Routing in-app notification for tenant {tenant.name} to provider (immediate={isImmediateMode})")
         
         if not configs:
             logger.error(f"No active in-app configuration found for tenant {tenant.id}")
@@ -187,7 +193,8 @@ class InAppChannelHandler(IChannelHandler):
                     request, 
                     config, 
                     fcm_message,
-                    templateId
+                    templateId,
+                    saveToOutbox=not isImmediateMode
                 )
                 return response
             case _:

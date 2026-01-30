@@ -8,6 +8,8 @@ class InAppNotificationFilterDTO(PaginatedRequestDTO):
     """Filter DTO for in-app notification queries with custom filters."""
     status: Optional[str] = Field(None, description="Filter by notification status")
     tenantId: Optional[UUID] = Field(None, description="Filter by tenant ID")
+    externalId: Optional[str] = Field(None, description="Filter by external user ID (user ID in tenant's system)")
+    isRead: Optional[bool] = Field(None, description="Filter by read status")
     
     @field_validator('status')
     @classmethod
@@ -41,4 +43,18 @@ class InAppNotificationFilterDTO(PaginatedRequestDTO):
             return None
         # UUID validation is handled by Pydantic automatically
         return v
+    
+    @field_validator('externalId')
+    @classmethod
+    def validateExternalId(cls, v: Optional[str]) -> Optional[str]:
+        """Validate external ID."""
+        if v is None or v == "":
+            return None
+        # Sanitize external ID value
+        sanitized = validateStringInput(
+            v,
+            fieldName='externalId',
+            maxLength=255
+        )
+        return sanitized
 
