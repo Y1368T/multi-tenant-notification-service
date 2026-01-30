@@ -143,6 +143,7 @@ class SMTPProvider(IProviderService):
         tenantConfig: TenantEmailConfiguration,
         messageToSend: Dict[str, Any],
         templateId: UUID,
+        saveToOutbox: bool = True
     ) -> NotificationResponse:
         """
         Send Email via SMTP.
@@ -153,6 +154,8 @@ class SMTPProvider(IProviderService):
             tenantConfig: Tenant email configuration
             messageToSend: Dictionary containing subject, body, bodyType
             templateId: Template ID for tracking
+            saveToOutbox: If True, save failed messages to outbox for retry (fire-and-forget mode).
+                         If False, just return failure (immediate mode, caller handles retry).
         """
         try:
             # Load configuration from database (tenantConfig.config)
@@ -238,39 +241,52 @@ class SMTPProvider(IProviderService):
                 except Exception as exc:
                     logger.error(f"Error sending email to {address} via SMTP: {exc}", exc_info=True)
 
-                    # Save to outbox for retry
-                    emailOutbox = EmailOutbox(
-                        id=uuid.uuid4(),
-                        recipientEmail=address,
-                        messageContent=messageToSend,
-                        idempotencyKey=requestObject.idempotencyKey,
-                        templateId=templateId,
-                        retryCount=0,
-                        status="failed",
-                        lastErrorMessage=str(exc),
-                        providerAttempted="smtp",
-                        createdAt=datetime.utcnow(),
-                        updatedAt=datetime.utcnow(),
-                    )
-                    try:
-                        async with self.uow:
-                            await self.uow.emailOutbox.add(emailOutbox)
-                    except Exception as save_exc:
-                        logger.error(
-                            f"Failed to save email outbox for {address}: {save_exc}",
-                            exc_info=True,
-                        )
-
-                    notificationResponsePerRecipient.append(
-                        NotifiationResponsePerRecipient(
-                            notificationId=str(emailOutbox.id),
+                    # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
+                    if saveToOutbox:
+                        emailOutbox = EmailOutbox(
+                            id=uuid.uuid4(),
+                            recipientEmail=address,
+                            messageContent=messageToSend,
+                            idempotencyKey=requestObject.idempotencyKey,
+                            templateId=templateId,
+                            retryCount=0,
                             status="failed",
-                            recipient=address,
-                            createdAt=emailOutbox.createdAt,
-                            success=False,
-                            errorMessage=str(exc),
+                            lastErrorMessage=str(exc),
+                            providerAttempted="smtp",
+                            createdAt=datetime.utcnow(),
+                            updatedAt=datetime.utcnow(),
                         )
-                    )
+                        try:
+                            async with self.uow:
+                                await self.uow.emailOutbox.add(emailOutbox)
+                        except Exception as save_exc:
+                            logger.error(
+                                f"Failed to save email outbox for {address}: {save_exc}",
+                                exc_info=True,
+                            )
+
+                        notificationResponsePerRecipient.append(
+                            NotifiationResponsePerRecipient(
+                                notificationId=str(emailOutbox.id),
+                                status="failed",
+                                recipient=address,
+                                createdAt=emailOutbox.createdAt,
+                                success=False,
+                                errorMessage=str(exc),
+                            )
+                        )
+                    else:
+                        # Immediate mode - just return failure, caller handles retry
+                        notificationResponsePerRecipient.append(
+                            NotifiationResponsePerRecipient(
+                                notificationId=None,
+                                status="failed",
+                                recipient=address,
+                                createdAt=datetime.utcnow(),
+                                success=False,
+                                errorMessage=str(exc),
+                            )
+                        )
                     isAllSent = False
 
             return NotificationResponse(
@@ -284,3 +300,56 @@ class SMTPProvider(IProviderService):
             return NotificationResponse(
                 success=False, errorMessage=f"Error sending email via SMTP: {str(e)}"
             )
+
+    async def send_raw(
+        self,
+        recipient: str,
+        messageContent: Dict[str, Any],
+        tenantConfig: TenantEmailConfiguration
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Send a raw email message (used for outbox retry).
+        
+        Args:
+            recipient: Email address to send to
+            messageContent: Dictionary containing subject, body, bodyType
+            tenantConfig: Tenant email configuration with provider credentials
+            
+        Returns:
+            Tuple of (success: bool, error_message: Optional[str])
+        """
+        try:
+            smtp_config = SMTPConfiguration.fromDict(tenantConfig.config)
+            
+            # Create email message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = messageContent.get("subject", "Notification")
+            message["From"] = (
+                f"{smtp_config.fromName} <{smtp_config.fromEmail}>"
+                if smtp_config.fromName
+                else smtp_config.fromEmail
+            )
+            message["To"] = recipient
+            
+            # Get body content
+            body = messageContent.get("body", "")
+            bodyType = messageContent.get("bodyType", "html")
+            
+            # Create message content based on body type
+            if bodyType == "html":
+                import re
+                plain_text = re.sub(r'<[^>]+>', '', body)
+                message.attach(MIMEText(plain_text, "plain"))
+                message.attach(MIMEText(body, "html"))
+            else:
+                message.attach(MIMEText(body, "plain"))
+            
+            # Send the email
+            self._send_email(smtp_config, recipient, message)
+            
+            logger.info(f"Email sent successfully to {recipient} via SMTP (retry)")
+            return (True, None)
+            
+        except Exception as e:
+            logger.error(f"Exception sending email to {recipient} via SMTP: {e}")
+            return (False, str(e))

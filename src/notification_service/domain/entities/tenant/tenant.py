@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Dict, Optional
 from uuid import UUID
 
 
@@ -17,5 +18,8 @@ class Tenant:
     rateLimitPerMinute: int = 60
     rateLimitPerHour: int = 1000
     rateLimitPerDay: int = 10000
+    # Callback configuration for fire-and-forget mode
+    callbackUrl: Optional[str] = None  # Webhook URL for notification status updates
+    callbackHeaders: Optional[Dict[str, str]] = None  # Optional auth headers for callback
     createdAt: datetime = field(default_factory=datetime.utcnow)
     updatedAt: datetime = field(default_factory=datetime.utcnow)

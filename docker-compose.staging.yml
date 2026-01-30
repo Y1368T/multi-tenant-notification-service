@@ -1,0 +1,60 @@
+# ===========================================
+# STAGING ENVIRONMENT DOCKER COMPOSE
+# ===========================================
+# Usage: docker-compose -f docker-compose.staging.yml up -d
+
+services:
+  notification-service:
+    image: ${DOCKER_REGISTRY:-registry.kifiya.et/qena_baas}/multi-tenant-notification-service:${IMAGE_TAG:-staging}
+    container_name: notification-service
+    restart: always
+    env_file:
+      - .env.staging
+    networks:
+      - qena-network
+    ports:
+      - "${PORT:-8000}:8000"
+    command: >
+      sh -c "
+      echo 'Running migrations...';
+      poetry run alembic upgrade head;
+      echo 'Migrations applied. Starting application...';
+      poetry run uvicorn notification_service.main:main --factory --host 0.0.0.0 --port 8000"
+    depends_on: []
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: notification-redis-insight
+    env_file:
+      - .env.staging
+    ports:
+      - "8001:8001"
+    volumes:
+      - redisinsight-data:/data
+    restart: unless-stopped
+    networks:
+      - qena-network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: notification-redis-commander
+    env_file:
+      - .env.staging
+    ports:
+      - "8082:8081"
+    restart: unless-stopped
+    networks:
+      - qena-network
+
+volumes:
+  redisinsight-data:
+
+networks:
+  qena-network:
+    name: qena-network
+    external: true
