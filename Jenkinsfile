@@ -8,9 +8,9 @@ pipeline {
 
     environment {
         DOCKER_IMAGE_PREFIX = 'qena_baas/'
-        PROJECT_NAME = 'multi-tenant-notification-service'
-        TARGET_FOLDER_DEV = '/root/source/containers/multi-tenant-notification-service'
-        GIT_URL = 'https://gitlab.kifiya.et/ifi/bpass/multi-tenant-notification-service.git'
+        PROJECT_NAME = 'multi-tenant-notification-service-frontend'
+        TARGET_FOLDER_DEV = '/root/source/containers/multi-tenant-notification-service-frontend'
+        GIT_URL = 'https://gitlab.kifiya.et/ifi/bpass/multi-tenant-notification-service-frontend.git'
         GIT_CREDENTIALS_ID = 'gitlab-credentials'
         SSH_CRED_ID = 'DEV_SERVER_IP'
         CONTAINER_NAME = 'multi-tenant-notification-service'
@@ -49,7 +49,7 @@ pipeline {
             }
         }
 
-stage('Deploy to Development Server') {
+        stage('Deploy to Development Server') {
             steps {
                 withCredentials([
                     string(credentialsId: 'DEV_SERVER_IP_1', variable: 'DEV_SERVER'),
@@ -68,12 +68,12 @@ stage('Deploy to Development Server') {
                     sh """
                         chmod 400 ${SSH_KEY_PATH}
 
-                        # Copy the compose file
+                        # Copy the compose file to the target server
                         scp -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no \
                           docker-compose.yml \
                           ${SSH_USER}@${DEV_SERVER}:${TARGET_FOLDER_DEV}/docker-compose.yml
 
-                        # SSH into server using Heredoc
+                        # Execute Deployment on Remote Server
                         ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no ${SSH_USER}@${DEV_SERVER} << EOF
                             set -e
                             cd ${TARGET_FOLDER_DEV}
@@ -81,14 +81,12 @@ stage('Deploy to Development Server') {
                             # 1. Login to Registry
                             echo "${DOCKER_PASS}" | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin
                             
-                            # 2. Fix the Conflict
-                            echo 'Clearing existing container conflict...'
-                            docker compose down || true
-                            docker rm -f ${CONTAINER_NAME} || true
-                            
-                            # 3. Deploy
+                            # 2. Pull latest images
                             docker compose pull
-                            docker compose up -d --force-recreate --remove-orphans
+                            
+                            # 3. Deploy (Without -v to preserve data)
+                            # We use up -d which recreates only what changed.
+                            docker compose up -d --remove-orphans
                             
                             # 4. Cleanup
                             docker logout ${DOCKER_REGISTRY}
@@ -105,7 +103,7 @@ EOF
             echo "✅ Successfully deployed ${PROJECT_NAME} to Development Server!"
         }
         failure {
-            echo "❌ Pipeline failed. Please check Jenkins console output for errors."
+            echo "❌ Pipeline failed. Check console output."
         }
         always {
             sh 'docker logout || true'
