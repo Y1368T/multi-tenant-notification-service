@@ -69,7 +69,7 @@ from notification_service.infrastructure.persistence.models.tenant.tenant_email_
 from notification_service.infrastructure.persistence.models.tenant.tenant_sms_configuration import TenantSMSConfigurationModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.tenant.tenant_inapp_configuration import TenantInAppConfigurationModel  # noqa: F401
 # Set sqlalchemy url from settings (use sync URL for Alembic)
-sync_db_url = os.getenv('DATABASE_URL_SYNC') or settings.database_url.replace('+asyncpg', '')
+sync_db_url = os.getenv('DATABASE_URL_SYNC')
 config.set_main_option('sqlalchemy.url', sync_db_url)
 
 # target metadata for 'autogenerate'
