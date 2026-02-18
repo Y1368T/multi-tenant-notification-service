@@ -211,6 +211,70 @@ class RabbitMQConsumer(IMessageConsumer):
             logger.error(f"Error ensuring queue {queueName}: {e}")
             raise
     
+    async def unsubscribeAndDeleteQueue(self, queueName: str) -> bool:
+        """
+        Unsubscribe from a queue and optionally delete it.
+        
+        Args:
+            queueName: Name of the queue to unsubscribe from and delete
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if not self._channel:
+                logger.warning(f"Cannot unsubscribe from {queueName}: channel not initialized")
+                return False
+            
+            # Remove from subscriptions
+            if queueName in self._subscriptions:
+                del self._subscriptions[queueName]
+                logger.info(f"Removed subscription for queue: {queueName}")
+            
+            # Cancel consumer and delete queue if it exists in cache
+            if queueName in self._queues:
+                queue = self._queues[queueName]
+                try:
+                    # Cancel all consumers on this queue
+                    # Note: aio-pika handles consumer cancellation when queue is deleted
+                    await queue.delete(if_unused=False, if_empty=False)
+                    logger.info(f"Deleted queue: {queueName}")
+                except Exception as e:
+                    logger.warning(f"Could not delete queue {queueName}: {e}")
+                
+                del self._queues[queueName]
+            else:
+                # Queue not in cache, try to declare and delete
+                try:
+                    queue = await self._channel.declare_queue(
+                        queueName,
+                        durable=True,
+                        passive=True  # Don't create, just check if exists
+                    )
+                    await queue.delete(if_unused=False, if_empty=False)
+                    logger.info(f"Deleted queue: {queueName}")
+                except Exception as e:
+                    # Queue might not exist, that's OK
+                    logger.info(f"Queue {queueName} does not exist or already deleted: {e}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error unsubscribing from queue {queueName}: {e}")
+            return False
+    
+    async def unsubscribeFromTenantQueues(self, tenantPrefix: str, channels: list) -> None:
+        """
+        Unsubscribe and delete all queues for a tenant.
+        
+        Args:
+            tenantPrefix: The tenant prefix (e.g., "DEMO")
+            channels: List of channels to remove (e.g., ["sms", "email", "inapp"])
+        """
+        for channel in channels:
+            queueName = f"notification.{channel}.{tenantPrefix}"
+            await self.unsubscribeAndDeleteQueue(queueName)
+    
     def getHandlerForChannel(self, channel: str):
         """Get the appropriate message handler for the channel type."""
         handlers = {
