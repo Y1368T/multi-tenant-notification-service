@@ -78,12 +78,9 @@ class InAppNotificationService(BaseService[InAppNotification, InAppNotificationR
             except (ValueError, AttributeError):
                 root_filters['id'] = params.id
         
-        if hasattr(params, 'tenantId') and params.tenantId:
-            try:
-                tenant_id_value = UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
-                root_filters['tenantId'] = tenant_id_value
-            except (ValueError, AttributeError):
-                root_filters['tenantId'] = params.tenantId
+        # Note: tenantId is NOT a direct column on InAppNotification
+        # It's handled via related filters through the template relationship
+        # See _build_related_filters() method
         
         # Extract custom filters
         custom_filters = self._extract_custom_filters(params)
@@ -134,10 +131,11 @@ class InAppNotificationService(BaseService[InAppNotification, InAppNotificationR
                     message="Tenant does not exist"
                 )
             
-            # Determine mode based on whether request has a callbackUrl
-            # If callbackUrl is provided, it's immediate mode (caller handles retries)
-            # If no callbackUrl, it's fire-and-forget mode (outbox handles retries)
-            isImmediateMode = messageData.callbackUrl is not None
+            # REST API is always fire-and-forget mode:
+            # - Failed messages go to outbox for automatic retry
+            # - callbackUrl (if provided) is for async status updates, not mode selection
+            # Immediate mode (isImmediateMode=True) is only for RabbitMQ RPC pattern
+            isImmediateMode = False
             
             response = await self.messageRouter.doRoute(
                 NotificationChannel.INAPP, 

@@ -2,6 +2,8 @@ from sqlalchemy import Column, String, UUID, ForeignKey, Integer, DateTime, Bool
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
+
+
 class InAppOutboxModel(BaseModel):
     __tablename__ = "inAppOutbox"
 
@@ -17,6 +19,8 @@ class InAppOutboxModel(BaseModel):
     isSent = Column(Boolean, name="isSent", default=False)
     sentAt = Column(DateTime, name="sentAt", nullable=True)
     status = Column(String, nullable=False, default="pending")
+    callbackUrl = Column(String, name="callbackUrl", nullable=True)
+    callbackHeaders = Column(JSONB, name="callbackHeaders", nullable=True)
 
     template = relationship("InAppTemplateModel", back_populates="inAppOutboxes")
     __table_args__ = (

@@ -82,61 +82,80 @@ class OutboxProcessor:
         delay_minutes = self.base_retry_delay * (2 ** retry_count)
         return datetime.utcnow() + timedelta(minutes=delay_minutes)
     
-    async def _send_tenant_callback(
+    async def _send_callback(
         self, 
         uow: UnitOfWork,
+        outbox,
         tenant_id,
-        idempotency_key: str,
         status: str,
         channel: str,
-        recipient: str,
         notification_id: Optional[str] = None,
-        error_message: Optional[str] = None,
-        retry_count: Optional[int] = None
+        error_message: Optional[str] = None
     ) -> None:
         """
-        Send callback to tenant's configured webhook URL.
+        Send callback for outbox message completion.
+        
+        Priority:
+        1. Per-request callback URL (stored in outbox.callbackUrl)
+        2. Tenant-level callback URL (stored in tenant.callbackUrl)
         
         Args:
             uow: Unit of work for loading tenant info
-            tenant_id: Tenant ID
-            idempotency_key: Original idempotency key
+            outbox: Outbox entity with callback info
+            tenant_id: Tenant ID for fallback callback
             status: Final status (sent, permanently_failed)
             channel: Notification channel (sms, email, inapp)
-            recipient: Recipient address
             notification_id: Optional notification ID
             error_message: Optional error message for failures
-            retry_count: Optional retry count
         """
-        try:
-            # Load tenant to get callback URL
-            tenant = await uow.tenants.getById(tenant_id)
-            if not tenant or not tenant.callbackUrl:
-                logger.debug(f"No callback URL configured for tenant {tenant_id}")
-                return
-            
-            # Create callback payload
-            payload = NotificationCallbackPayload(
-                idempotencyKey=idempotency_key,
-                status=status,
-                channel=channel,
-                recipient=recipient,
-                timestamp=datetime.utcnow(),
-                notificationId=notification_id,
-                errorMessage=error_message,
-                retryCount=retry_count
-            )
-            
-            # Send callback
-            logger.info(f"Sending callback to tenant {tenant_id} at {tenant.callbackUrl}")
-            await self.webhook_client.send_callback(
-                callback_url=tenant.callbackUrl,
-                payload=payload,
-                headers=tenant.callbackHeaders
-            )
-            
-        except Exception as e:
-            logger.error(f"Error sending tenant callback for {channel} {idempotency_key}: {e}", exc_info=True)
+        # Determine recipient based on channel
+        if channel == "sms":
+            recipient = outbox.recipientNumber
+        elif channel == "email":
+            recipient = outbox.recipientEmail
+        elif channel == "inapp":
+            recipient = outbox.recipientUserId
+        else:
+            recipient = "unknown"
+        
+        # Create callback payload
+        payload = NotificationCallbackPayload(
+            idempotencyKey=outbox.idempotencyKey,
+            status=status,
+            channel=channel,
+            recipient=recipient,
+            timestamp=datetime.utcnow(),
+            notificationId=notification_id,
+            errorMessage=error_message,
+            retryCount=outbox.retryCount
+        )
+        
+        # Priority 1: Per-request callback URL (from outbox)
+        if hasattr(outbox, 'callbackUrl') and outbox.callbackUrl:
+            try:
+                callback_headers = outbox.callbackHeaders if hasattr(outbox, 'callbackHeaders') else None
+                logger.info(f"Sending per-request callback to {outbox.callbackUrl} for {channel} {outbox.id}")
+                await self.webhook_client.send_callback(
+                    callback_url=outbox.callbackUrl,
+                    payload=payload,
+                    headers=callback_headers
+                )
+            except Exception as e:
+                logger.error(f"Error sending per-request callback for {channel} {outbox.id}: {e}", exc_info=True)
+        
+        # Priority 2: Tenant-level callback URL (fallback)
+        if tenant_id:
+            try:
+                tenant = await uow.tenants.getById(tenant_id)
+                if tenant and tenant.callbackUrl:
+                    logger.info(f"Sending tenant callback to {tenant.callbackUrl} for {channel} {outbox.id}")
+                    await self.webhook_client.send_callback(
+                        callback_url=tenant.callbackUrl,
+                        payload=payload,
+                        headers=tenant.callbackHeaders
+                    )
+            except Exception as e:
+                logger.error(f"Error sending tenant callback for {channel} {outbox.id}: {e}", exc_info=True)
     
     async def start(self) -> None:
         """Start the background processing loop."""
@@ -268,16 +287,14 @@ class OutboxProcessor:
             
             logger.info(f"SMS outbox {outbox.id} successfully moved to notifications")
             
-            # Send callback to tenant if configured
-            await self._send_tenant_callback(
+            # Send callback (per-request and/or tenant-level)
+            await self._send_callback(
                 uow=uow,
+                outbox=outbox,
                 tenant_id=tenant_id,
-                idempotency_key=outbox.idempotencyKey,
                 status="sent",
                 channel="sms",
-                recipient=outbox.recipientNumber,
-                notification_id=str(notification.id),
-                retry_count=outbox.retryCount
+                notification_id=str(notification.id)
             )
             
         except Exception as e:
@@ -366,16 +383,14 @@ class OutboxProcessor:
             
             logger.info(f"Email outbox {outbox.id} successfully moved to notifications")
             
-            # Send callback to tenant if configured
-            await self._send_tenant_callback(
+            # Send callback (per-request and/or tenant-level)
+            await self._send_callback(
                 uow=uow,
+                outbox=outbox,
                 tenant_id=tenant_id,
-                idempotency_key=outbox.idempotencyKey,
                 status="sent",
                 channel="email",
-                recipient=outbox.recipientEmail,
-                notification_id=str(notification.id),
-                retry_count=outbox.retryCount
+                notification_id=str(notification.id)
             )
             
         except Exception as e:
@@ -464,16 +479,14 @@ class OutboxProcessor:
             
             logger.info(f"In-App outbox {outbox.id} successfully moved to notifications")
             
-            # Send callback to tenant if configured
-            await self._send_tenant_callback(
+            # Send callback (per-request and/or tenant-level)
+            await self._send_callback(
                 uow=uow,
+                outbox=outbox,
                 tenant_id=tenant_id,
-                idempotency_key=outbox.idempotencyKey,
                 status="sent",
                 channel="inapp",
-                recipient=outbox.recipientUserId,
-                notification_id=str(notification.id),
-                retry_count=outbox.retryCount
+                notification_id=str(notification.id)
             )
             
         except Exception as e:
@@ -503,28 +516,25 @@ class OutboxProcessor:
                     f"after {outbox.retryCount} attempts. Last error: {error_msg}"
                 )
                 
-                # Get recipient based on channel for callback
+                # Update based on channel first
                 if channel == "sms":
-                    recipient = outbox.recipientNumber
+                    await uow.smsOutboxes.update(outbox)
                 elif channel == "email":
-                    recipient = outbox.recipientEmail
+                    await uow.emailOutbox.update(outbox)
                 elif channel == "inapp":
-                    recipient = outbox.recipientUserId
-                else:
-                    recipient = "unknown"
+                    await uow.inAppOutboxes.update(outbox)
                 
-                # Send callback to tenant if configured (for permanent failure)
-                if tenant_id:
-                    await self._send_tenant_callback(
-                        uow=uow,
-                        tenant_id=tenant_id,
-                        idempotency_key=outbox.idempotencyKey,
-                        status="permanently_failed",
-                        channel=channel,
-                        recipient=recipient,
-                        error_message=error_msg,
-                        retry_count=outbox.retryCount
-                    )
+                await uow.commit()
+                
+                # Send callback (per-request and/or tenant-level)
+                await self._send_callback(
+                    uow=uow,
+                    outbox=outbox,
+                    tenant_id=tenant_id,
+                    status="permanently_failed",
+                    channel=channel,
+                    error_message=error_msg
+                )
             else:
                 # Schedule next retry with exponential backoff
                 outbox.nextRetryAt = self._calculate_next_retry(outbox.retryCount)
@@ -533,16 +543,16 @@ class OutboxProcessor:
                     f"{channel.upper()} outbox {outbox.id} retry {outbox.retryCount}/{self.max_retries} failed. "
                     f"Next retry at: {outbox.nextRetryAt}"
                 )
-            
-            # Update based on channel
-            if channel == "sms":
-                await uow.smsOutboxes.update(outbox)
-            elif channel == "email":
-                await uow.emailOutbox.update(outbox)
-            elif channel == "inapp":
-                await uow.inAppOutboxes.update(outbox)
-            
-            await uow.commit()
+                
+                # Update based on channel
+                if channel == "sms":
+                    await uow.smsOutboxes.update(outbox)
+                elif channel == "email":
+                    await uow.emailOutbox.update(outbox)
+                elif channel == "inapp":
+                    await uow.inAppOutboxes.update(outbox)
+                
+                await uow.commit()
             
         except Exception as e:
             logger.error(f"Error updating retry info for {channel} outbox {outbox.id}: {e}")
@@ -564,31 +574,23 @@ class OutboxProcessor:
             
             if channel == "sms":
                 await uow.smsOutboxes.update(outbox)
-                recipient = outbox.recipientNumber
             elif channel == "email":
                 await uow.emailOutbox.update(outbox)
-                recipient = outbox.recipientEmail
             elif channel == "inapp":
                 await uow.inAppOutboxes.update(outbox)
-                recipient = outbox.recipientUserId
-            else:
-                recipient = "unknown"
             
             await uow.commit()
             logger.warning(f"{channel.upper()} outbox {outbox.id} marked as permanently failed: {reason}")
             
-            # Send callback to tenant if configured
-            if tenant_id:
-                await self._send_tenant_callback(
-                    uow=uow,
-                    tenant_id=tenant_id,
-                    idempotency_key=outbox.idempotencyKey,
-                    status="permanently_failed",
-                    channel=channel,
-                    recipient=recipient,
-                    error_message=reason,
-                    retry_count=outbox.retryCount
-                )
+            # Send callback (per-request and/or tenant-level)
+            await self._send_callback(
+                uow=uow,
+                outbox=outbox,
+                tenant_id=tenant_id,
+                status="permanently_failed",
+                channel=channel,
+                error_message=reason
+            )
             
         except Exception as e:
             logger.error(f"Error marking {channel} outbox {outbox.id} as permanently failed: {e}")

@@ -21,5 +21,7 @@ class EmailOutbox:
     isSent: bool = False
     sentAt: Optional[datetime] = None
     status: str = "pending"
+    callbackUrl: Optional[str] = None
+    callbackHeaders: Optional[Dict[str, str]] = None
     createdAt: datetime = field(default_factory=datetime.utcnow)
     updatedAt: datetime = field(default_factory=datetime.utcnow)

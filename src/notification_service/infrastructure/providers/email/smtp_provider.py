@@ -1,4 +1,5 @@
 """SMTP Email Provider implementation following the same pattern as SMS providers."""
+import asyncio
 import logging
 import smtplib
 import ssl
@@ -6,7 +7,7 @@ import uuid
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel
 
@@ -22,7 +23,11 @@ from notification_service.domain.value_objects.notification_response import (
     ProviderTestResponse,
 )
 from notification_service.domain.value_objects.notification_status import NotificationStatus
+from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +78,9 @@ class SMTPConfiguration(BaseModel):
 class SMTPProvider(IProviderService):
     """SMTP Email provider implementation."""
 
-    def __init__(self, uow: IUnitOfWork):
+    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None):
         self.uow = uow
+        self.webhook_client = webhook_client
 
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
         """Test SMTP configuration by sending a test email."""
@@ -136,6 +142,62 @@ class SMTPProvider(IProviderService):
                     server.starttls(context=context)
                 server.login(config.username, config.password)
                 server.sendmail(config.fromEmail, recipient, message.as_string())
+
+    async def _send_per_request_callback(
+        self,
+        callback_url: Optional[str],
+        callback_headers: Optional[Dict[str, str]],
+        idempotency_key: str,
+        status: str,
+        recipient: str,
+        notification_id: Optional[str] = None,
+        error_message: Optional[str] = None
+    ) -> None:
+        """
+        Send callback to per-request callback URL.
+        
+        Args:
+            callback_url: The callback URL from the request
+            callback_headers: Optional headers for the callback
+            idempotency_key: Original idempotency key
+            status: Status of the notification ("sent", "failed")
+            recipient: Recipient email address
+            notification_id: Optional notification ID
+            error_message: Optional error message for failures
+        """
+        if not callback_url:
+            return
+        
+        if not self.webhook_client:
+            logger.warning("WebhookClient not configured, skipping per-request callback")
+            return
+        
+        try:
+            payload = NotificationCallbackPayload(
+                idempotencyKey=idempotency_key,
+                status=status,
+                channel="email",
+                recipient=recipient,
+                timestamp=datetime.utcnow(),
+                notificationId=notification_id,
+                errorMessage=error_message
+            )
+            
+            logger.info(f"Sending per-request callback to {callback_url} for {recipient}: status={status}")
+            
+            # Send callback in fire-and-forget manner (don't block the response)
+            asyncio.create_task(
+                self.webhook_client.send_callback(
+                    callback_url=callback_url,
+                    payload=payload,
+                    headers=callback_headers,
+                    max_retries=3,
+                    base_delay=1.0
+                )
+            )
+            
+        except Exception as e:
+            logger.error(f"Error sending per-request callback to {callback_url}: {e}", exc_info=True)
 
     async def send(
         self,
@@ -237,6 +299,16 @@ class SMTPProvider(IProviderService):
                         message="Email sent successfully",
                     )
                     notificationResponsePerRecipient.append(notificationResponse)
+                    
+                    # Send per-request callback for successful delivery
+                    await self._send_per_request_callback(
+                        callback_url=requestObject.callbackUrl,
+                        callback_headers=requestObject.callbackHeaders,
+                        idempotency_key=requestObject.idempotencyKey,
+                        status="sent",
+                        recipient=address,
+                        notification_id=str(emailNotification.id)
+                    )
 
                 except Exception as exc:
                     logger.error(f"Error sending email to {address} via SMTP: {exc}", exc_info=True)
@@ -253,6 +325,8 @@ class SMTPProvider(IProviderService):
                             status="failed",
                             lastErrorMessage=str(exc),
                             providerAttempted="smtp",
+                            callbackUrl=requestObject.callbackUrl,
+                            callbackHeaders=requestObject.callbackHeaders,
                             createdAt=datetime.utcnow(),
                             updatedAt=datetime.utcnow(),
                         )
@@ -286,6 +360,16 @@ class SMTPProvider(IProviderService):
                                 success=False,
                                 errorMessage=str(exc),
                             )
+                        )
+                        
+                        # Send per-request callback for failed delivery (immediate mode only)
+                        await self._send_per_request_callback(
+                            callback_url=requestObject.callbackUrl,
+                            callback_headers=requestObject.callbackHeaders,
+                            idempotency_key=requestObject.idempotencyKey,
+                            status="failed",
+                            recipient=address,
+                            error_message=str(exc)
                         )
                     isAllSent = False
 

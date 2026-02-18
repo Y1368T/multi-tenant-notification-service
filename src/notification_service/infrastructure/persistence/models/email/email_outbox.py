@@ -3,6 +3,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
 
+
 class EmailOutboxModel(BaseModel):
     __tablename__ = "emailOutbox"
 
@@ -18,6 +19,8 @@ class EmailOutboxModel(BaseModel):
     isSent = Column(Boolean, name="isSent", default=False)
     sentAt = Column(DateTime, name="sentAt", nullable=True)
     status = Column(String, nullable=False, default="pending")
+    callbackUrl = Column(String, name="callbackUrl", nullable=True)
+    callbackHeaders = Column(JSONB, name="callbackHeaders", nullable=True)
     template = relationship("EmailTemplateModel", back_populates="emailOutboxes")
     __table_args__ = (
         UniqueConstraint('templateId', 'recipientEmail', 'idempotencyKey', name='uix_email_outbox'),

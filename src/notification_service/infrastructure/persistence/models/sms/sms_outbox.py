@@ -1,6 +1,9 @@
 from sqlalchemy import Column, DateTime, Integer, String, Boolean, UUID, ForeignKey, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..base import BaseModel
+
+
 class SmsOutboxModel(BaseModel):
     __tablename__ = "smsOutbox"
 
@@ -16,6 +19,8 @@ class SmsOutboxModel(BaseModel):
     isSent = Column(Boolean, name="isSent", default=False)
     sentAt = Column(DateTime, name="sentAt", nullable=True)
     status = Column(String, nullable=False, default="pending")
+    callbackUrl = Column(String, name="callbackUrl", nullable=True)
+    callbackHeaders = Column(JSONB, name="callbackHeaders", nullable=True)
     template = relationship("SmsTemplateModel", back_populates="smsOutboxes")
     __table_args__ = (
         UniqueConstraint('templateId', 'recipientNumber', 'idempotencyKey', name='uix_sms_outbox'),
