@@ -127,10 +127,11 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
                     message="Tenant does not exist"
                 )
             
-            # Determine mode based on whether request has a callbackUrl
-            # If callbackUrl is provided, it's immediate mode (caller handles retries)
-            # If no callbackUrl, it's fire-and-forget mode (outbox handles retries)
-            isImmediateMode = messageData.callbackUrl is not None
+            # REST API is always fire-and-forget mode:
+            # - Failed messages go to outbox for automatic retry
+            # - callbackUrl (if provided) is for async status updates, not mode selection
+            # Immediate mode (isImmediateMode=True) is only for RabbitMQ RPC pattern
+            isImmediateMode = False
             
             response = await self.messageRouter.doRoute(
                 NotificationChannel.SMS, 

@@ -1,19 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
-from typing import Any, Dict, List, Optional
-import asyncio
 import logging
 from datetime import datetime
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import httpx
+from pydantic import BaseModel
+
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
 from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
-from pydantic import BaseModel
-
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.interfaces.iprovider_service import IProviderService
 from notification_service.domain.value_objects.notification_request import NotificationRequest
@@ -22,6 +22,10 @@ from notification_service.domain.value_objects.notification_response import (
     NotificationResponse,
     ProviderTestResponse,
 )
+from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
+
+if TYPE_CHECKING:
+    from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -137,9 +141,53 @@ class JasminSMSProvider(IProviderService):
     For "smpp" mode, JasminSMPPConfig is used.
     """
 
-    def __init__(self,uow: IUnitOfWork) -> None:
+    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None) -> None:
         self.client = httpx.AsyncClient(timeout=30.0)
         self.uow = uow
+        self.webhook_client = webhook_client
+
+    async def _send_callback(
+        self,
+        callback_url: Optional[str],
+        callback_headers: Optional[Dict[str, str]],
+        idempotency_key: str,
+        status: str,
+        recipient: str,
+        notification_id: Optional[str] = None,
+        error_message: Optional[str] = None
+    ) -> None:
+        """Send callback to the provided URL."""
+        if not callback_url:
+            return
+        
+        if not self.webhook_client:
+            logger.warning("WebhookClient not configured, skipping callback")
+            return
+        
+        try:
+            payload = NotificationCallbackPayload(
+                idempotencyKey=idempotency_key,
+                status=status,
+                channel="sms",
+                recipient=recipient,
+                timestamp=datetime.utcnow(),
+                notificationId=notification_id,
+                errorMessage=error_message
+            )
+            
+            logger.info(f"Sending callback to {callback_url} for {recipient}: status={status}")
+            
+            asyncio.create_task(
+                self.webhook_client.send_callback(
+                    callback_url=callback_url,
+                    payload=payload,
+                    headers=callback_headers,
+                    max_retries=3,
+                    base_delay=1.0
+                )
+            )
+        except Exception as e:
+            logger.error(f"Error sending callback to {callback_url}: {e}", exc_info=True)
 
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
         """
@@ -285,6 +333,16 @@ class JasminSMSProvider(IProviderService):
                     )
                     notificationResponsePerRecipient.append(notifcationResponse)
                     isAllSent = True
+                    
+                    # Send callback on success (if callbackUrl provided)
+                    await self._send_callback(
+                        callback_url=requestObject.callbackUrl,
+                        callback_headers=requestObject.callbackHeaders,
+                        idempotency_key=requestObject.idempotencyKey,
+                        status="sent",
+                        recipient=to,
+                        notification_id=str(smsnotification.id)
+                    )
                 elif "message" in body and isinstance(body["message"], str) and body["message"].startswith("Error"):
                     error_msg = body.get("message", body["message"])
                     # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
@@ -323,6 +381,10 @@ class JasminSMSProvider(IProviderService):
                                 templateId=templateId,
                                 retryCount=0,
                                 status="failed",
+                                lastErrorMessage=error_msg,
+                                providerAttempted="jasmin",
+                                callbackUrl=requestObject.callbackUrl,
+                                callbackHeaders=requestObject.callbackHeaders,
                                 createdAt=datetime.utcnow(),
                                 updatedAt=datetime.utcnow()
                             )
@@ -370,8 +432,10 @@ class JasminSMSProvider(IProviderService):
                             createdAt=datetime.utcnow(),
                             updatedAt=datetime.utcnow(),
                             lastErrorMessage=str(exc),
-                            lastretryAt=datetime.utcnow(),
-                            providerAttempted="JasminHTTP",
+                            lastRetryAt=datetime.utcnow(),
+                            providerAttempted="jasmin",
+                            callbackUrl=requestObject.callbackUrl,
+                            callbackHeaders=requestObject.callbackHeaders,
                         )
                         await self.uow.smsOutboxes.add(smsOutBox)
                         await self.uow.commit()
