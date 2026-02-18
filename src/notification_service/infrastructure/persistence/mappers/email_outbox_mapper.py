@@ -34,6 +34,8 @@ class EmailOutboxMapper:
             isSent=model.isSent,
             sentAt=model.sentAt,
             status=model.status,
+            callbackUrl=model.callbackUrl,
+            callbackHeaders=model.callbackHeaders,
             createdAt=model.createdAt,
             updatedAt=model.updatedAt
         )
@@ -66,6 +68,8 @@ class EmailOutboxMapper:
             isSent=entity.isSent,
             sentAt=entity.sentAt,
             status=entity.status,
+            callbackUrl=entity.callbackUrl,
+            callbackHeaders=entity.callbackHeaders,
             createdAt=entity.createdAt,
             updatedAt=entity.updatedAt
         )
@@ -117,6 +121,8 @@ class EmailOutboxMapper:
         model.isSent = entity.isSent
         model.sentAt = entity.sentAt
         model.status = entity.status
+        model.callbackUrl = entity.callbackUrl
+        model.callbackHeaders = entity.callbackHeaders
         model.updatedAt = entity.updatedAt
         
         return model

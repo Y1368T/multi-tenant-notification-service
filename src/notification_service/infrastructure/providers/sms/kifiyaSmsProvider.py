@@ -1,5 +1,14 @@
+import asyncio
+import json
+import logging
+import uuid
+from datetime import datetime
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
+
+import httpx
+from pydantic import BaseModel
+
 from notification_service.domain.interfaces.iprovider_service import IProviderService
-from typing import Dict,Any, List
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.value_objects.notification_response import NotifiationResponsePerRecipient, NotificationResponse
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
@@ -9,15 +18,11 @@ from notification_service.domain.value_objects.notification_status import Notifi
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
+from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
 from uuid import UUID, uuid4
-from datetime import datetime
-import uuid
-import requests
-from pydantic import BaseModel
-from typing import Optional
-import logging
-import httpx
-import json
+
+if TYPE_CHECKING:
+    from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +48,53 @@ class KifiyaSMSConfig(BaseModel):
         }
     
 class KifiyaSMSProvider(IProviderService):
-    def __init__(self, uow:IUnitOfWork):
+    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None):
         self.uow = uow
         self.client = httpx.AsyncClient(timeout=30.0)
-        pass
+        self.webhook_client = webhook_client
+
+    async def _send_callback(
+        self,
+        callback_url: Optional[str],
+        callback_headers: Optional[Dict[str, str]],
+        idempotency_key: str,
+        status: str,
+        recipient: str,
+        notification_id: Optional[str] = None,
+        error_message: Optional[str] = None
+    ) -> None:
+        """Send callback to the provided URL."""
+        if not callback_url:
+            return
+        
+        if not self.webhook_client:
+            logger.warning("WebhookClient not configured, skipping callback")
+            return
+        
+        try:
+            payload = NotificationCallbackPayload(
+                idempotencyKey=idempotency_key,
+                status=status,
+                channel="sms",
+                recipient=recipient,
+                timestamp=datetime.utcnow(),
+                notificationId=notification_id,
+                errorMessage=error_message
+            )
+            
+            logger.info(f"Sending callback to {callback_url} for {recipient}: status={status}")
+            
+            asyncio.create_task(
+                self.webhook_client.send_callback(
+                    callback_url=callback_url,
+                    payload=payload,
+                    headers=callback_headers,
+                    max_retries=3,
+                    base_delay=1.0
+                )
+            )
+        except Exception as e:
+            logger.error(f"Error sending callback to {callback_url}: {e}", exc_info=True)
     
     async def send(
         self,
@@ -102,6 +150,16 @@ class KifiyaSMSProvider(IProviderService):
                         )
                         notificationResponsePerRecipient.append(notifcationResponse)
                         isAllSent = True
+                        
+                        # Send callback on success (if callbackUrl provided)
+                        await self._send_callback(
+                            callback_url=requestObject.callbackUrl,
+                            callback_headers=requestObject.callbackHeaders,
+                            idempotency_key=requestObject.idempotencyKey,
+                            status="sent",
+                            recipient=recipient.address,
+                            notification_id=str(smsnotification.id)
+                        )
                 elif response.error:
                         # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
                         if saveToOutbox:
@@ -113,6 +171,10 @@ class KifiyaSMSProvider(IProviderService):
                                 templateId=templateId,
                                 retryCount=0,
                                 status="failed",
+                                lastErrorMessage=response.error,
+                                providerAttempted="kifiya",
+                                callbackUrl=requestObject.callbackUrl,
+                                callbackHeaders=requestObject.callbackHeaders,
                                 createdAt=datetime.utcnow(),
                                 updatedAt=datetime.utcnow()
                             )
@@ -159,7 +221,9 @@ class KifiyaSMSProvider(IProviderService):
                         createdAt=datetime.utcnow(),
                         updatedAt=datetime.utcnow(),
                         lastErrorMessage=str(exc),
-                        providerAttempted="kifiya"
+                        providerAttempted="kifiya",
+                        callbackUrl=requestObject.callbackUrl,
+                        callbackHeaders=requestObject.callbackHeaders
                     )
                     await self.uow.smsOutboxes.add(smsOutBox)
                     await self.uow.commit()

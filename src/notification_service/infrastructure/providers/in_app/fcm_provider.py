@@ -1,13 +1,19 @@
-import uuid
-import logging
-import httpx
+import asyncio
 import json
+import logging
+import uuid
+from datetime import datetime, timedelta
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
+from uuid import UUID
+
+import httpx
 import firebase_admin
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import FirebaseError
+from pydantic import BaseModel
+
 from notification_service.domain.entities.in_app.in_app_outbox import InAppOutbox
 from notification_service.domain.interfaces.iprovider_service import IProviderService
-from typing import Dict, Any
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.value_objects.notification_response import NotifiationResponsePerRecipient, NotificationResponse
 from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
@@ -15,10 +21,10 @@ from notification_service.domain.value_objects.notification_status import Notifi
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import PushProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
-from uuid import UUID
-from datetime import datetime, timedelta
-from pydantic import BaseModel
-from typing import Optional, List
+from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
+
+if TYPE_CHECKING:
+    from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +104,54 @@ class FCMConfig(BaseModel):
 class FCMProvider(IProviderService):
     """Firebase Cloud Messaging (FCM) provider for in-app/push notifications"""
     
-    def __init__(self, uow: IUnitOfWork):
+    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None):
         self.uow = uow
         self.client = httpx.AsyncClient(timeout=30.0)
         self._firebase_app = None
+        self.webhook_client = webhook_client
+
+    async def _send_callback(
+        self,
+        callback_url: Optional[str],
+        callback_headers: Optional[Dict[str, str]],
+        idempotency_key: str,
+        status: str,
+        recipient: str,
+        notification_id: Optional[str] = None,
+        error_message: Optional[str] = None
+    ) -> None:
+        """Send callback to the provided URL."""
+        if not callback_url:
+            return
+        
+        if not self.webhook_client:
+            logger.warning("WebhookClient not configured, skipping callback")
+            return
+        
+        try:
+            payload = NotificationCallbackPayload(
+                idempotencyKey=idempotency_key,
+                status=status,
+                channel="inapp",
+                recipient=recipient,
+                timestamp=datetime.utcnow(),
+                notificationId=notification_id,
+                errorMessage=error_message
+            )
+            
+            logger.info(f"Sending callback to {callback_url} for {recipient}: status={status}")
+            
+            asyncio.create_task(
+                self.webhook_client.send_callback(
+                    callback_url=callback_url,
+                    payload=payload,
+                    headers=callback_headers,
+                    max_retries=3,
+                    base_delay=1.0
+                )
+            )
+        except Exception as e:
+            logger.error(f"Error sending callback to {callback_url}: {e}", exc_info=True)
     
     def _get_firebase_app(self, config: FCMConfig):
         """Get or initialize Firebase app with credentials."""
@@ -244,6 +294,16 @@ class FCMProvider(IProviderService):
                 await self.uow.commit()
                 logger.info(f"InAppNotification saved with ID: {result.id}")
                 
+                # Send callback on success (if callbackUrl provided)
+                await self._send_callback(
+                    callback_url=requestObject.callbackUrl,
+                    callback_headers=requestObject.callbackHeaders,
+                    idempotency_key=requestObject.idempotencyKey,
+                    status="sent",
+                    recipient=recipient.address,
+                    notification_id=str(result.id)
+                )
+                
                 return NotificationResponse(
                     notificationId=str(result.id),
                     tenantId=tenantConfig.tenantId,
@@ -270,8 +330,7 @@ class FCMProvider(IProviderService):
                     inAppOutbox=InAppOutbox(
                         id=uuid.uuid4(),
                         recipientUserId=recipient.address,
-                        messageContent=json.dumps(messageToSend) if isinstance(messageToSend, dict) else str
-                        (messageToSend),
+                        messageContent=json.dumps(messageToSend) if isinstance(messageToSend, dict) else str(messageToSend),
                         idempotencyKey=requestObject.idempotencyKey,
                         templateId=templateId,
                         retryCount=0,
@@ -281,7 +340,9 @@ class FCMProvider(IProviderService):
                         createdAt=datetime.utcnow(),
                         updatedAt=datetime.utcnow(),
                         lastErrorMessage=error_message,
-                        
+                        providerAttempted="fcm",
+                        callbackUrl=requestObject.callbackUrl,
+                        callbackHeaders=requestObject.callbackHeaders,
                     )
                     await self.uow.inAppOutboxRepository.add(inAppOutbox)
                     await self.uow.commit()

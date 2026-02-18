@@ -1,18 +1,25 @@
-from typing import Any, Dict, List, Optional
+import asyncio
+import logging
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+import httpx
+from pydantic import BaseModel
+
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
 from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
 from notification_service.domain.interfaces.iprovider_service import IProviderService
-import uuid
-from datetime import datetime
 from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.notification_response import NotifiationResponsePerRecipient, NotificationResponse, ProviderTestResponse
 from notification_service.domain.value_objects.notification_request import NotificationRequest
-from uuid import UUID
-import logging
-import httpx
 from notification_service.domain.value_objects.notification_status import NotificationStatus
-from pydantic import BaseModel
+from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
+from uuid import UUID
+
+if TYPE_CHECKING:
+    from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +58,53 @@ class AfromessageConfiguration(BaseModel):
 class AfromessageSMSProvider(IProviderService):
     """Afromessage SMS provider implementation."""
     
-    def __init__(self, uow:IUnitOfWork):
+    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None):
         self.uow = uow
         self.client = httpx.AsyncClient(timeout=30.0)
+        self.webhook_client = webhook_client
+
+    async def _send_callback(
+        self,
+        callback_url: Optional[str],
+        callback_headers: Optional[Dict[str, str]],
+        idempotency_key: str,
+        status: str,
+        recipient: str,
+        notification_id: Optional[str] = None,
+        error_message: Optional[str] = None
+    ) -> None:
+        """Send callback to the provided URL."""
+        if not callback_url:
+            return
+        
+        if not self.webhook_client:
+            logger.warning("WebhookClient not configured, skipping callback")
+            return
+        
+        try:
+            payload = NotificationCallbackPayload(
+                idempotencyKey=idempotency_key,
+                status=status,
+                channel="sms",
+                recipient=recipient,
+                timestamp=datetime.utcnow(),
+                notificationId=notification_id,
+                errorMessage=error_message
+            )
+            
+            logger.info(f"Sending callback to {callback_url} for {recipient}: status={status}")
+            
+            asyncio.create_task(
+                self.webhook_client.send_callback(
+                    callback_url=callback_url,
+                    payload=payload,
+                    headers=callback_headers,
+                    max_retries=3,
+                    base_delay=1.0
+                )
+            )
+        except Exception as e:
+            logger.error(f"Error sending callback to {callback_url}: {e}", exc_info=True)
     
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
         """Test Afromessage configuration by sending a test message."""
@@ -179,6 +230,16 @@ class AfromessageSMSProvider(IProviderService):
                         )
                         isAllSent = True
                         notificationResponsePerRecipient.append(notifcationResponse)
+                        
+                        # Send callback on success (if callbackUrl provided)
+                        await self._send_callback(
+                            callback_url=requestObject.callbackUrl,
+                            callback_headers=requestObject.callbackHeaders,
+                            idempotency_key=requestObject.idempotencyKey,
+                            status="sent",
+                            recipient=address,
+                            notification_id=str(smsNotification.id)
+                        )
                     else:
                         # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
                         if saveToOutbox:
@@ -190,6 +251,10 @@ class AfromessageSMSProvider(IProviderService):
                                 templateId=templateId,
                                 retryCount=0,
                                 status="failed",
+                                lastErrorMessage=response_data.get("error", "Failed to send SMS"),
+                                providerAttempted="afromessage",
+                                callbackUrl=requestObject.callbackUrl,
+                                callbackHeaders=requestObject.callbackHeaders,
                                 createdAt=datetime.utcnow(),
                                 updatedAt=datetime.utcnow()
                             )
@@ -227,6 +292,10 @@ class AfromessageSMSProvider(IProviderService):
                             templateId=templateId,
                             retryCount=0,
                             status="failed",
+                            lastErrorMessage=str(exc),
+                            providerAttempted="afromessage",
+                            callbackUrl=requestObject.callbackUrl,
+                            callbackHeaders=requestObject.callbackHeaders,
                             createdAt=datetime.utcnow(),
                             updatedAt=datetime.utcnow()
                         )
