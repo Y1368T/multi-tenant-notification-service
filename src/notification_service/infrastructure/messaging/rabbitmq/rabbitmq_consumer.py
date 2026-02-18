@@ -255,12 +255,12 @@ class RabbitMQConsumer(IMessageConsumer):
         
         try:
             # Convert response to dict for JSON serialization
+            # Note: NotificationResponse doesn't have 'status' or 'notificationId' directly
+            # Those are on recipientResponse items
             response_dict = {
                 "success": response.success,
                 "message": response.message,
                 "errorMessage": response.errorMessage,
-                "status": response.status,
-                "notificationId": response.notificationId,
                 "channel": response.channel,
                 "tenantId": response.tenantId
             }

@@ -8,6 +8,7 @@ from notification_service.infrastructure.providers.sms.kifiyaSmsProvider import 
 from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
+from notification_service.infrastructure.providers.email.smtp_provider import SMTPProvider
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
     PaginatedRequest,
     PaginatedRequestDTO,
@@ -26,6 +27,7 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         afromessageSmsProvider: AfromessageSMSProvider,
         jasminSmsProvider: JasminSMSProvider,
         fcmProvider: FCMProvider,
+        smtpProvider: SMTPProvider,
     ):
         super().__init__(uow, Provider, ProviderResponseDTO)
         self.uow = uow
@@ -33,6 +35,7 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         self.afromessageSmsProvider = afromessageSmsProvider
         self.jasminSmsProvider = jasminSmsProvider
         self.fcmProvider = fcmProvider
+        self.smtpProvider = smtpProvider
     def _get_repository(self):
         """Get providers repository."""
         return self.uow.providers
@@ -133,7 +136,16 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
                         provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
                         return await self.fcmProvider.test(provider_config, dto.address)
                     case _:
-                        raise ValueError(f"Unsupported provider: {dto.provider_name}")
+                        raise ValueError(f"Unsupported provider: {dto.providerName}")
+            
+            case "email":
+                match dto.providerName:
+                    case "smtp":
+                        # Extract nested config if it exists, otherwise use config directly
+                        provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
+                        return await self.smtpProvider.test(provider_config, dto.address)
+                    case _:
+                        raise ValueError(f"Unsupported provider: {dto.providerName}")
                 
             case _:
                 raise ValueError(f"Unsupported channel: {dto.channel}")

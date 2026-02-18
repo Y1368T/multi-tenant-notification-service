@@ -42,10 +42,8 @@ from notification_service.application.services.tenant_email_configuration import
 from notification_service.application.services.provider_service import ProviderService
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.infrastructure.services.customer_service_client import CustomerServiceClient
-from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
-from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
 from notification_service.infrastructure.services.webhook_client import WebhookClient
-from notification_service.domain.value_objects.providers import SMSProvider
+from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -384,6 +382,7 @@ def main()->FastAPI:
     builder.with_singleton(RedisCache)
     builder.with_singleton(RabbitMQRPCClient)
     builder.with_singleton(CustomerServiceClient)
+    builder.with_singleton(WebhookClient)
     builder.with_transient(IUnitOfWork,UnitOfWork)
     # SMS Providers
     builder.with_transient(AfromessageSMSProvider)
@@ -469,8 +468,7 @@ async def lifespan(app: FastAPI):
     tenantservice.rabbitmqConsumer = rabbitClient
 
     settings=get_service(app,Settings)
-    
-    rpc_client = None
+
     if settings.enable_customer_language_rpc:
         rpc_client = get_service(app, RabbitMQRPCClient)
         await rpc_client.connect()
@@ -482,47 +480,14 @@ async def lifespan(app: FastAPI):
 
     # connect, ensure queues for active tenants, subscribe and start consuming
     task = asyncio.create_task(adapterConsumer.startConsuming())
-    
-    # Initialize OutboxProcessor for background retry processing
-    # Get provider instances for retry
-    uow = get_service(app, IUnitOfWork)
-    sms_providers = {
-        SMSProvider.AFROMESSAGE.value: AfromessageSMSProvider(uow),
-        SMSProvider.KIFIYA.value: KifiyaSMSProvider(uow),
-        SMSProvider.JASMIN.value: JasminSMSProvider(uow),
-    }
-    email_provider = SMTPProvider(uow)
-    inapp_provider = FCMProvider(uow)
-    
-    # Create WebhookClient for tenant callbacks
-    webhook_client = WebhookClient(timeout=30.0)
-    
-    outbox_processor = OutboxProcessor(
-        database=db,
-        sms_providers=sms_providers,
-        email_provider=email_provider,
-        inapp_provider=inapp_provider,
-        settings=settings,
-        webhook_client=webhook_client
-    )
-    outbox_task = asyncio.create_task(outbox_processor.start())
-    logging.getLogger(__name__).info("OutboxProcessor background task started with webhook callback support")
 
+    # Get webhook client for cleanup
+    webhook_client = get_service(app, WebhookClient)
+    
     try:
         yield
     finally:
         # Shutdown actions
-        
-        # Stop outbox processor gracefully
-        outbox_processor.stop()
-        outbox_task.cancel()
-        await asyncio.gather(outbox_task, return_exceptions=True)
-        logging.getLogger(__name__).info("OutboxProcessor stopped")
-        
-        # Close webhook client
-        await webhook_client.close()
-        logging.getLogger(__name__).info("WebhookClient closed")
-        
         await adapterConsumer.stopConsuming()
         await db.disconnect()
         await redis.disconnect()
@@ -533,6 +498,11 @@ async def lifespan(app: FastAPI):
                 await rpc_client.disconnect()
             except Exception as e:
                 logging.getLogger(__name__).error(f"Error disconnecting RPC client: {e}")
+        # Close webhook client
+        try:
+            await webhook_client.close()
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Error closing webhook client: {e}")
         
 if __name__ == "__main__":
     import uvicorn
