@@ -144,9 +144,12 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         Returns:
             Updated Tenant entity
         """
-        # Get the existing tenant to check for changes
+        # Use a single UoW context for the entire update operation
         async with self.uow:
-            existingTenant = await self.uow.tenants.getById(tenant.id)
+            repository = self._get_repository()
+            
+            # Fetch existing tenant to check for changes
+            existingTenant = await repository.getById(tenant.id)
             if not existingTenant:
                 raise EntityNotFoundError("Tenant", str(tenant.id))
             
@@ -155,9 +158,9 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
             oldChannels = set(existingTenant.supportedChannels or [])
             oldIsActive = existingTenant.isActive
             oldPrefix = existingTenant.prefix
-        
-        # Call base update method
-        updatedTenant = await super().update(tenant)
+            
+            # Perform the update within the same UoW context
+            updatedTenant = await repository.update(tenant)
         
         # Check if we need to create or remove RabbitMQ queues
         newCommunicationMethod = updatedTenant.preferedCommunicationMethod
@@ -320,10 +323,12 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         Returns:
             Updated Tenant entity
         """
-        
-        # Get the existing tenant to check for changes
+        # Use a single UoW context for the entire operation
         async with self.uow:
-            existingTenant = await self.uow.tenants.getById(entity_id)
+            repository = self._get_repository()
+            
+            # Fetch existing tenant to check for changes
+            existingTenant = await repository.getById(entity_id)
             if not existingTenant:
                 raise EntityNotFoundError("Tenant", str(entity_id))
             
@@ -332,9 +337,13 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
             oldChannels = set(existingTenant.supportedChannels or [])
             oldIsActive = existingTenant.isActive
             oldPrefix = existingTenant.prefix
-        
-        # Call base partial update method
-        updatedTenant = await super().partialUpdate(entity_id, updates)
+            
+            # Validate and apply updates
+            self._validate_partialUpdate(updates)
+            updated_entity = self._apply_partialUpdates(existingTenant, updates)
+            
+            # Perform the update within the same UoW context
+            updatedTenant = await repository.update(updated_entity)
         
         # Check if we need to create or remove RabbitMQ queues
         newCommunicationMethod = updatedTenant.preferedCommunicationMethod

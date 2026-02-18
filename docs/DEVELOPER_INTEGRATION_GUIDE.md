@@ -1,6 +1,6 @@
 # Notification Service - Developer Integration Guide
 
-> **Version:** 1.1.0  
+> **Version:** 1.2.0  
 > **Last Updated:** February 18, 2026
 
 A comprehensive guide for developers integrating their applications with the Notification Service. This service provides multi-channel notification capabilities including **SMS**, **Email**, and **In-App (Push)** notifications.
@@ -21,22 +21,26 @@ A comprehensive guide for developers integrating their applications with the Not
    - [Email Notifications](#email-notifications)
    - [In-App Notifications](#in-app-notifications)
 7. [Templates](#templates)
-8. [Tenant Configuration](#tenant-configuration)
-9. [Provider Configuration](#provider-configuration)
-10. [Processing Modes](#processing-modes)
+8. [Language & Localization](#language--localization)
+   - [Language Field Requirement](#language-field-requirement)
+   - [Qena System Integration](#qena-system-integration-internal-only)
+   - [Supported Languages](#supported-languages)
+9. [Tenant Configuration](#tenant-configuration)
+10. [Provider Configuration](#provider-configuration)
+11. [Processing Modes](#processing-modes)
     - [Fire-and-Forget Mode](#1-fire-and-forget-mode-default)
     - [Immediate Mode (RPC)](#2-immediate-mode-rpc)
-11. [Callbacks & Webhooks](#callbacks--webhooks)
+12. [Callbacks & Webhooks](#callbacks--webhooks)
     - [Callback Configuration Levels](#callback-configuration-levels)
     - [When Callbacks Are Sent](#when-callbacks-are-sent)
     - [Callback Payload](#callback-payload)
     - [Per-Request Callbacks](#per-request-callbacks)
     - [Tenant-Level Callbacks](#tenant-level-callbacks)
-12. [Outbox Pattern & Retry Mechanism](#outbox-pattern--retry-mechanism)
-13. [API Reference](#api-reference)
-14. [Error Handling](#error-handling)
-15. [Best Practices](#best-practices)
-16. [Troubleshooting](#troubleshooting)
+13. [Outbox Pattern & Retry Mechanism](#outbox-pattern--retry-mechanism)
+14. [API Reference](#api-reference)
+15. [Error Handling](#error-handling)
+16. [Best Practices](#best-practices)
+17. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -468,10 +472,12 @@ asyncio.run(send_notification_with_response())
 | `templateName` | string | ✅ | Name of the SMS template to use |
 | `payload` | object | ✅ | Template variables for substitution |
 | `idempotencyKey` | string | ✅ | Unique key to prevent duplicates |
-| `lang` | string | ❌ | Language code (default: "en") |
+| `lang` | string | **✅*** | Language code (e.g., `"en"`, `"am"`) - see note below |
 | `metadata` | object | ❌ | Custom metadata (passed to callbacks) |
 | `callbackUrl` | string | ❌ | Webhook URL for per-request status callbacks |
 | `callbackHeaders` | object | ❌ | HTTP headers for callback authentication |
+
+> **⚠️ Language Field (`lang`):** **Required for external developers.** You must explicitly provide the language code. Qena/internal services may omit this field as the system will automatically lookup the customer's language preference. See [Language & Localization](#language--localization) for details.
 
 > **Callback Fields:** When `callbackUrl` is provided, the service will send HTTP POST callbacks on successful delivery or permanent failure. The callback URL and headers are stored with the message in the outbox if initial delivery fails, ensuring callbacks are sent even after retry success.
 
@@ -772,6 +778,154 @@ curl -X PUT "https://notification-service.example.com/sms-templates/{template_id
     }
   }'
 ```
+
+---
+
+## Language & Localization
+
+The Notification Service supports multi-language templates, allowing you to send notifications in your users' preferred language. This section explains how language selection works and the requirements for different integration scenarios.
+
+### Language Field Requirement
+
+> **⚠️ IMPORTANT: For External Developers**
+>
+> The `lang` field is **REQUIRED** in all notification requests. You must explicitly specify the language code for template selection.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `lang` | string | **✅ YES** | ISO 639-1 language code (e.g., `"en"`, `"am"`, `"or"`) |
+
+**Example Request:**
+
+```json
+{
+  "serviceName": "payment-service",
+  "recipients": [{"address": "+251912345678"}],
+  "templateName": "payment_confirmation",
+  "payload": {
+    "amount": "1000.00",
+    "currency": "ETB"
+  },
+  "idempotencyKey": "payment-123",
+  "lang": "en"
+}
+```
+
+**What happens if `lang` is missing?**
+
+- The service will attempt to use the default language (`"en"`)
+- If the template doesn't have content in the default language, the notification will fail
+- **Best Practice:** Always explicitly provide the `lang` field
+
+### Qena System Integration (Internal Only)
+
+> **🔒 This section applies exclusively to the Qena system and internal Kifiya services.**
+
+For the **Qena** ecosystem, the Notification Service provides **automatic language preference lookup** via integration with the Customer Service. This is an internal feature not available to external tenants.
+
+#### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     QENA LANGUAGE RESOLUTION FLOW                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+[1] Notification Request Received (without lang)
+                │
+                ▼
+[2] Extract recipient address (phone number/email)
+                │
+                ▼
+[3] Query Customer Service via RPC
+        │
+        └──→ Request: { customerId: "+251912345678" }
+        │
+        └──← Response: { phone: "+251912345678", languagePreference: "am" }
+                │
+                ▼
+[4] Use customer's language preference for template selection
+                │
+                ▼
+[5] Render template in customer's preferred language (Amharic)
+                │
+                ▼
+[6] Send notification via provider
+```
+
+#### Technical Details
+
+1. **RPC Integration:** The notification service connects to the Customer Service via RabbitMQ RPC
+2. **Automatic Lookup:** When `lang` is not provided, the service queries the customer's language preference
+3. **Fallback:** If the customer lookup fails or returns no preference, defaults to `"en"`
+4. **Caching:** Language preferences are cached to minimize RPC calls
+
+#### Channel Handlers
+
+The language lookup is implemented in the SMS and Email channel handlers:
+
+**SMS Channel:**
+- Extracts the phone number from `recipients[0].address`
+- Queries Customer Service for language preference
+- Falls back to `"en"` if not found
+
+**Email Channel:**
+- Extracts the email from `recipients[0].address`
+- Queries Customer Service for language preference
+- Falls back to `"en"` if not found
+
+#### Configuration Requirements (Qena Only)
+
+For Qena system integration, ensure the following environment variables are configured:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CUSTOMER_SERVICE_RPC_QUEUE` | RabbitMQ queue for customer service RPC | `customer.rpc` |
+| `CUSTOMER_SERVICE_RPC_TIMEOUT` | RPC timeout in seconds | `10` |
+
+#### Important Notes
+
+> **⛔ External Developers:** The automatic language lookup is **NOT available** for external tenants. You **MUST** provide the `lang` field in every notification request.
+
+> **✅ Qena/Internal Services:** You may omit the `lang` field. The system will automatically fetch the customer's language preference from the Customer Service.
+
+### Supported Languages
+
+The Notification Service currently supports the following languages:
+
+| Code | Language | Native Name |
+|------|----------|-------------|
+| `en` | English | English |
+| `am` | Amharic | አማርኛ |
+| `or` | Oromo | Afaan Oromoo |
+| `ti` | Tigrinya | ትግርኛ |
+| `so` | Somali | Soomaali |
+
+#### Multi-Language Template Example
+
+```json
+{
+  "templateName": "otp_verification",
+  "tenantId": "123e4567-e89b-12d3-a456-426614174000",
+  "serviceName": "auth-service",
+  "version": 1,
+  "isActive": true,
+  "content": {
+    "en": "Your verification code is {otpCode}. Valid for {validMinutes} minutes.",
+    "am": "የማረጋገጫ ኮድዎ {otpCode} ነው። ለ{validMinutes} ደቂቃ ይሰራል።",
+    "or": "Koodiin mirkaneessa kee {otpCode} dha. Daqiiqaa {validMinutes}'f hojjata.",
+    "ti": "ናይ መረጋገጺ ኮድኻ {otpCode} እዩ። ን{validMinutes} ደቒቕ ይሰርሕ።"
+  }
+}
+```
+
+#### Best Practices for Language Support
+
+1. **Always provide translations** for all supported languages in your templates
+2. **Test templates** in all languages before deployment
+3. **Handle missing translations** gracefully - ensure at least `"en"` is always present
+4. **Use simple, clear language** that translates well
+5. **Avoid idioms and slang** that may not translate accurately
+6. **Keep SMS messages short** - some languages require more characters
 
 ---
 
@@ -1858,6 +2012,22 @@ if __name__ == "__main__":
 ---
 
 ## Changelog
+
+### Version 1.2.0 (February 18, 2026)
+
+#### New Features
+
+- **Language & Localization Documentation**: Added comprehensive documentation for the `lang` field requirement and multi-language template support.
+
+- **Qena Automatic Language Lookup**: Documented the internal language preference resolution flow for Qena system integration via Customer Service RPC.
+
+#### Changes
+
+- **`lang` Field Requirement**: The `lang` field is now documented as **required** for all external developers. Qena/internal services can omit it for automatic lookup.
+
+- **Documentation Structure**: Added new "Language & Localization" section with detailed guidance on language selection and supported languages.
+
+---
 
 ### Version 1.1.0 (February 18, 2026)
 

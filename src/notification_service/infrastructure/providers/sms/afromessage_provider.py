@@ -116,7 +116,7 @@ class AfromessageSMSProvider(IProviderService):
                 "from": afro_config.from_,
                 "sender": afro_config.sender,
                 "to": address,
-                "message": "This is a test message from notification service"
+                "message": "This is a test message / የሙከራ መልእክት"
             }
             
             headers = {
