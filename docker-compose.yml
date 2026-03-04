@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-notification_svc}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}
-      POSTGRES_DB: qena_notification_service_db
+      POSTGRES_DB: ${POSTGRES_DB:-qena_notification_service_db}
     ports:
       # Host port 5433 maps to container port 5432 (for external host access)
       - "5433:5432"
@@ -96,11 +96,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Host is 'postgres' and Port is '5432' (internal port). Credentials from env (no default postgres/postgres).
+      # Must match postgres service: same POSTGRES_* and POSTGRES_DB.
       - POSTGRES_USER=${POSTGRES_USER:-notification_svc}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD}@postgres:5432/qena_notification_service_db
-      - DATABASE_URL_SYNC=postgresql://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD}@postgres:5432/qena_notification_service_db
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}
+      - POSTGRES_DB=${POSTGRES_DB:-qena_notification_service_db}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}@postgres:5432/${POSTGRES_DB:-qena_notification_service_db}
+      - DATABASE_URL_SYNC=postgresql://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}@postgres:5432/${POSTGRES_DB:-qena_notification_service_db}
       
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - REDIS_URL=redis://:@redis:6379/0
