@@ -9,12 +9,16 @@ services:
     container_name: notification-postgres
     env_file:
       - .env.production
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-notification_svc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}
+      POSTGRES_DB: ${POSTGRES_DB:-qena_notification_service_db}
     ports:
       - "${POSTGRES_EXTERNAL_PORT:-5433}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-notification_svc}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-notification_svc} -d ${POSTGRES_DB:-qena_notification_service_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -98,6 +102,12 @@ services:
     container_name: multi-tenant-notification-service
     env_file:
       - .env.production
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-notification_svc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}
+      POSTGRES_DB: ${POSTGRES_DB:-qena_notification_service_db}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}@postgres:5432/${POSTGRES_DB:-qena_notification_service_db}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}@postgres:5432/${POSTGRES_DB:-qena_notification_service_db}
     ports:
       - "${PORT:-8000}:8000"
     command: >
