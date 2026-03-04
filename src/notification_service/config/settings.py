@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Database (async) - default for local development
     # When running in Docker, this is overridden by DATABASE_URL env var
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/qena_notification_service_db"
+    database_url: str = ""
 
     # Redis - default for local development
     redis_url: str = "redis://:@localhost:6379/10"
