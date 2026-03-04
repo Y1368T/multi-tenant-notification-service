@@ -99,7 +99,7 @@ services:
       # Host is 'postgres' and Port is '5432' (internal port). Credentials from env (no default postgres/postgres).
       - POSTGRES_USER=${POSTGRES_USER:-notification_svc}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD}@postgres:5432/ qena_notification_service_db
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD}@postgres:5432/qena_notification_service_db
       - DATABASE_URL_SYNC=postgresql://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD}@postgres:5432/qena_notification_service_db
       
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/

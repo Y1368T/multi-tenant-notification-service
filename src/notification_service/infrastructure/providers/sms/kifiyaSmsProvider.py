@@ -50,7 +50,14 @@ class KifiyaSMSConfig(BaseModel):
 class KifiyaSMSProvider(IProviderService):
     def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None):
         self.uow = uow
-        self.client = httpx.AsyncClient(timeout=30.0)
+        # Set default headers with UTF-8 charset for Amharic/Unicode support
+        self.client = httpx.AsyncClient(
+            timeout=30.0,
+            headers={
+                "Content-Type": "application/json; charset=utf-8",
+                "Accept": "application/json; charset=utf-8"
+            }
+        )
         self.webhook_client = webhook_client
 
     async def _send_callback(
@@ -114,14 +121,21 @@ class KifiyaSMSProvider(IProviderService):
             try:
                 payload={
                     "tokenId": config.tokenId,
-                    "phoneNo": recipient.address ,
+                    "phoneNo": recipient.address,
                     "message": messageToSend
                 }
                 
+                # Log the message content (including Amharic characters)
+                logger.info(f"Sending SMS to {recipient.address}")
+                logger.info(f"Message content (raw): {messageToSend}")
+                logger.info(f"Message content (repr): {repr(messageToSend)}")
+                logger.info(f"Payload JSON: {json.dumps(payload, ensure_ascii=False)}")
                 
-                responseData= await self.client.post(
+                # Use content with explicit UTF-8 encoding for Amharic/Unicode support
+                # json=payload auto-serializes but may not preserve Unicode properly
+                responseData = await self.client.post(
                     config.url,
-                    json=payload
+                    content=json.dumps(payload, ensure_ascii=False).encode('utf-8')
                 )
                 logger.info(f"Response from Kifiya SMS Gateway: {responseData.json()}")
                 response = KifiyaSMSResponse(**responseData.json())
@@ -257,14 +271,23 @@ class KifiyaSMSProvider(IProviderService):
     async def test(self, config: Dict[str, Any],address:str) -> ProviderTestResponse:
             try:   
                 kifiyasmsconf=KifiyaSMSConfig.fromDict(config)
+                test_message = "This is a test message / የሙከራ መልእክት"  # Include Amharic for testing
                 payload={
                     "tokenId": kifiyasmsconf.tokenId,
-                    "phoneNo": address ,
-                    "message": "This is a test message"
+                    "phoneNo": address,
+                    "message": test_message
                 }
-                response_data= await self.client.post(
+                
+                # Log the test message content (including Amharic characters)
+                logger.info(f"[test] Sending test SMS to {address}")
+                logger.info(f"[test] Message content (raw): {test_message}")
+                logger.info(f"[test] Message content (repr): {repr(test_message)}")
+                logger.info(f"[test] Payload JSON: {json.dumps(payload, ensure_ascii=False)}")
+                
+                # Use content with explicit UTF-8 encoding for Amharic/Unicode support
+                response_data = await self.client.post(
                     kifiyasmsconf.url,
-                    json=payload
+                    content=json.dumps(payload, ensure_ascii=False).encode('utf-8')
                 )
                 response = KifiyaSMSResponse(**response_data.json())
                 if response.status=="success":
@@ -300,7 +323,17 @@ class KifiyaSMSProvider(IProviderService):
                 "message": message
             }
             
-            response_data = await self.client.post(config.url, json=payload)
+            # Log the message content (including Amharic characters) for retry
+            logger.info(f"[send_raw] Sending SMS to {recipient}")
+            logger.info(f"[send_raw] Message content (raw): {message}")
+            logger.info(f"[send_raw] Message content (repr): {repr(message)}")
+            logger.info(f"[send_raw] Payload JSON: {json.dumps(payload, ensure_ascii=False)}")
+            
+            # Use content with explicit UTF-8 encoding for Amharic/Unicode support
+            response_data = await self.client.post(
+                config.url,
+                content=json.dumps(payload, ensure_ascii=False).encode('utf-8')
+            )
             logger.info(f"Kifiya send_raw response for {recipient}: {response_data.json()}")
             response = KifiyaSMSResponse(**response_data.json())
             

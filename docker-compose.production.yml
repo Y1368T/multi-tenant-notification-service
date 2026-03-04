@@ -5,7 +5,7 @@
 
 services:
   postgres:
-    image: postgres:15.4-alpine
+    image: postgres:17.9-alpine
     container_name: notification-postgres
     env_file:
       - .env.production
@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-notification_svc}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -103,7 +103,7 @@ services:
     command: >
       sh -c "
       echo 'Waiting for Postgres to become fully available...';
-      until pg_isready -h postgres -p 5432 -U postgres; do 
+      until pg_isready -h postgres -p 5432 -U $$POSTGRES_USER; do 
         echo 'Postgres is unavailable - waiting 3 seconds...'; 
         sleep 3; 
       done; 
