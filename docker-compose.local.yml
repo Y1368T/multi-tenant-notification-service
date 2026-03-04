@@ -5,7 +5,7 @@
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17.9-alpine
     container_name: notification-postgres
     env_file:
       - .env.local
