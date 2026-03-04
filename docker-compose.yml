@@ -3,8 +3,8 @@ services:
     image: postgres:15.4-alpine
     container_name: notification-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-notification_svc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env or environment}
       POSTGRES_DB: qena_notification_service_db
     ports:
       # Host port 5433 maps to container port 5432 (for external host access)
@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-notification_svc}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -96,9 +96,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # CRITICAL FIX 1: Host is 'postgres' and Port is '5432' (internal port)
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/qena_notification_service_db
-      - DATABASE_URL_SYNC=postgresql://postgres:postgres@postgres:5432/qena_notification_service_db
+      # Host is 'postgres' and Port is '5432' (internal port). Credentials from env (no default postgres/postgres).
+      - POSTGRES_USER=${POSTGRES_USER:-notification_svc}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD}@postgres:5432/qena_notification_service_db
+      - DATABASE_URL_SYNC=postgresql://${POSTGRES_USER:-notification_svc}:${POSTGRES_PASSWORD}@postgres:5432/qena_notification_service_db
       
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - REDIS_URL=redis://:@redis:6379/0
@@ -113,7 +115,7 @@ services:
     command: >
       sh -c "
       echo 'Waiting for Postgres to become fully available...';
-      until pg_isready -h postgres -p 5432 -U postgres; do 
+      until pg_isready -h postgres -p 5432 -U $$POSTGRES_USER; do 
         echo 'Postgres is unavailable - waiting 3 seconds...'; 
         sleep 3; 
       done; 
