@@ -4,7 +4,7 @@ services:
     container_name: notification-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-notification_svc}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:wbhg05G332X6rmyfhM2Z}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wbhg05G332X6rmyfhM2Z}
       POSTGRES_DB: qena_notification_service_db
     ports:
       # Host port 5433 maps to container port 5432 (for external host access)
