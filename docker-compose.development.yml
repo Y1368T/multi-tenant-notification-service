@@ -11,7 +11,7 @@ services:
     env_file:
       - .env.development
     networks:
-      - qena-network
+      - notification-network
     ports:
       - "${PORT:-8000}:8000"
     command: >
@@ -38,7 +38,7 @@ services:
       - redisinsight-data:/data
     restart: unless-stopped
     networks:
-      - qena-network
+      - notification-network
 
   redis-commander:
     image: rediscommander/redis-commander:latest
@@ -49,12 +49,12 @@ services:
       - "8082:8081"
     restart: unless-stopped
     networks:
-      - qena-network
+      - notification-network
 
 volumes:
   redisinsight-data:
 
 networks:
-  qena-network:
-    name: qena-network
+  notification-network:
+    name: notification-network
     external: true
