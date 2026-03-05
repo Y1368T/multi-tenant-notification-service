@@ -430,6 +430,12 @@ def main()->FastAPI:
     
     app=builder.build()
     
+    # Health endpoints for load balancers / orchestrators (no dependency checks, fast 200)
+    @app.get("/isHealthy", status_code=200)
+    def is_healthy() -> dict:
+        """Return 200 so health checker systems can detect the service as up."""
+        return {"status": "ok"}
+    
     # Register global exception handlers
     registerExceptionHandlers(app)
     
