@@ -1,19 +1,19 @@
 trigger:
   branches:
     include:
-      - development
+      - main
 
 pr:
   branches:
     include:
-      - development
+      - main
 
 variables:
   - group: vg-aws-ecr
 
   # ECR repo name for THIS repo
   - name: ECR_REPO
-    value: "multi-tenant-notification-service-backend-dev-ecr"
+    value: "multi-tenant-notification-service-backend-prod-ecr"
 
 pool:
   vmImage: ubuntu-latest
@@ -117,4 +117,4 @@ steps:
 
       echo "Deploy done ✅"
     displayName: Deploy to ECS (force new deployment)
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/development'))
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
