@@ -12,6 +12,7 @@ from notification_service.adapters.inbound.dto.paginated_response_dto import Pag
 from notification_service.adapters.inbound.dto.email_notification_response_dto import EmailNotificationResponseDTO
 from notification_service.adapters.inbound.dto.email_notification_request_dto import EmailNotificationFilterDTO
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
+from notification_service.adapters.inbound.dto.bulk_notification_request_dto import BulkNotificationRequestDTO
 
 logger = logging.getLogger(__name__)
 
@@ -38,5 +39,18 @@ class EmailNotificationController(ControllerBase):
         """Send Email notification (custom endpoint)."""
         result = await self.emailNotificationService.prepareAndSendEmail(
             tenant_id, requestDto
+        )
+        return result
+
+    @post("/send-bulk")
+    async def sendBulk(self, tenant_id: UUID, requestDto: BulkNotificationRequestDTO):
+        """Send multiple recipient-specific Email notifications in a single call.
+
+        Each item in ``notifications`` is an independent notification with its
+        own recipient, payload, and idempotency key. Valid items are processed
+        even when others fail (partial success).
+        """
+        result = await self.emailNotificationService.sendBulkEmail(
+            tenant_id, requestDto.notifications
         )
         return result

@@ -4,8 +4,10 @@ from notification_service.application.use_cases.process_message_usecase import P
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.domain.value_objects.notification_types import NotificationChannel
+import uuid
+
 from notification_service.domain.value_objects.notification_request import NotificationRequest
-from notification_service.domain.value_objects.notification_response import NotificationResponse
+from notification_service.domain.value_objects.notification_response import BulkNotificationResponse, NotificationResponse
 from notification_service.domain.interfaces import IMessageHandler
 from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
@@ -141,6 +143,73 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
             )
             return response
     
+    async def sendBulkSms(
+        self, tenantId: UUID, notifications: List[NotificationRequest]
+    ) -> BulkNotificationResponse:
+        """Send multiple independent SMS notifications in one call.
+
+        Each item carries its own recipient(s), payload, and idempotency key so
+        content can be fully recipient-specific. Failures on individual items are
+        collected and reported; valid items are still processed (partial success).
+        """
+        batch_id = str(uuid.uuid4())
+
+        async with self.uow:
+            tenant = await self.uow.tenants.getById(tenantId)
+            if not tenant:
+                failures = [
+                    {
+                        "recipient": n.recipients[0].address if n.recipients else "unknown",
+                        "reason": "Tenant does not exist",
+                    }
+                    for n in notifications
+                ]
+                return BulkNotificationResponse(
+                    batchId=batch_id,
+                    totalSubmitted=len(notifications),
+                    successfulSubmissions=0,
+                    failedSubmissions=len(notifications),
+                    notificationIds=[],
+                    failures=failures,
+                    success=False,
+                    message="Tenant does not exist",
+                )
+
+        notification_ids: List[str] = []
+        failures: List[Dict[str, Any]] = []
+
+        for notification in notifications:
+            recipient_addr = (
+                notification.recipients[0].address if notification.recipients else "unknown"
+            )
+            try:
+                result = await self.prepareAndSendSms(tenantId, notification)
+                if result.success:
+                    if result.recipientResponse:
+                        for rr in result.recipientResponse:
+                            if rr.notificationId:
+                                notification_ids.append(rr.notificationId)
+                else:
+                    failures.append(
+                        {
+                            "recipient": recipient_addr,
+                            "reason": result.errorMessage or result.message or "Send failed",
+                        }
+                    )
+            except Exception as exc:
+                failures.append({"recipient": recipient_addr, "reason": str(exc)})
+
+        successful = len(notifications) - len(failures)
+        return BulkNotificationResponse(
+            batchId=batch_id,
+            totalSubmitted=len(notifications),
+            successfulSubmissions=successful,
+            failedSubmissions=len(failures),
+            notificationIds=notification_ids,
+            failures=failures,
+            success=len(failures) == 0,
+        )
+
     async def getNotificationStatus(self, notificationId: UUID) -> str:
         """Get notification status by ID."""
         async with self.uow:

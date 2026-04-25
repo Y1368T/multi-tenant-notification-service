@@ -5,7 +5,7 @@ import base64
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 import httpx
@@ -24,8 +24,7 @@ from notification_service.domain.value_objects.notification_response import (
 )
 from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
 
-if TYPE_CHECKING:
-    from notification_service.infrastructure.services.webhook_client import WebhookClient
+from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +140,7 @@ class JasminSMSProvider(IProviderService):
     For "smpp" mode, JasminSMPPConfig is used.
     """
 
-    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None) -> None:
+    def __init__(self, uow: IUnitOfWork, webhook_client: WebhookClient) -> None:
         self.client = httpx.AsyncClient(timeout=30.0)
         self.uow = uow
         self.webhook_client = webhook_client

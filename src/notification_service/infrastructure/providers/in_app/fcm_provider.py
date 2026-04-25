@@ -3,7 +3,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, TYPE_CHECKING
+from typing import Dict, Any, Optional, List
 from uuid import UUID
 
 import httpx
@@ -23,8 +23,7 @@ from notification_service.domain.value_objects.providers import PushProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
 
-if TYPE_CHECKING:
-    from notification_service.infrastructure.services.webhook_client import WebhookClient
+from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +103,7 @@ class FCMConfig(BaseModel):
 class FCMProvider(IProviderService):
     """Firebase Cloud Messaging (FCM) provider for in-app/push notifications"""
     
-    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None):
+    def __init__(self, uow: IUnitOfWork, webhook_client: WebhookClient):
         self.uow = uow
         self.client = httpx.AsyncClient(timeout=30.0)
         self._firebase_app = None
