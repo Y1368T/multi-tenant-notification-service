@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -26,8 +26,7 @@ from notification_service.domain.value_objects.notification_status import Notifi
 from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
 from uuid import UUID
 
-if TYPE_CHECKING:
-    from notification_service.infrastructure.services.webhook_client import WebhookClient
+from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +77,7 @@ class SMTPConfiguration(BaseModel):
 class SMTPProvider(IProviderService):
     """SMTP Email provider implementation."""
 
-    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None):
+    def __init__(self, uow: IUnitOfWork, webhook_client: WebhookClient):
         self.uow = uow
         self.webhook_client = webhook_client
 

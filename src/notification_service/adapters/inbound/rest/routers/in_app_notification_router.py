@@ -5,6 +5,7 @@ from notification_service.domain.entities.in_app.in_app_notification import InAp
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.adapters.inbound.dto.in_app_notification_response_dto import InAppNotificationResponseDTO
 from notification_service.adapters.inbound.dto.in_app_notification_request_dto import InAppNotificationFilterDTO
+from notification_service.adapters.inbound.dto.bulk_notification_request_dto import BulkNotificationRequestDTO
 from typing import Dict, Any, List, Optional
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
     PaginatedRequest,
@@ -171,5 +172,18 @@ class InAppNotificationController(ControllerBase):
     async def send(self, tenant_id: UUID, requestDto: NotificationRequest):
         """Send in-app notification (custom endpoint)."""
         result = await self.inAppNotificationService.prepareAndSendInApp(tenant_id, requestDto)
+        return result
+
+    @post("/send-bulk")
+    async def sendBulk(self, tenant_id: UUID, requestDto: BulkNotificationRequestDTO):
+        """Send multiple recipient-specific in-app notifications in a single call.
+
+        Each item in ``notifications`` is an independent notification with its
+        own recipient, payload, and idempotency key. Valid items are processed
+        even when others fail (partial success).
+        """
+        result = await self.inAppNotificationService.sendBulkInApp(
+            tenant_id, requestDto.notifications
+        )
         return result
 
