@@ -13,7 +13,7 @@ variables:
 
   # ECR repo name for THIS repo
   - name: ECR_REPO
-    value: "multi-tenant-notification-service-backend-dev-ecr"
+    value: "multi-tenant-notification-api-dev-ecr"
 
 pool:
   vmImage: ubuntu-latest
