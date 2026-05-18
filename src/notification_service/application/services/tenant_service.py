@@ -1,4 +1,3 @@
-import logging
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from notification_service.domain.entities.tenant.tenant import Tenant
@@ -16,8 +15,6 @@ from notification_service.application.services.base_service import BaseService
 from notification_service.shared.utils.api_key_generator import generate_api_key
 from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO, SortDirection
-
-logger = logging.getLogger(__name__)
 
 class TenantService(BaseService[Tenant, TenantResponseDTO]):
     def __init__(self, uow: IUnitOfWork, rabbitmqConsumer = None):
@@ -134,107 +131,6 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
     async def createTenant(self, tenant: Tenant) -> Tenant:
         """Create a new tenant (deprecated - use create() instead)."""
         return await self.create(tenant)
-    
-    async def update(self, tenant: Tenant) -> Tenant:
-        """Update an existing tenant with RabbitMQ queue setup/teardown if needed.
-        
-        Args:
-            tenant: Tenant entity to update
-            
-        Returns:
-            Updated Tenant entity
-        """
-        # Use a single UoW context for the entire update operation
-        async with self.uow:
-            repository = self._get_repository()
-            
-            # Fetch existing tenant to check for changes
-            existingTenant = await repository.getById(tenant.id)
-            if not existingTenant:
-                raise EntityNotFoundError("Tenant", str(tenant.id))
-            
-            # Store the old values before update
-            oldCommunicationMethod = existingTenant.preferedCommunicationMethod
-            oldChannels = set(existingTenant.supportedChannels or [])
-            oldIsActive = existingTenant.isActive
-            oldPrefix = existingTenant.prefix
-            
-            # Perform the update within the same UoW context
-            updatedTenant = await repository.update(tenant)
-        
-        # Check if we need to create or remove RabbitMQ queues
-        newCommunicationMethod = updatedTenant.preferedCommunicationMethod
-        newChannels = set(updatedTenant.supportedChannels or [])
-        newIsActive = updatedTenant.isActive
-        
-        shouldSetupQueues = False
-        shouldRemoveQueues = False
-        channelsToSetup = []
-        channelsToRemove = []
-        
-        # === QUEUE REMOVAL CASES ===
-        
-        # Case A: Changed FROM rabbitmq TO another method - remove all queues
-        if oldCommunicationMethod == "rabbitmq" and newCommunicationMethod != "rabbitmq":
-            shouldRemoveQueues = True
-            channelsToRemove = list(oldChannels)
-            logger.info(f"Tenant {oldPrefix} switched from rabbitmq to {newCommunicationMethod}, removing queues")
-        
-        # Case B: Still rabbitmq, but channels removed
-        elif oldCommunicationMethod == "rabbitmq" and newCommunicationMethod == "rabbitmq":
-            removedChannels = oldChannels - newChannels
-            if removedChannels:
-                shouldRemoveQueues = True
-                channelsToRemove = list(removedChannels)
-        
-        # Case C: Tenant became inactive while using rabbitmq - remove queues
-        elif oldCommunicationMethod == "rabbitmq" and oldIsActive and not newIsActive:
-            shouldRemoveQueues = True
-            channelsToRemove = list(oldChannels)
-            logger.info(f"Tenant {oldPrefix} deactivated, removing RabbitMQ queues")
-        
-        # === QUEUE SETUP CASES ===
-        
-        # Case 1: Changed TO rabbitmq from another method
-        if newCommunicationMethod == "rabbitmq" and oldCommunicationMethod != "rabbitmq":
-            shouldSetupQueues = True
-            channelsToSetup = list(newChannels)
-        
-        # Case 2: Already rabbitmq, but new channels added
-        elif newCommunicationMethod == "rabbitmq" and oldCommunicationMethod == "rabbitmq":
-            addedChannels = newChannels - oldChannels
-            if addedChannels:
-                shouldSetupQueues = True
-                channelsToSetup = list(addedChannels)
-        
-        # Case 3: Tenant was inactive and now active with rabbitmq
-        elif newCommunicationMethod == "rabbitmq" and not oldIsActive and newIsActive:
-            shouldSetupQueues = True
-            channelsToSetup = list(newChannels)
-        
-        # Remove RabbitMQ queues if needed
-        if shouldRemoveQueues and channelsToRemove and self.rabbitmqConsumer:
-            logger.info(f"Removing RabbitMQ queues for tenant {oldPrefix}: channels={channelsToRemove}")
-            try:
-                await self.rabbitmqConsumer.unsubscribeFromTenantQueues(oldPrefix, channelsToRemove)
-                logger.info(f"Successfully removed queues for tenant {oldPrefix}")
-            except Exception as e:
-                logger.error(f"Failed to remove queues for tenant {oldPrefix}: {e}")
-        
-        # Setup RabbitMQ queues if needed
-        if shouldSetupQueues and newIsActive and channelsToSetup and self.rabbitmqConsumer:
-            logger.info(f"Setting up RabbitMQ queues for tenant {updatedTenant.prefix}: channels={channelsToSetup}")
-            
-            for channel in channelsToSetup:
-                queueName = f"notification.{channel}.{updatedTenant.prefix}"
-                try:
-                    await self.rabbitmqConsumer.ensureQueueExistsAndSubscribe(queueName=queueName, channel=channel)
-                    logger.info(f"Created and subscribed to queue: {queueName}")
-                except Exception as e:
-                    logger.error(f"Failed to setup queue {queueName}: {e}")
-        
-        return updatedTenant
-    
     # Keep old methods for backward compatibility during migration
     async def updateTenant(self, tenantId: UUID, tenant: Tenant) -> Tenant:
         """Update an existing tenant (deprecated - use update() instead)."""
@@ -312,111 +208,6 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         async with self.uow:
             tenant = await self.uow.tenants.get_by_api_key_and_prefix(api_key, prefix)
             return tenant
-    
-    async def partialUpdate(self, entity_id: UUID, updates: Dict[str, Any]) -> Tenant:
-        """Partial update of a tenant with RabbitMQ queue setup/teardown if needed.
-        
-        Args:
-            entity_id: ID of tenant to update
-            updates: Dictionary of fields to update
-            
-        Returns:
-            Updated Tenant entity
-        """
-        # Use a single UoW context for the entire operation
-        async with self.uow:
-            repository = self._get_repository()
-            
-            # Fetch existing tenant to check for changes
-            existingTenant = await repository.getById(entity_id)
-            if not existingTenant:
-                raise EntityNotFoundError("Tenant", str(entity_id))
-            
-            # Store the old values before update
-            oldCommunicationMethod = existingTenant.preferedCommunicationMethod
-            oldChannels = set(existingTenant.supportedChannels or [])
-            oldIsActive = existingTenant.isActive
-            oldPrefix = existingTenant.prefix
-            
-            # Validate and apply updates
-            self._validate_partialUpdate(updates)
-            updated_entity = self._apply_partialUpdates(existingTenant, updates)
-            
-            # Perform the update within the same UoW context
-            updatedTenant = await repository.update(updated_entity)
-        
-        # Check if we need to create or remove RabbitMQ queues
-        newCommunicationMethod = updatedTenant.preferedCommunicationMethod
-        newChannels = set(updatedTenant.supportedChannels or [])
-        newIsActive = updatedTenant.isActive
-        
-        shouldSetupQueues = False
-        shouldRemoveQueues = False
-        channelsToSetup = []
-        channelsToRemove = []
-        
-        # === QUEUE REMOVAL CASES ===
-        
-        # Case A: Changed FROM rabbitmq TO another method - remove all queues
-        if oldCommunicationMethod == "rabbitmq" and newCommunicationMethod != "rabbitmq":
-            shouldRemoveQueues = True
-            channelsToRemove = list(oldChannels)
-            logger.info(f"Tenant {oldPrefix} switched from rabbitmq to {newCommunicationMethod}, removing queues")
-        
-        # Case B: Still rabbitmq, but channels removed
-        elif oldCommunicationMethod == "rabbitmq" and newCommunicationMethod == "rabbitmq":
-            removedChannels = oldChannels - newChannels
-            if removedChannels:
-                shouldRemoveQueues = True
-                channelsToRemove = list(removedChannels)
-        
-        # Case C: Tenant became inactive while using rabbitmq - remove queues
-        elif oldCommunicationMethod == "rabbitmq" and oldIsActive and not newIsActive:
-            shouldRemoveQueues = True
-            channelsToRemove = list(oldChannels)
-            logger.info(f"Tenant {oldPrefix} deactivated, removing RabbitMQ queues")
-        
-        # === QUEUE SETUP CASES ===
-        
-        # Case 1: Changed TO rabbitmq from another method
-        if newCommunicationMethod == "rabbitmq" and oldCommunicationMethod != "rabbitmq":
-            shouldSetupQueues = True
-            channelsToSetup = list(newChannels)
-        
-        # Case 2: Already rabbitmq, but new channels added
-        elif newCommunicationMethod == "rabbitmq" and oldCommunicationMethod == "rabbitmq":
-            addedChannels = newChannels - oldChannels
-            if addedChannels:
-                shouldSetupQueues = True
-                channelsToSetup = list(addedChannels)
-        
-        # Case 3: Tenant was inactive and now active with rabbitmq
-        elif newCommunicationMethod == "rabbitmq" and not oldIsActive and newIsActive:
-            shouldSetupQueues = True
-            channelsToSetup = list(newChannels)
-        
-        # Remove RabbitMQ queues if needed
-        if shouldRemoveQueues and channelsToRemove and self.rabbitmqConsumer:
-            logger.info(f"Removing RabbitMQ queues for tenant {oldPrefix} (partial update): channels={channelsToRemove}")
-            try:
-                await self.rabbitmqConsumer.unsubscribeFromTenantQueues(oldPrefix, channelsToRemove)
-                logger.info(f"Successfully removed queues for tenant {oldPrefix}")
-            except Exception as e:
-                logger.error(f"Failed to remove queues for tenant {oldPrefix}: {e}")
-        
-        # Setup RabbitMQ queues if needed
-        if shouldSetupQueues and newIsActive and channelsToSetup and self.rabbitmqConsumer:
-            logger.info(f"Setting up RabbitMQ queues for tenant {updatedTenant.prefix} (partial update): channels={channelsToSetup}")
-            
-            for channel in channelsToSetup:
-                queueName = f"notification.{channel}.{updatedTenant.prefix}"
-                try:
-                    await self.rabbitmqConsumer.ensureQueueExistsAndSubscribe(queueName=queueName, channel=channel)
-                    logger.info(f"Created and subscribed to queue: {queueName}")
-                except Exception as e:
-                    logger.error(f"Failed to setup queue {queueName}: {e}")
-        
-        return updatedTenant
     
     async def regenerate_api_key(self, tenant_id: UUID) -> Tenant:
         """Regenerate API key for a tenant, overwriting the existing one.

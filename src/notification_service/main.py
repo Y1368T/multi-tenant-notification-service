@@ -430,12 +430,6 @@ def main()->FastAPI:
     
     app=builder.build()
     
-    # Health endpoints for load balancers / orchestrators (no dependency checks, fast 200)
-    @app.get("/isHealthy", status_code=200)
-    def is_healthy() -> dict:
-        """Return 200 so health checker systems can detect the service as up."""
-        return {"status": "ok"}
-    
     # Register global exception handlers
     registerExceptionHandlers(app)
     
@@ -487,9 +481,6 @@ async def lifespan(app: FastAPI):
     # connect, ensure queues for active tenants, subscribe and start consuming
     task = asyncio.create_task(adapterConsumer.startConsuming())
 
-    # Get webhook client for cleanup
-    webhook_client = get_service(app, WebhookClient)
-    
     try:
         yield
     finally:
@@ -503,12 +494,7 @@ async def lifespan(app: FastAPI):
             try:
                 await rpc_client.disconnect()
             except Exception as e:
-                logging.getLogger(__name__).error(f"Error disconnecting RPC client: {e}")
-        # Close webhook client
-        try:
-            await webhook_client.close()
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Error closing webhook client: {e}")
+                logger.error(f"Error disconnecting RPC client: {e}")
         
 if __name__ == "__main__":
     import uvicorn

@@ -3,7 +3,7 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import Dict, Any, List, Optional
 
 import httpx
 from pydantic import BaseModel
@@ -19,10 +19,8 @@ from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
+from notification_service.infrastructure.services.webhook_client import WebhookClient
 from uuid import UUID, uuid4
-
-if TYPE_CHECKING:
-    from notification_service.infrastructure.services.webhook_client import WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +46,7 @@ class KifiyaSMSConfig(BaseModel):
         }
     
 class KifiyaSMSProvider(IProviderService):
-    def __init__(self, uow: IUnitOfWork, webhook_client: "WebhookClient" = None):
+    def __init__(self, uow: IUnitOfWork, webhook_client: WebhookClient):
         self.uow = uow
         # Set default headers with UTF-8 charset for Amharic/Unicode support
         self.client = httpx.AsyncClient(
