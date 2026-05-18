@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://:@localhost:6379/10"
 
     # RabbitMQ - default for local development
-    rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
+    rabbitmq_url: str = "amqp://guest:guest@localhost:5673/"
 
     enable_customer_language_rpc: bool = True
     customer_rpc_queue: str = "NotificationCustomerManagementRPC"
@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     outbox_max_retries: int = 5  # Maximum retry attempts before marking as permanently failed
     outbox_base_retry_delay_minutes: int = 5  # Base delay for exponential backoff
     outbox_batch_size: int = 50  # Messages to process per poll cycle
+    bulk_max_notifications: int = 1000  # Maximum notifications allowed per bulk request
     
 
 @lru_cache()

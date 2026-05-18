@@ -5,6 +5,7 @@ from notification_service.domain.entities.sms.sms_notification import SMSNotific
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.adapters.inbound.dto.sms_notification_response_dto import SMSNotificationResponseDTO
 from notification_service.adapters.inbound.dto.sms_notification_request_dto import SMSNotificationFilterDTO
+from notification_service.adapters.inbound.dto.bulk_notification_request_dto import BulkNotificationRequestDTO
 from typing import Dict, Any, List
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
     PaginatedRequest,
@@ -41,5 +42,18 @@ class SMSNotificationController(ControllerBase):
     async def send(self, tenant_id: UUID, requestDto: NotificationRequest):
         """Send SMS notification (custom endpoint)."""
         result = await self.smsNotificationService.prepareAndSendSms(tenant_id, requestDto)
+        return result
+
+    @post("/send-bulk")
+    async def sendBulk(self, tenant_id: UUID, requestDto: BulkNotificationRequestDTO):
+        """Send multiple recipient-specific SMS notifications in a single call.
+
+        Each item in ``notifications`` is an independent notification with its
+        own recipient, payload, and idempotency key. Valid items are processed
+        even when others fail (partial success).
+        """
+        result = await self.smsNotificationService.sendBulkSms(
+            tenant_id, requestDto.notifications
+        )
         return result
     
