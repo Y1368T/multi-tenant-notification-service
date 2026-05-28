@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Any
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
 from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.direct_notification_request import DirectNotificationRequest
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import PushProvider
 from notification_service.infrastructure.providers.in_app.fcm_provider import FCMProvider
@@ -78,6 +79,52 @@ class InAppChannelHandler(IChannelHandler):
         # Build FCM message from template
         template_body = template.body.get(language, template.body.get("en", {}))
         return await self.routeToProvider(message, tenantdb, tenantConfig, template.id, template_body, isImmediateMode)
+
+    async def receiveDirectMessage(
+        self,
+        tenantPrefix: str,
+        message: DirectNotificationRequest,
+        isImmediateMode: bool = False,
+    ) -> NotificationResponse:
+        """Send an in-app notification without a pre-defined template."""
+        logger.info(f"Receiving direct in-app notification for tenant {tenantPrefix} (immediate={isImmediateMode})")
+
+        tenantdb: Tenant = None
+        async with self.unitofWork:
+            tenantdb = await self.unitofWork.tenants.firstOrDefault(lambda t: t.prefix == tenantPrefix)
+            if not tenantdb:
+                logger.error(f"Tenant with prefix {tenantPrefix} not found")
+                return NotificationResponse(success=False, errorMessage=f"Tenant with prefix {tenantPrefix} not found")
+
+            checkIdempotency = await self.unitofWork.inAppNotifications.firstOrDefault(
+                lambda n: n.idempotencyKey == message.idempotencyKey and n.templateId == None
+            )
+            if checkIdempotency:
+                logger.info(f"Duplicate direct in-app notification detected for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
+                return NotificationResponse(success=True, message="Duplicate message ignored")
+
+        tenantConfig = await self.loadTenantConfig(tenantdb.id)
+        if not tenantConfig:
+            logger.error(f"No in-app channel config for tenant {tenantdb.id}")
+            return NotificationResponse(success=False, errorMessage=f"No in-app channel config for tenant {tenantdb.id}")
+
+        fcm_message = {
+            "title": message.title or "",
+            "body": message.message,
+            "data": {},
+            "android": {},
+            "apns": {},
+        }
+
+        config = tenantConfig[0]
+        match config.providerName.lower():
+            case PushProvider.FIREBASE.value:
+                return await self.__handlers[PushProvider.FIREBASE].send(
+                    message, config, fcm_message, None, saveToOutbox=not isImmediateMode
+                )
+            case _:
+                logger.error(f"Unsupported in-app provider: {config.providerName}")
+                return NotificationResponse(success=False, errorMessage=f"Unsupported in-app provider: {config.providerName}")
 
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantInAppConfiguration]:
         """Load the in-app channel configuration for a given tenant."""

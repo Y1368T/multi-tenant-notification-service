@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 from notification_service.domain.entities.sms.sms_template import SmsTemplate
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
 from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.direct_notification_request import DirectNotificationRequest
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
@@ -115,6 +116,75 @@ class SMSChannelHandler(IChannelHandler):
             logger.error(f"Template text not found for tenant {tenantdb.id} and language {language}")
             return NotificationResponse(success=False, errorMessage=f"Template text not found for tenant {tenantdb.name} and language {language}")
         return await self.routeToProvider(message, tenantdb, tenantConfig, template.id, templateText, isImmediateMode)
+
+    async def receiveDirectMessage(
+        self,
+        tenantPrefix: str,
+        message: DirectNotificationRequest,
+        isImmediateMode: bool = False,
+    ) -> NotificationResponse:
+        """Send an SMS without a pre-defined template."""
+        logger.info(f"Receiving direct SMS for tenant {tenantPrefix} (immediate={isImmediateMode})")
+
+        tenantdb: Tenant = None
+        async with self.unitofWork:
+            tenantdb = await self.unitofWork.tenants.firstOrDefault(lambda t: t.prefix == tenantPrefix)
+            if not tenantdb:
+                logger.error(f"Tenant with prefix {tenantPrefix} not found")
+                return NotificationResponse(success=False, errorMessage=f"Tenant with prefix {tenantPrefix} not found")
+
+            checkIdempotency = await self.unitofWork.smsNotifications.firstOrDefault(
+                lambda n: n.idempotencyKey == message.idempotencyKey and n.templateId == None
+            )
+            if checkIdempotency:
+                logger.info(f"Duplicate direct SMS detected for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
+                return NotificationResponse(success=True, message="Duplicate message ignored")
+
+            checkOutboxIdempotency = await self.unitofWork.smsOutboxes.firstOrDefault(
+                lambda n: n.idempotencyKey == message.idempotencyKey and n.templateId == None and n.status != "failed"
+            )
+            if checkOutboxIdempotency:
+                logger.info(f"Duplicate direct SMS detected in outbox for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
+                return NotificationResponse(success=True, message="Duplicate message ignored")
+
+        tenantConfig = await self.loadTenantConfig(tenantdb.id)
+        if not tenantConfig:
+            logger.error(f"No SMS channel config for tenant {tenantdb.id}")
+            return NotificationResponse(success=False, errorMessage=f"No SMS channel config for tenant {tenantdb.id}")
+
+        config = None
+        if message.metadata and message.metadata.get("shortcode"):
+            config = next(
+                (c for c in tenantConfig if (c.config.get("shortcode") or "").lower() == (message.metadata.get("shortcode") or "").lower()),
+                None,
+            )
+            if not config:
+                logger.error(f"No config found for shortcode '{message.metadata.get('shortcode')}' in tenant {tenantdb.name}")
+                return NotificationResponse(success=False, errorMessage=f"No config found for shortcode '{message.metadata.get('shortcode')}'")
+        else:
+            config = min((c for c in tenantConfig if c.isActive), key=lambda c: c.priority, default=None)
+
+        if not config:
+            logger.error(f"No active SMS configuration found for tenant {tenantdb.id}")
+            return NotificationResponse(success=False, errorMessage="No active SMS configuration found")
+
+        provider_name = (config.providerName or "").lower()
+        match provider_name:
+            case SMSProvider.AFROMESSAGE.value:
+                return await self.__handlers[SMSProvider.AFROMESSAGE].send(
+                    message, config, message.message, None, saveToOutbox=not isImmediateMode
+                )
+            case SMSProvider.KIFIYA.value:
+                return await self.__handlers[SMSProvider.KIFIYA].send(
+                    message, config, message.message, None, saveToOutbox=not isImmediateMode
+                )
+            case SMSProvider.JASMIN.value:
+                return await self.__handlers[SMSProvider.JASMIN].send(
+                    message, config, message.message, None, saveToOutbox=not isImmediateMode
+                )
+            case _:
+                logger.error(f"Unsupported SMS provider: {config.providerName}")
+                return NotificationResponse(success=False, errorMessage=f"Unsupported SMS provider: {config.providerName}")
 
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantSMSConfiguration]:
         """Load the SMS channel configuration for a given tenant."""
