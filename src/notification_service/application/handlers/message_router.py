@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Optional
 from notification_service.domain.interfaces.imessage_handler import IMessageHandler
 from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.direct_notification_request import DirectNotificationRequest
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
 from notification_service.domain.value_objects.notification_types import NotificationChannel
 from notification_service.shared.exceptions.application_exceptions import MessageRoutingError
@@ -59,4 +60,24 @@ class MessageRouter(IMessageHandler):
            return await handler.receiveMessage(tenant, message, isImmediateMode=isImmediateMode)
         except Exception as e:
             logger.error(f'Failed to route to {channel.value}: {str(e)}', exc_info=True)
+            raise MessageRoutingError(channel.value, f'Routing failed: {str(e)}') from e
+
+    async def doDirectRoute(
+        self,
+        channel: NotificationChannel,
+        tenant: str,
+        message: DirectNotificationRequest,
+        isImmediateMode: bool = False,
+    ) -> NotificationResponse:
+        """Route a template-free direct message to the appropriate channel handler."""
+        logger.info(f'Routing direct message to {channel.value} channel in {"immediate" if isImmediateMode else "fire-and-forget"} mode')
+
+        handler = self._handlers.get(channel)
+        if not handler:
+            raise MessageRoutingError(channel.value, f'No handler configured for channel: {channel.value}')
+
+        try:
+            return await handler.receiveDirectMessage(tenant, message, isImmediateMode=isImmediateMode)
+        except Exception as e:
+            logger.error(f'Failed to route direct message to {channel.value}: {str(e)}', exc_info=True)
             raise MessageRoutingError(channel.value, f'Routing failed: {str(e)}') from e

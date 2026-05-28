@@ -11,6 +11,7 @@ from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.interfaces import IMessageHandler
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.direct_notification_request import DirectNotificationRequest
 from notification_service.domain.value_objects.notification_response import BulkNotificationResponse, NotificationResponse
 from notification_service.domain.value_objects.notification_types import NotificationChannel
 from notification_service.adapters.inbound.dto.email_notification_response_dto import EmailNotificationResponseDTO
@@ -141,6 +142,35 @@ class EmailNotificationService(BaseService[EmailNotification, EmailNotificationR
                 isImmediateMode=isImmediateMode
             )
             return response
+
+    async def prepareAndSendDirectEmail(
+        self,
+        tenantId: UUID,
+        messageData: DirectNotificationRequest,
+    ) -> NotificationResponse:
+        """Send an email without a pre-defined template."""
+        if not messageData.recipients:
+            return NotificationResponse(success=False, message="At least one recipient is required")
+        for recipient in messageData.recipients:
+            if not isinstance(recipient.address, str) or not recipient.address:
+                return NotificationResponse(success=False, message="Each recipient must have a valid address")
+            if not self.processMessageUseCase.isValidEmail(recipient.address):
+                return NotificationResponse(success=False, message=f"Invalid email address: {recipient.address}")
+        if not messageData.message or not messageData.message.strip():
+            return NotificationResponse(success=False, message="message is required")
+        if not messageData.subject or not messageData.subject.strip():
+            return NotificationResponse(success=False, message="subject is required for email")
+        if not messageData.idempotencyKey:
+            return NotificationResponse(success=False, message="idempotencyKey is required")
+
+        async with self.uow:
+            tenant = await self.uow.tenants.getById(tenantId)
+            if not tenant:
+                return NotificationResponse(success=False, message="Tenant does not exist")
+
+            return await self.messageRouter.doDirectRoute(
+                NotificationChannel.EMAIL, tenant.prefix, messageData, isImmediateMode=False
+            )
 
     async def sendBulkEmail(
         self, tenantId: UUID, notifications: List[NotificationRequest]

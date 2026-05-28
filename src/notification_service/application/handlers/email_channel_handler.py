@@ -9,6 +9,7 @@ from notification_service.domain.entities.tenant.tenant_email_configuration impo
 from notification_service.domain.interfaces.ichannel_handler import IChannelHandler
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.direct_notification_request import DirectNotificationRequest
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from notification_service.domain.value_objects.providers import EmailProvider
 from notification_service.infrastructure.cache.redis_cache import RedisCache
@@ -163,6 +164,62 @@ class EmailChannelHandler(IChannelHandler):
         return await self.routeToProvider(
             message, tenantdb, tenantConfig, template.id, template.subject, templateBody, template.bodyType, isImmediateMode
         )
+
+    async def receiveDirectMessage(
+        self,
+        tenantPrefix: str,
+        message: DirectNotificationRequest,
+        isImmediateMode: bool = False,
+    ) -> NotificationResponse:
+        """Send an email without a pre-defined template."""
+        logger.info(f"Receiving direct email for tenant {tenantPrefix} (immediate={isImmediateMode})")
+
+        tenantdb: Tenant = None
+        async with self.unitofWork:
+            tenantdb = await self.unitofWork.tenants.firstOrDefault(lambda t: t.prefix == tenantPrefix)
+            if not tenantdb:
+                logger.error(f"Tenant with prefix {tenantPrefix} not found")
+                return NotificationResponse(success=False, errorMessage=f"Tenant with prefix {tenantPrefix} not found")
+
+            checkIdempotency = await self.unitofWork.emailNotifications.firstOrDefault(
+                lambda n: n.idempotencyKey == message.idempotencyKey and n.templateId == None
+            )
+            if checkIdempotency:
+                logger.info(f"Duplicate direct email detected for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
+                return NotificationResponse(success=True, message="Duplicate message ignored")
+
+            checkOutboxIdempotency = await self.unitofWork.emailOutbox.firstOrDefault(
+                lambda n: n.idempotencyKey == message.idempotencyKey and n.templateId == None and n.status != "failed"
+            )
+            if checkOutboxIdempotency:
+                logger.info(f"Duplicate direct email detected in outbox for tenant {tenantPrefix} with idempotency key {message.idempotencyKey}")
+                return NotificationResponse(success=True, message="Duplicate message ignored")
+
+        tenantConfig = await self.loadTenantConfig(tenantdb.id)
+        if not tenantConfig:
+            logger.error(f"No Email channel config for tenant {tenantdb.id}")
+            return NotificationResponse(success=False, errorMessage=f"No Email channel config for tenant {tenantdb.id}")
+
+        config = min((c for c in tenantConfig if c.isActive), key=lambda c: c.priority, default=None)
+        if not config:
+            logger.error(f"No active Email configuration found for tenant {tenantdb.id}")
+            return NotificationResponse(success=False, errorMessage="No active Email configuration found")
+
+        message_to_send = {
+            "subject": message.subject,
+            "body": message.message,
+            "bodyType": "text",
+        }
+
+        provider_name = (config.providerName or "").lower()
+        match provider_name:
+            case EmailProvider.SMTP.value:
+                return await self.__handlers[EmailProvider.SMTP].send(
+                    message, config, message_to_send, None, saveToOutbox=not isImmediateMode
+                )
+            case _:
+                logger.error(f"Unsupported Email provider: {config.providerName}")
+                return NotificationResponse(success=False, errorMessage=f"Unsupported Email provider: {config.providerName}")
 
     async def loadTenantConfig(self, tenantId: UUID) -> list[TenantEmailConfiguration]:
         """Load the Email channel configuration for a given tenant."""
