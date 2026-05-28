@@ -7,12 +7,14 @@ from fastapi import Depends
 from qena_shared_lib.http import ControllerBase, get, post, api_controller
 
 from notification_service.application.services.email_notification_service import EmailNotificationService
-from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.notification_request import NotificationRequest, Recipient
+from notification_service.domain.value_objects.direct_notification_request import DirectNotificationRequest
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.adapters.inbound.dto.email_notification_response_dto import EmailNotificationResponseDTO
 from notification_service.adapters.inbound.dto.email_notification_request_dto import EmailNotificationFilterDTO
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequest
 from notification_service.adapters.inbound.dto.bulk_notification_request_dto import BulkNotificationRequestDTO
+from notification_service.adapters.inbound.dto.direct_email_request_dto import DirectEmailRequestDTO
 
 logger = logging.getLogger(__name__)
 
@@ -53,4 +55,23 @@ class EmailNotificationController(ControllerBase):
         result = await self.emailNotificationService.sendBulkEmail(
             tenant_id, requestDto.notifications
         )
+        return result
+
+    @post("/send-direct")
+    async def sendDirect(self, tenant_id: UUID, requestDto: DirectEmailRequestDTO):
+        """Send a single email without a pre-defined template.
+
+        The caller supplies the subject and message body directly — no template
+        lookup or variable rendering is performed.
+        """
+        direct_request = DirectNotificationRequest(
+            recipients=[Recipient(address=r.address, externalId=r.externalId) for r in requestDto.recipients],
+            message=requestDto.message,
+            subject=requestDto.subject,
+            idempotencyKey=requestDto.idempotencyKey,
+            callbackUrl=requestDto.callbackUrl,
+            callbackHeaders=requestDto.callbackHeaders,
+            metadata=requestDto.metadata,
+        )
+        result = await self.emailNotificationService.prepareAndSendDirectEmail(tenant_id, direct_request)
         return result
