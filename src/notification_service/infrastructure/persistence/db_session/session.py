@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import MetaData
 
-import logging 
-from typing import Optional
+import logging
+import contextlib
+from typing import Optional, AsyncGenerator
 from notification_service.config.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -23,13 +24,18 @@ class Database:
         self.engine = None
         self.session_maker: Optional[async_sessionmaker] = None
         
+    @contextlib.asynccontextmanager
+    async def getSession(self) -> AsyncGenerator[AsyncSession, None]:
+        """Get a database session with proper async context.
         
-    def getSession(self) -> AsyncSession:
-        """Get a  database session"""
+        This ensures the connection is fully initialized before use,
+        preventing 'session is provisioning a new connection' errors.
+        """
         if not self.session_maker:
             raise RuntimeError("Database session maker is not initialized.")
-         
-        return self.session_maker()
+        
+        async with self.session_maker() as session:
+            yield session
 
     async def connect(self):
         """Initialize the database (create tables)"""
