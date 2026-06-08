@@ -540,36 +540,35 @@ PROVIDER_SEED_DATA: tuple[Provider, ...] = (
 async def seed_providers(database: Database) -> bool:
     """Insert default providers if they are missing."""
     mapper = ProviderMapper()
-    session = database.getSession()
+    
+    # Use async context manager to ensure proper session initialization
+    async with database.getSession() as session:
+        try:
+            inserted = 0
 
-    try:
-        inserted = 0
+            for provider in PROVIDER_SEED_DATA:
+                exists_stmt = select(ProviderModel.id).where(
+                    or_(
+                        ProviderModel.id == provider.id,
+                        ProviderModel.providerName == provider.providerName,
+                    )
+                ).limit(1)
 
-        for provider in PROVIDER_SEED_DATA:
-            exists_stmt = select(ProviderModel.id).where(
-                or_(
-                    ProviderModel.id == provider.id,
-                    ProviderModel.providerName == provider.providerName,
-                )
-            ).limit(1)
+                existing = await session.scalar(exists_stmt)
+                if existing:
+                    continue
 
-            existing = await session.scalar(exists_stmt)
-            if existing:
-                continue
+                session.add(mapper.toModel(provider))
+                inserted += 1
 
-            session.add(mapper.toModel(provider))
-            inserted += 1
+            if inserted == 0:
+                logger.info("Provider seed skipped; all default providers already exist.")
+                return False
 
-        if inserted == 0:
-            logger.info("Provider seed skipped; all default providers already exist.")
-            return False
-
-        await session.commit()
-        logger.info("Seeded %d provider(s).", inserted)
-        return True
-    except Exception:
-        await session.rollback()
-        logger.exception("Failed to seed providers.")
-        raise
-    finally:
-        await session.close()
+            await session.commit()
+            logger.info("Seeded %d provider(s).", inserted)
+            return True
+        except Exception:
+            await session.rollback()
+            logger.exception("Failed to seed providers.")
+            raise
