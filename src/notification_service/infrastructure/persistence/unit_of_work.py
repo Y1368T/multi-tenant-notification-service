@@ -33,7 +33,7 @@ class UnitOfWork(IUnitOfWork):
     def __init__(self,database: Database):
         self.database=database
         self.session = None
-        pass
+        self._session_context = None
     
     @property
     def providers(self):
@@ -92,8 +92,18 @@ class UnitOfWork(IUnitOfWork):
         return self._tenantInAppConfigurations
 
     async def __aenter__(self):
-        """Enter async context manager."""
-        self.session = self.database.getSession()
+        """Enter async context manager.
+        
+        Properly initializes the database session using nested async context manager
+        to ensure the connection is fully established before repositories use it.
+        This prevents 'session is provisioning a new connection' race conditions.
+        """
+        # Store the session context manager for proper cleanup in __aexit__
+        self._session_context = self.database.getSession()
+        # Await the session initialization to ensure connection is established
+        self.session = await self._session_context.__aenter__()
+        
+        # Initialize all repositories with the properly connected session
         self._emailNotifications = EmailNotificationRepository(self.session)
         self._emailOutbox = EmailOutboxRepository(self.session)
         self._emailTemplates = EmailTemplateRepository(self.session)
@@ -116,7 +126,10 @@ class UnitOfWork(IUnitOfWork):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit async context manager; rollback on error, close session."""
+        """Exit async context manager; rollback on error, close session.
+        
+        Properly cleans up both the session and the nested session context manager.
+        """
         try:
             if exc_type:
                 await self.rollback()
@@ -131,12 +144,13 @@ class UnitOfWork(IUnitOfWork):
                 except Exception:
                     logger.exception("Rollback failed after commit error.")
         finally:
-            if self.session:
+            # Clean up the session context manager
+            if self._session_context:
                 try:
-                    await self.session.close()
-                    logger.debug("Session closed.")
+                    await self._session_context.__aexit__(None, None, None)
+                    logger.debug("Session context cleaned up.")
                 except Exception:
-                    logger.exception("Error closing session.")
+                    logger.exception("Error cleaning up session context.")
         # Re-raise exceptions so upper layers can handle them
         if exc_type:
             raise exc_val
