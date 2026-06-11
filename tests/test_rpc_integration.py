@@ -15,6 +15,7 @@ import logging
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -31,6 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+@pytest.mark.asyncio
 async def test_sms_handler_language_fetch():
     """Test SMS handler fetching language via RPC."""
     logger.info("=" * 60)
@@ -98,6 +100,7 @@ async def test_sms_handler_language_fetch():
     await rpc_client.disconnect()
 
 
+@pytest.mark.asyncio
 async def test_multiple_concurrent_requests():
     """Test handling multiple concurrent RPC requests."""
     logger.info("=" * 60)
@@ -145,6 +148,7 @@ async def test_multiple_concurrent_requests():
     await rpc_client.disconnect()
 
 
+@pytest.mark.asyncio
 async def test_error_handling():
     """Test error handling when RPC server is unavailable."""
     logger.info("=" * 60)

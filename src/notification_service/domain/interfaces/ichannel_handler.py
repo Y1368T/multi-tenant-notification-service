@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.direct_notification_request import DirectNotificationRequest
 from notification_service.domain.value_objects.notification_response import NotificationResponse
 from uuid import UUID
 
@@ -21,6 +22,25 @@ class IChannelHandler(ABC):
             message: Notification request
             isImmediateMode: If True, caller expects immediate response and handles retry.
                            If False, failed messages go to outbox for automatic retry.
+
+        Returns:
+            NotificationResponse: The notification processing result.
+        """
+        pass
+
+    @abstractmethod
+    async def receiveDirectMessage(
+        self,
+        tenantPrefix: str,
+        message: DirectNotificationRequest,
+        isImmediateMode: bool = False
+    ) -> NotificationResponse:
+        """Receive a template-free direct message.
+
+        Args:
+            tenantPrefix: Tenant prefix identifier.
+            message: Direct notification request (no template lookup).
+            isImmediateMode: If True, caller expects immediate response.
 
         Returns:
             NotificationResponse: The notification processing result.
