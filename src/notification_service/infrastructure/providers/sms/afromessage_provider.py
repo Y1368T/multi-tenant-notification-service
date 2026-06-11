@@ -279,7 +279,8 @@ class AfromessageSMSProvider(IProviderService):
                         isAllSent = False
                     
                 except Exception as exc:
-                    logger.error(f"Error sending SMS to {address} via Afromessage: {exc}", exc_info=True)
+                    error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (Afromessage provider)'}"
+                    logger.error(f"Error sending SMS to {address} via Afromessage: {error_message}", exc_info=True)
                     # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
                     if saveToOutbox:
                         smsOutBox = SMSOutbox(
@@ -290,7 +291,7 @@ class AfromessageSMSProvider(IProviderService):
                             templateId=templateId,
                             retryCount=0,
                             status="failed",
-                            lastErrorMessage=str(exc),
+                            lastErrorMessage=error_message,
                             providerAttempted="afromessage",
                             callbackUrl=requestObject.callbackUrl,
                             callbackHeaders=requestObject.callbackHeaders,
@@ -305,7 +306,7 @@ class AfromessageSMSProvider(IProviderService):
                             recipient=address,
                             createdAt=smsOutBox.createdAt,
                             success=False,
-                            errorMessage=str(exc)
+                            errorMessage=error_message
                         ))
                     else:
                         # Immediate mode - just return failure, caller handles retry
@@ -315,7 +316,7 @@ class AfromessageSMSProvider(IProviderService):
                             recipient=address,
                             createdAt=datetime.utcnow(),
                             success=False,
-                            errorMessage=str(exc)
+                            errorMessage=error_message
                         ))
                     isAllSent = False
             # Return response based on results

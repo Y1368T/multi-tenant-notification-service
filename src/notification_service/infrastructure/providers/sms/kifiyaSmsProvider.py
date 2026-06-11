@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -57,6 +58,30 @@ class KifiyaSMSProvider(IProviderService):
             }
         )
         self.webhook_client = webhook_client
+
+    @staticmethod
+    def _contains_non_gsm_characters(text: str) -> bool:
+        # GSM 03.38 basic + extension tables for deciding whether Unicode mode is needed.
+        gsm_basic = r"^[A-Za-z0-9\r\n @£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà]*$"
+        gsm_extended_chars = "^{}\\[~]|€"
+        if re.match(gsm_basic, text):
+            return False
+        return any(ch not in gsm_extended_chars for ch in text if ord(ch) > 127)
+
+    def _build_payload(self, config: KifiyaSMSConfig, recipient: str, message: str) -> Dict[str, Any]:
+        contains_non_gsm = self._contains_non_gsm_characters(message)
+
+        payload: Dict[str, Any] = {
+            "tokenId": config.tokenId,
+            "phoneNo": recipient,
+            "message": message,
+        }
+
+        if contains_non_gsm:
+            # Hardcoded Kannel Unicode mode for Amharic/non-GSM text.
+            payload["coding"] = 2
+
+        return payload
 
     async def _send_callback(
         self,
@@ -117,11 +142,11 @@ class KifiyaSMSProvider(IProviderService):
         isAllSent:bool=True
         for recipient in requestObject.recipients:
             try:
-                payload={
-                    "tokenId": config.tokenId,
-                    "phoneNo": recipient.address,
-                    "message": messageToSend
-                }
+                payload = self._build_payload(
+                    config=config,
+                    recipient=recipient.address,
+                    message=messageToSend,
+                )
                 
                 # Log the message content (including Amharic characters)
                 logger.info(f"Sending SMS to {recipient.address}")
@@ -218,7 +243,8 @@ class KifiyaSMSProvider(IProviderService):
                         isAllSent = False
             except Exception as exc:
                 # Handle connection errors, timeouts, etc.
-                logger.error(f"Error sending SMS via Kifiya to {recipient.address}: {exc}")
+                error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (Kifiya provider)'}"
+                logger.error(f"Error sending SMS via Kifiya to {recipient.address}: {error_message}", exc_info=True)
                 
                 if saveToOutbox:
                     # Fire-and-forget mode: save to outbox for retry
@@ -232,7 +258,7 @@ class KifiyaSMSProvider(IProviderService):
                         status="pending",
                         createdAt=datetime.utcnow(),
                         updatedAt=datetime.utcnow(),
-                        lastErrorMessage=str(exc),
+                        lastErrorMessage=error_message,
                         providerAttempted="kifiya",
                         callbackUrl=requestObject.callbackUrl,
                         callbackHeaders=requestObject.callbackHeaders
@@ -247,7 +273,7 @@ class KifiyaSMSProvider(IProviderService):
                         createdAt=smsOutBox.createdAt,
                         success=False,
                         message="Saved to outbox for retrying later",
-                        errorMessage=str(exc),
+                        errorMessage=error_message,
                     )
                 else:
                     # Immediate mode: just return failure, caller handles retry
@@ -259,7 +285,7 @@ class KifiyaSMSProvider(IProviderService):
                         createdAt=datetime.utcnow(),
                         success=False,
                         message="Failed to send SMS - connection error",
-                        errorMessage=str(exc),
+                        errorMessage=error_message,
                     )
                 notificationResponsePerRecipient.append(notifcationResponse)
                 isAllSent = False
@@ -270,17 +296,19 @@ class KifiyaSMSProvider(IProviderService):
             try:   
                 kifiyasmsconf=KifiyaSMSConfig.fromDict(config)
                 test_message = "This is a test message / የሙከራ መልእክት"  # Include Amharic for testing
-                payload={
-                    "tokenId": kifiyasmsconf.tokenId,
-                    "phoneNo": address,
-                    "message": test_message
-                }
+                payload = self._build_payload(
+                    config=kifiyasmsconf,
+                    recipient=address,
+                    message=test_message,
+                )
                 
                 # Log the test message content (including Amharic characters)
                 logger.info(f"[test] Sending test SMS to {address}")
                 logger.info(f"[test] Message content (raw): {test_message}")
                 logger.info(f"[test] Message content (repr): {repr(test_message)}")
                 logger.info(f"[test] Payload JSON: {json.dumps(payload, ensure_ascii=False)}")
+                logger.info(f"[test] Kifiya SMS test config: {json.dumps(payload, ensure_ascii=False).encode('utf-8')}") 
+                
                 
                 # Use content with explicit UTF-8 encoding for Amharic/Unicode support
                 response_data = await self.client.post(
@@ -315,11 +343,11 @@ class KifiyaSMSProvider(IProviderService):
         """
         try:
             config = KifiyaSMSConfig.fromDict(tenantConfig.config)
-            payload = {
-                "tokenId": config.tokenId,
-                "phoneNo": recipient,
-                "message": message
-            }
+            payload = self._build_payload(
+                config=config,
+                recipient=recipient,
+                message=message,
+            )
             
             # Log the message content (including Amharic characters) for retry
             logger.info(f"[send_raw] Sending SMS to {recipient}")
