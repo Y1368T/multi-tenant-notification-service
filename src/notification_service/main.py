@@ -44,6 +44,7 @@ from notification_service.domain.interfaces.imessage_consumer import IMessageCon
 from notification_service.infrastructure.services.customer_service_client import CustomerServiceClient
 from notification_service.infrastructure.services.webhook_client import WebhookClient
 from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
+from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -71,7 +72,7 @@ logging.basicConfig(
     ],
     force=True  # Override any existing configuration
 )
-logger=logging.getLogger(__name__).setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
 def customOpenapi(app: FastAPI) -> Dict[str, Any]:
     """Custom OpenAPI schema generator that fixes anyOf null type issues."""
@@ -479,17 +480,58 @@ async def lifespan(app: FastAPI):
     )
 
     # connect, ensure queues for active tenants, subscribe and start consuming
-    task = asyncio.create_task(adapterConsumer.startConsuming())
+    rabbitmq_task = asyncio.create_task(adapterConsumer.startConsuming())
+    
+    # Create and start OutboxProcessor background worker
+    # Build dependencies for OutboxProcessor
+    database = get_service(app, Database)
+    settings = get_service(app, Settings)
+    webhook_client = get_service(app, WebhookClient)
+    
+    # Build SMS providers dictionary (provider_name -> provider instance)
+    kifiya_provider = get_service(app, KifiyaSMSProvider)
+    jasmin_provider = get_service(app, JasminSMSProvider)
+    afromessage_provider = get_service(app, AfromessageSMSProvider)
+    sms_providers = {
+        "kifiya": kifiya_provider,
+        "jasmin": jasmin_provider,
+        "afromessage": afromessage_provider
+    }
+    
+    # Get email and in-app providers
+    email_provider = get_service(app, SMTPProvider)
+    inapp_provider = get_service(app, FCMProvider)
+    
+    # Create OutboxProcessor instance
+    outbox_processor = OutboxProcessor(
+        database=database,
+        sms_providers=sms_providers,
+        email_provider=email_provider,
+        inapp_provider=inapp_provider,
+        settings=settings,
+        webhook_client=webhook_client
+    )
+    
+    # Start background task
+    outbox_task = asyncio.create_task(outbox_processor.start())
+    logger.info("OutboxProcessor background task started")
 
     try:
         yield
     finally:
         # Shutdown actions
+        logger.info("Shutting down OutboxProcessor...")
+        outbox_processor.stop()
+        
         await adapterConsumer.stopConsuming()
         await db.disconnect()
         await redis.disconnect()
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        
+        # Cancel both tasks
+        rabbitmq_task.cancel()
+        outbox_task.cancel()
+        await asyncio.gather(rabbitmq_task, outbox_task, return_exceptions=True)
+        
         if rpc_client:  # Use the variable from outer scope
             try:
                 await rpc_client.disconnect()
