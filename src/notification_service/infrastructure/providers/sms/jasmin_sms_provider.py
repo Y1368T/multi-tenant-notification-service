@@ -416,7 +416,8 @@ class JasminSMSProvider(IProviderService):
                         notificationResponsePerRecipient.append(notifcationResponse)
                         isAllSent = False
             except Exception as exc:  
-                    logger.error(f"Error sending SMS via Jasmin HTTP to {to}: {exc}")
+                    error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (Jasmin HTTP)'}"
+                    logger.error(f"Error sending SMS via Jasmin HTTP to {to}: {error_message}", exc_info=True)
                     
                     # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
                     if saveToOutbox:
@@ -430,7 +431,7 @@ class JasminSMSProvider(IProviderService):
                             status="failed",
                             createdAt=datetime.utcnow(),
                             updatedAt=datetime.utcnow(),
-                            lastErrorMessage=str(exc),
+                            lastErrorMessage=error_message,
                             lastRetryAt=datetime.utcnow(),
                             providerAttempted="jasmin",
                             callbackUrl=requestObject.callbackUrl,
@@ -445,7 +446,7 @@ class JasminSMSProvider(IProviderService):
                             createdAt=smsOutBox.createdAt,
                             success=False,
                             message="Saved to outbox for retrying later",
-                            errorMessage=str(exc),
+                            errorMessage=error_message,
                         )
                     else:
                         # Immediate mode - just return failure, caller handles retry
@@ -456,7 +457,7 @@ class JasminSMSProvider(IProviderService):
                             createdAt=datetime.utcnow(),
                             success=False,
                             message="Failed to send SMS",
-                            errorMessage=str(exc),
+                            errorMessage=error_message,
                         )
                     notificationResponsePerRecipient.append(notifcationResponse)
                     isAllSent = False
