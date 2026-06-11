@@ -1,11 +1,13 @@
 from qena_shared_lib.http import ControllerBase, get, post, api_controller, put, delete, patch
 from notification_service.application.services.in_app_notification_service import InAppNotificationService
-from notification_service.domain.value_objects.notification_request import NotificationRequest
+from notification_service.domain.value_objects.notification_request import NotificationRequest, Recipient
+from notification_service.domain.value_objects.direct_notification_request import DirectNotificationRequest
 from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.adapters.inbound.dto.in_app_notification_response_dto import InAppNotificationResponseDTO
 from notification_service.adapters.inbound.dto.in_app_notification_request_dto import InAppNotificationFilterDTO
 from notification_service.adapters.inbound.dto.bulk_notification_request_dto import BulkNotificationRequestDTO
+from notification_service.adapters.inbound.dto.direct_inapp_request_dto import DirectInAppRequestDTO
 from typing import Dict, Any, List, Optional
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
     PaginatedRequest,
@@ -186,4 +188,24 @@ class InAppNotificationController(ControllerBase):
             tenant_id, requestDto.notifications
         )
         return result
+
+    @post("/send-direct")
+    async def sendDirect(self, tenant_id: UUID, requestDto: DirectInAppRequestDTO):
+        """Send a single in-app notification without a pre-defined template.
+
+        The caller supplies the title and message body directly — no template
+        lookup or variable rendering is performed.
+        """
+        direct_request = DirectNotificationRequest(
+            recipients=[Recipient(address=r.address, externalId=r.externalId) for r in requestDto.recipients],
+            title=requestDto.title,
+            message=requestDto.message,
+            idempotencyKey=requestDto.idempotencyKey,
+            callbackUrl=requestDto.callbackUrl,
+            callbackHeaders=requestDto.callbackHeaders,
+            metadata=requestDto.metadata,
+        )
+        result = await self.inAppNotificationService.prepareAndSendDirectInApp(tenant_id, direct_request)
+        return result
+
 
