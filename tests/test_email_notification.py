@@ -216,7 +216,7 @@ class EmailNotificationTester:
         
         notification_data = {
             "serviceName": "test-service",
-            "recipients": [{"address": recipient_email}],
+            "recipient": {"address": recipient_email},
             "templateName": self.template_name or "test-welcome-email",
             "payload": {
                 "userName": "Test User",
@@ -262,16 +262,16 @@ class EmailNotificationTester:
         self, 
         recipient_emails: list[str]
     ) -> Dict[str, Any]:
-        """Send email to multiple recipients."""
+        """Send email to multiple recipient."""
         if not self.tenant_id:
             self._log("[FAIL] No tenant ID available", "ERROR")
             return {"success": False, "error": "No tenant ID"}
 
-        self._log(f"Sending email to {len(recipient_emails)} recipients...")
+        self._log(f"Sending email to {len(recipient_emails)} recipient...")
         
         notification_data = {
             "serviceName": "test-service",
-            "recipients": [{"address": email} for email in recipient_emails],
+            "recipient": {"address": recipient_emails[0]} if recipient_emails else {"address": ""},
             "templateName": self.template_name or "test-welcome-email",
             "payload": {
                 "userName": "Multiple Users",
@@ -307,7 +307,7 @@ class EmailNotificationTester:
         
         notification_data = {
             "serviceName": "test-service",
-            "recipients": [{"address": TEST_RECIPIENT_EMAIL}],
+            "recipient": {"address": TEST_RECIPIENT_EMAIL},
             "templateName": self.template_name or "test-welcome-email",
             "payload": {
                 "userName": "Idempotency Test",

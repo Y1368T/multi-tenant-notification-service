@@ -18,14 +18,14 @@ class DirectEmailRequestDTO(BaseModel):
 
         POST /email-notifications/send-direct?tenant_id=<uuid>
         {
-          "recipients": [{"address": "user@example.com", "externalId": "u-42"}],
+          "recipient": {"address": "user@example.com", "externalId": "u-42"},
           "subject": "Your account has been credited",
           "message": "Dear customer, ETB 1,000 has been added to your account.",
           "idempotencyKey": "credit-txn-001"
         }
     """
 
-    recipients: List[RecipientDTO]
+    recipient: RecipientDTO
     subject: str
     message: str
     idempotencyKey: str = ""

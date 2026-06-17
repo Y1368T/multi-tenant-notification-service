@@ -179,7 +179,7 @@ Send notification without language:
 ```json
 {
     "serviceName": "payment-service",
-    "recipients": [{"address": "+251912345678"}],
+    "recipient": {"address": "+251912345678"},
     "templateName": "payment_confirmation",
     "payload": {"amount": "1000"},
     "idempotencyKey": "test-123"

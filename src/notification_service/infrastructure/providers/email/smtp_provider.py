@@ -222,20 +222,20 @@ class SMTPProvider(IProviderService):
             # Load configuration from database (tenantConfig.config)
             smtp_config = SMTPConfiguration.fromDict(tenantConfig.config)
 
-            # Get recipient addresses
-            addresses = [recipient.address for recipient in requestObject.recipients]
+            # Get recipient address
+            address = requestObject.recipient.address
 
-            if not addresses:
+            if not address:
                 return NotificationResponse(
                     success=False,
-                    message="No recipients provided",
+                    message="No recipient provided",
                 )
 
             isAllSent: bool = True
             notificationResponsePerRecipient: List[NotifiationResponsePerRecipient] = []
 
-            for address in addresses:
-                try:
+           
+            try:
                     # Create email message
                     message = MIMEMultipart("alternative")
                     message["Subject"] = messageToSend.get("subject", "Notification")
@@ -309,7 +309,7 @@ class SMTPProvider(IProviderService):
                         notification_id=str(emailNotification.id)
                     )
 
-                except Exception as exc:
+            except Exception as exc:
                     error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (SMTP provider)'}"
                     logger.error(f"Error sending email to {address} via SMTP: {error_message}", exc_info=True)
 

@@ -114,24 +114,22 @@ class EmailChannelHandler(IChannelHandler):
         language = message.lang  # Start with provided language
 
         if not language:
-            # If no language provided, try to fetch from customer service
-            if message.recipients:
-                customer_id = message.recipients[0].address
-                try:
-                    logger.info(f"Fetching language preference for customer: {customer_id}")
-                    phone, language = await self.customer_service.get_customer_language_preference(
-                        customer_id=customer_id
+            customer_id = message.recipient.address
+            try:
+                logger.info(f"Fetching language preference for customer: {customer_id}")
+                phone, language = await self.customer_service.get_customer_language_preference(
+                    customer_id=customer_id
+                )
+                if language:
+                    logger.info(
+                        f"Fetched language '{language}' for customer {customer_id}"
                     )
-                    if language:
-                        logger.info(
-                            f"Fetched language '{language}' for customer {customer_id}"
-                        )
-                    else:
-                        logger.info(
-                            f"No language preference found for customer {customer_id}, using default"
-                        )
-                except Exception as e:
-                    logger.warning(f"Failed to fetch customer language preference: {e}")
+                else:
+                    logger.info(
+                        f"No language preference found for customer {customer_id}, using default"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to fetch customer language preference: {e}")
 
         # Fall back to default language if still not set
         if not language:
