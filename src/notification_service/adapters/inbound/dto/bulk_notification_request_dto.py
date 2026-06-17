@@ -22,14 +22,14 @@ class BulkNotificationRequestDTO(BaseModel):
           "notifications": [
             {
               "serviceName": "payment-service",
-              "recipients": [{"address": "alice@example.com", "externalId": "u-1"}],
+              "recipient": {"address": "alice@example.com", "externalId": "u-1"},
               "templateName": "account_balance",
               "payload": {"balance": "1500.00", "currency": "ETB"},
               "idempotencyKey": "txn-001"
             },
             {
               "serviceName": "payment-service",
-              "recipients": [{"address": "bob@example.com", "externalId": "u-2"}],
+              "recipient": {"address": "bob@example.com", "externalId": "u-2"},
               "templateName": "account_balance",
               "payload": {"balance": "320.50", "currency": "ETB"},
               "idempotencyKey": "txn-002"

@@ -222,20 +222,20 @@ class SMTPProvider(IProviderService):
             # Load configuration from database (tenantConfig.config)
             smtp_config = SMTPConfiguration.fromDict(tenantConfig.config)
 
-            # Get recipient addresses
-            addresses = [recipient.address for recipient in requestObject.recipients]
+            # Get recipient address
+            address = requestObject.recipient.address
 
-            if not addresses:
+            if not address:
                 return NotificationResponse(
                     success=False,
-                    message="No recipients provided",
+                    message="No recipient provided",
                 )
 
             isAllSent: bool = True
             notificationResponsePerRecipient: List[NotifiationResponsePerRecipient] = []
 
-            for address in addresses:
-                try:
+           
+            try:
                     # Create email message
                     message = MIMEMultipart("alternative")
                     message["Subject"] = messageToSend.get("subject", "Notification")
@@ -309,8 +309,9 @@ class SMTPProvider(IProviderService):
                         notification_id=str(emailNotification.id)
                     )
 
-                except Exception as exc:
-                    logger.error(f"Error sending email to {address} via SMTP: {exc}", exc_info=True)
+            except Exception as exc:
+                    error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (SMTP provider)'}"
+                    logger.error(f"Error sending email to {address} via SMTP: {error_message}", exc_info=True)
 
                     # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
                     if saveToOutbox:
@@ -322,7 +323,7 @@ class SMTPProvider(IProviderService):
                             templateId=templateId,
                             retryCount=0,
                             status="failed",
-                            lastErrorMessage=str(exc),
+                            lastErrorMessage=error_message,
                             providerAttempted="smtp",
                             callbackUrl=requestObject.callbackUrl,
                             callbackHeaders=requestObject.callbackHeaders,
@@ -333,8 +334,9 @@ class SMTPProvider(IProviderService):
                             async with self.uow:
                                 await self.uow.emailOutbox.add(emailOutbox)
                         except Exception as save_exc:
+                            save_error = f"{type(save_exc).__name__}: {str(save_exc)}"
                             logger.error(
-                                f"Failed to save email outbox for {address}: {save_exc}",
+                                f"Failed to save email outbox for {address}: {save_error}",
                                 exc_info=True,
                             )
 

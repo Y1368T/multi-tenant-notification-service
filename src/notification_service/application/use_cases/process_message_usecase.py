@@ -49,33 +49,29 @@ class ProcessMessageUseCase:
         logger.info(f"Validating message: {message}")
         
         if not message.serviceName:
-            
             return {"success": False, "error": "serviceName is required"}
-        if not message.recipients:
-            
-            return {"success": False, "error": "At least one recipient is required"}
+        if not getattr(message, "recipient", None) or not message.recipient.address:
+            return {"success": False, "error": "recipient is required"}
         if not message.templateName:
-            return {"success": False, "error": "templateName is required"} 
+            return {"success": False, "error": "templateName is required"}
         if not message.payload:
             return {"success": False, "error": "payload is required"}
         if not message.idempotencyKey:
             return {"success": False, "error": "idempotencyKey is required"}
-        
-        if message.recipients:
-            for recipient in message.recipients:
-                if not isinstance(recipient.address, str) or not recipient.address:
-                    return {"success": False, "error": "Each recipient must have a valid address"}
-            
-            # Validate address based on channel type
-                match channel.lower():
-                    case "sms":
-                        if not self.isValidPhoneNumber(recipient.address):
-                            return {"success": False, "error": f"Invalid phone number: {recipient.address}"}
-                    case "email":
-                        if not self.isValidEmail(recipient.address):
-                            return {"success": False, "error": f"Invalid email address: {recipient.address}"}
-                # Add more channel validations as needed
-        
+
+        recipient = message.recipient
+        if not isinstance(recipient.address, str) or not recipient.address:
+            return {"success": False, "error": "recipient must have a valid address"}
+
+        match channel.lower():
+            case "sms":
+                if not self.isValidPhoneNumber(recipient.address):
+                    return {"success": False, "error": f"Invalid phone number: {recipient.address}"}
+            case "email":
+                if not self.isValidEmail(recipient.address):
+                    return {"success": False, "error": f"Invalid email address: {recipient.address}"}
+            # Add more channel validations as needed
+
         return {"success": True}
     def isValidPhoneNumber(self, phone: str) -> bool:
         """Validate phone number format"""
