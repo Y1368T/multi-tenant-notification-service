@@ -19,7 +19,7 @@ class DirectNotificationRequest:
 
     Fields
     ------
-    recipients      : One or more recipients identified by their channel address
+    recipient       : The recipient identified by their channel address
                       (phone number / email / FCM token) and an optional external id.
     message         : The raw message body to deliver as-is.
     idempotencyKey  : Caller-supplied unique key; auto-generated if omitted.
@@ -31,7 +31,7 @@ class DirectNotificationRequest:
                       (e.g. SMS shortcode selection).
     """
 
-    recipients: List[Recipient]
+    recipient: Recipient
     message: str
     idempotencyKey: str = field(default_factory=lambda: str(uuid.uuid4()))
     subject: Optional[str] = None
@@ -41,9 +41,11 @@ class DirectNotificationRequest:
     metadata: Optional[Dict[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self):
-        if not self.recipients:
-            raise ValueError("recipients list cannot be empty")
+        if not self.recipient or not self.recipient.address:
+            raise ValueError("recipient is required")
         if not self.message or not self.message.strip():
             raise ValueError("message cannot be empty")
         if not self.idempotencyKey:
             raise ValueError("idempotencyKey is required")
+
+   

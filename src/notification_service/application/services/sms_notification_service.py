@@ -150,13 +150,13 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
         messageData: DirectNotificationRequest,
     ) -> NotificationResponse:
         """Send an SMS without a pre-defined template."""
-        if not messageData.recipients:
-            return NotificationResponse(success=False, message="At least one recipient is required")
-        for recipient in messageData.recipients:
-            if not isinstance(recipient.address, str) or not recipient.address:
-                return NotificationResponse(success=False, message="Each recipient must have a valid address")
-            if not self.processMessageUseCase.isValidPhoneNumber(recipient.address):
-                return NotificationResponse(success=False, message=f"Invalid phone number: {recipient.address}")
+        if not getattr(messageData, "recipient", None) or not messageData.recipient.address:
+            return NotificationResponse(success=False, message="recipient is required")
+        recipient = messageData.recipient
+        if not isinstance(recipient.address, str) or not recipient.address:
+            return NotificationResponse(success=False, message="recipient must have a valid address")
+        if not self.processMessageUseCase.isValidPhoneNumber(recipient.address):
+            return NotificationResponse(success=False, message=f"Invalid phone number: {recipient.address}")
         if not messageData.message or not messageData.message.strip():
             return NotificationResponse(success=False, message="message is required")
         if not messageData.idempotencyKey:
@@ -187,7 +187,7 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
             if not tenant:
                 failures = [
                     {
-                        "recipient": n.recipients[0].address if n.recipients else "unknown",
+                        "recipient": n.recipient.address if getattr(n, "recipient", None) else "unknown",
                         "reason": "Tenant does not exist",
                     }
                     for n in notifications
@@ -208,7 +208,7 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
 
         for notification in notifications:
             recipient_addr = (
-                notification.recipients[0].address if notification.recipients else "unknown"
+                notification.recipient.address if getattr(notification, "recipient", None) else "unknown"
             )
             try:
                 result = await self.prepareAndSendSms(tenantId, notification)

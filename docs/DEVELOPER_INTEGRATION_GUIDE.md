@@ -179,9 +179,7 @@ curl -X POST "https://notification-service.example.com/sms-notifications/send?te
   -H "X-API-Key: your-api-key" \
   -d '{
     "serviceName": "payment-service",
-    "recipients": [
-      {"address": "+251912345678"}
-    ],
+    "recipient": {"address": "+251912345678"},
     "templateName": "payment_confirmation",
     "payload": {
       "amount": "1000.00",
@@ -207,9 +205,7 @@ curl -X POST "https://notification-service.example.com/email-notifications/send?
   -H "X-API-Key: your-api-key" \
   -d '{
     "serviceName": "user-service",
-    "recipients": [
-      {"address": "user@example.com"}
-    ],
+    "recipient": {"address": "user@example.com"},
     "templateName": "welcome_email",
     "payload": {
       "userName": "John Doe",
@@ -232,12 +228,10 @@ curl -X POST "https://notification-service.example.com/in-app-notifications/send
   -H "X-API-Key: your-api-key" \
   -d '{
     "serviceName": "order-service",
-    "recipients": [
-      {
-        "address": "fcm-device-token-here",
-        "externalId": "user-123"
-      }
-    ],
+    "recipient": {
+      "address": "fcm-device-token-here",
+      "externalId": "user-123"
+    },
     "templateName": "order_status",
     "payload": {
       "orderId": "ORD-789",
@@ -270,12 +264,10 @@ notification.{channel}.{tenant-prefix}
 ```json
 {
   "serviceName": "payment-service",
-  "recipients": [
-    {
-      "address": "+251912345678",
-      "externalId": "user-123"
-    }
-  ],
+  "recipient": {
+    "address": "+251912345678",
+    "externalId": "user-123"
+  },
   "templateName": "payment_confirmation",
   "payload": {
     "amount": "1000.00",
@@ -312,9 +304,7 @@ async def send_sms_notification():
         # Prepare notification message
         notification = {
             "serviceName": "payment-service",
-            "recipients": [
-                {"address": "+251912345678"}
-            ],
+            "recipient": {"address": "+251912345678"},
             "templateName": "payment_confirmation",
             "payload": {
                 "amount": "1000.00",
@@ -359,9 +349,7 @@ async function sendSmsNotification() {
   
   const notification = {
     serviceName: 'payment-service',
-    recipients: [
-      { address: '+251912345678' }
-    ],
+    recipient: { address: '+251912345678' },
     templateName: 'payment_confirmation',
     payload: {
       amount: '1000.00',
@@ -424,7 +412,7 @@ async def send_notification_with_response():
         # Send notification with RPC headers
         notification = {
             "serviceName": "payment-service",
-            "recipients": [{"address": "+251912345678"}],
+            "recipient": {"address": "+251912345678"},
             "templateName": "payment_confirmation",
             "payload": {"amount": "1000.00", "currency": "ETB"},
             "idempotencyKey": str(uuid.uuid4())
@@ -466,9 +454,9 @@ asyncio.run(send_notification_with_response())
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `serviceName` | string | ✅ | Your service identifier (e.g., "payment-service") |
-| `recipients` | array | ✅ | List of recipient objects |
-| `recipients[].address` | string | ✅ | Phone number (E.164 format recommended) |
-| `recipients[].externalId` | string | ❌ | User ID in your system (for tracking) |
+| `recipient` | object | ✅ | Single recipient object |
+| `recipient.address` | string | ✅ | Phone number (E.164 format recommended) |
+| `recipient.externalId` | string | ❌ | User ID in your system (for tracking) |
 | `templateName` | string | ✅ | Name of the SMS template to use |
 | `payload` | object | ✅ | Template variables for substitution |
 | `idempotencyKey` | string | ✅ | Unique key to prevent duplicates |
@@ -502,9 +490,7 @@ asyncio.run(send_notification_with_response())
 ```json
 {
   "serviceName": "auth-service",
-  "recipients": [
-    {"address": "+251912345678"}
-  ],
+  "recipient": {"address": "+251912345678"},
   "templateName": "otp_verification",
   "payload": {
     "otpCode": "123456",
@@ -523,7 +509,7 @@ asyncio.run(send_notification_with_response())
 
 #### Notification Request Schema
 
-Same as SMS, but `recipients[].address` should be an email address.
+Same as SMS, but `recipient.address` should be an email address.
 
 #### Example: Email Template
 
@@ -549,9 +535,7 @@ Same as SMS, but `recipients[].address` should be an email address.
 ```json
 {
   "serviceName": "user-service",
-  "recipients": [
-    {"address": "newuser@example.com", "externalId": "user-456"}
-  ],
+  "recipient": {"address": "newuser@example.com", "externalId": "user-456"},
   "templateName": "welcome_email",
   "payload": {
     "userName": "John Doe",
@@ -573,8 +557,8 @@ In-App notifications are delivered via Firebase Cloud Messaging (FCM) to mobile 
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `recipients[].address` | string | ✅ | FCM device token |
-| `recipients[].externalId` | string | ✅ | User ID in your system (required for in-app) |
+| `recipient.address` | string | ✅ | FCM device token |
+| `recipient.externalId` | string | ✅ | User ID in your system (required for in-app) |
 
 #### Example: In-App Template
 
@@ -800,7 +784,7 @@ The Notification Service supports multi-language templates, allowing you to send
 ```json
 {
   "serviceName": "payment-service",
-  "recipients": [{"address": "+251912345678"}],
+  "recipient": {"address": "+251912345678"},
   "templateName": "payment_confirmation",
   "payload": {
     "amount": "1000.00",
@@ -864,12 +848,12 @@ For the **Qena** ecosystem, the Notification Service provides **automatic langua
 The language lookup is implemented in the SMS and Email channel handlers:
 
 **SMS Channel:**
-- Extracts the phone number from `recipients[0].address`
+- Extracts the phone number from `recipient.address`
 - Queries Customer Service for language preference
 - Falls back to `"en"` if not found
 
 **Email Channel:**
-- Extracts the email from `recipients[0].address`
+- Extracts the email from `recipient.address`
 - Queries Customer Service for language preference
 - Falls back to `"en"` if not found
 
@@ -1111,7 +1095,7 @@ curl -X POST "http://localhost:8000/sms-notifications/send?tenant_id=YOUR_TENANT
   -H "Content-Type: application/json" \
   -d '{
     "serviceName": "payment-service",
-    "recipients": [{"address": "+251912345678"}],
+    "recipient": {"address": "+251912345678"},
     "templateName": "payment_confirmation",
     "payload": {"amount": "1000.00"},
     "idempotencyKey": "payment-123",
@@ -1268,7 +1252,7 @@ Specify callback URL directly in the notification request:
 ```json
 {
   "serviceName": "payment-service",
-  "recipients": [{"address": "+251912345678"}],
+  "recipient": {"address": "+251912345678"},
   "templateName": "payment_confirmation",
   "payload": {"amount": "1000.00"},
   "idempotencyKey": "payment-123",
@@ -1806,7 +1790,7 @@ class NotificationClient:
     def send_sms(
         self,
         template_name: str,
-        recipients: List[Recipient],
+        recipient: Recipient,
         payload: Dict[str, Any],
         service_name: str,
         idempotency_key: Optional[str] = None,
@@ -1818,7 +1802,7 @@ class NotificationClient:
         return self._send_notification(
             channel="sms",
             template_name=template_name,
-            recipients=recipients,
+            recipient=recipient,
             payload=payload,
             service_name=service_name,
             idempotency_key=idempotency_key,
@@ -1830,7 +1814,7 @@ class NotificationClient:
     def send_email(
         self,
         template_name: str,
-        recipients: List[Recipient],
+        recipient: Recipient,
         payload: Dict[str, Any],
         service_name: str,
         idempotency_key: Optional[str] = None,
@@ -1842,7 +1826,7 @@ class NotificationClient:
         return self._send_notification(
             channel="email",
             template_name=template_name,
-            recipients=recipients,
+            recipient=recipient,
             payload=payload,
             service_name=service_name,
             idempotency_key=idempotency_key,
@@ -1854,7 +1838,7 @@ class NotificationClient:
     def send_push(
         self,
         template_name: str,
-        recipients: List[Recipient],
+        recipient: Recipient,
         payload: Dict[str, Any],
         service_name: str,
         idempotency_key: Optional[str] = None,
@@ -1866,7 +1850,7 @@ class NotificationClient:
         return self._send_notification(
             channel="in-app",
             template_name=template_name,
-            recipients=recipients,
+            recipient=recipient,
             payload=payload,
             service_name=service_name,
             idempotency_key=idempotency_key,
@@ -1879,7 +1863,7 @@ class NotificationClient:
         self,
         channel: str,
         template_name: str,
-        recipients: List[Recipient],
+        recipient: Recipient,
         payload: Dict[str, Any],
         service_name: str,
         idempotency_key: Optional[str],
@@ -1899,10 +1883,7 @@ class NotificationClient:
         data = {
             "serviceName": service_name,
             "templateName": template_name,
-            "recipients": [
-                {"address": r.address, "externalId": r.external_id}
-                for r in recipients
-            ],
+            "recipient": {"address": recipient.address, "externalId": recipient.external_id},
             "payload": payload,
             "idempotencyKey": idempotency_key or str(uuid.uuid4()),
             "lang": lang
@@ -1974,7 +1955,7 @@ if __name__ == "__main__":
     # Send SMS with callback
     result = client.send_sms(
         template_name="order_confirmation",
-        recipients=[Recipient(address="+251912345678", external_id="user-123")],
+        recipient=Recipient(address="+251912345678", external_id="user-123"),
         payload={
             "orderId": "ORD-12345",
             "totalAmount": "2,500.00 ETB"
@@ -1989,7 +1970,7 @@ if __name__ == "__main__":
     # Send Email with callback
     result = client.send_email(
         template_name="invoice_ready",
-        recipients=[Recipient(address="customer@example.com")],
+        recipient=Recipient(address="customer@example.com"),
         payload={
             "customerName": "John Doe",
             "invoiceNumber": "INV-001",

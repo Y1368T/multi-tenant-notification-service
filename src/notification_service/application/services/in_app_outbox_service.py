@@ -1,5 +1,7 @@
 from notification_service.application.services.base_service import BaseService
 from notification_service.domain.entities.in_app.in_app_outbox import InAppOutbox
+from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
+from notification_service.domain.value_objects.notification_status import NotificationStatus
 from notification_service.adapters.inbound.dto.in_app_outbox_response_dto import InAppOutboxResponseDTO
 from notification_service.adapters.inbound.dto.in_app_outbox_filter_dto import InAppOutboxFilterDTO
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
@@ -9,19 +11,24 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
     FilterOp
 )
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
-from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
-from uuid import UUID
+from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError, ValidationError
+from uuid import UUID, uuid4
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from sqlalchemy.orm import selectinload
 from notification_service.infrastructure.persistence.models.in_app.in_app_outbox import InAppOutboxModel
 from notification_service.infrastructure.persistence.models.in_app.in_app_template import InAppTemplateModel
+from notification_service.infrastructure.providers.in_app.fcm_provider import FCMProvider
+import logging
+
+logger = logging.getLogger(__name__)
 
 class InAppOutboxService(BaseService[InAppOutbox, InAppOutboxResponseDTO]):
-    def __init__(self, uow: IUnitOfWork):
+    def __init__(self, uow: IUnitOfWork, fcmProvider: FCMProvider):
         super().__init__(uow, InAppOutbox, InAppOutboxResponseDTO)
         self.uow = uow
+        self.inapp_provider = fcmProvider
     
     def _get_repository(self):
         """Get in-app outbox repository."""
@@ -120,16 +127,20 @@ class InAppOutboxService(BaseService[InAppOutbox, InAppOutboxResponseDTO]):
         )
     
     async def retry(self, outbox_id: UUID) -> InAppOutboxResponseDTO:
-        """Retry a failed in-app outbox message.
+        """Retry a failed in-app outbox message immediately (force processing).
+        
+        This method attempts to send the notification immediately instead of just 
+        marking it as pending for the background worker.
         
         Args:
             outbox_id: UUID of the outbox message to retry
             
         Returns:
-            InAppOutboxResponseDTO with updated retry information
+            InAppOutboxResponseDTO with updated status and retry information
             
         Raises:
             EntityNotFoundError: If outbox message not found
+            ValidationError: If template or configuration is invalid
         """
         async with self.uow:
             # Get the outbox entity
@@ -137,25 +148,98 @@ class InAppOutboxService(BaseService[InAppOutbox, InAppOutboxResponseDTO]):
             if not outbox:
                 raise EntityNotFoundError(f"In-app outbox with id {outbox_id} not found")
             
-            # Reset retry information for manual retry
-            outbox.retryCount = 0
-            outbox.lastRetryAt = None
-            outbox.lastErrorMessage = None
-            outbox.nextRetryAt = None
-            outbox.status = "pending"
+            # Load template to get tenant info
+            template = await self.uow.inAppTemplates.getById(outbox.templateId)
+            if not template:
+                logger.error(f"Template not found for In-App outbox {outbox_id}")
+                raise ValidationError(f"Template {outbox.templateId} not found for outbox message")
+            
+            tenant_id = template.tenantId
+            
+            # Load tenant in-app configurations
+            configs = await self.uow.tenantInAppConfigurations.find(
+                lambda c: c.tenantId == tenant_id and c.isActive
+            )
+            if not configs:
+                logger.error(f"No active In-App config found for tenant {tenant_id}")
+                raise ValidationError(f"No active In-App configuration found for tenant {tenant_id}")
+            
+            config = configs[0]  # Use first active config
+            
+            # Update retry attempt info
+            outbox.retryCount += 1
+            outbox.lastRetryAt = datetime.utcnow()
             outbox.updatedAt = datetime.utcnow()
             
-            # Update the outbox
-            updated_outbox = await self.uow.inAppOutboxes.update(outbox)
-            await self.uow.commit()
-            
-            # Reload with relationships for response
-            from notification_service.infrastructure.persistence.models.in_app.in_app_template import InAppTemplateModel
-            
-            loader_options = [
-                selectinload(InAppOutboxModel.template).selectinload(InAppTemplateModel.tenant)
-            ]
-            updated_outbox = await self.uow.inAppOutboxes.getById(outbox_id, loader_options=loader_options)
-            
-            return InAppOutboxResponseDTO.fromEntityWithRelations(updated_outbox)
+            try:
+                # Attempt to send via provider
+                logger.info(f"Manual retry: sending In-App outbox {outbox_id} to {outbox.recipientUserId}")
+                success, error_msg = await self.inapp_provider.send_raw(
+                    recipient=outbox.recipientUserId,
+                    messageContent=outbox.messageContent,
+                    tenantConfig=config
+                )
+                
+                if success:
+                    # Success - move to notifications table
+                    logger.info(f"In-App outbox {outbox_id} sent successfully, moving to notifications")
+                    notification = InAppNotification(
+                        id=uuid4(),
+                        recipientUserId=outbox.recipientUserId,
+                        messageContent=outbox.messageContent,
+                        templateId=outbox.templateId,
+                        status=NotificationStatus.SENT,
+                        idempotencyKey=outbox.idempotencyKey,
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow()
+                    )
+                    await self.uow.inAppNotifications.add(notification)
+                    
+                    # Delete from outbox
+                    await self.uow.inAppOutboxes.delete(outbox.id)
+                    await self.uow.commit()
+                    
+                    # Return success response
+                    outbox.status = NotificationStatus.SENT
+                    outbox.isSent = True
+                    outbox.sentAt = datetime.utcnow()
+                    return InAppOutboxResponseDTO.fromEntityWithRelations(outbox)
+                else:
+                    # Failure - update retry info
+                    logger.warning(f"In-App outbox {outbox_id} retry failed: {error_msg}")
+                    outbox.lastErrorMessage = error_msg
+                    outbox.status = NotificationStatus.FAILED
+                    
+                    # Update outbox
+                    await self.uow.inAppOutboxes.update(outbox)
+                    await self.uow.commit()
+                    
+                    # Reload with relationships for response
+                    loader_options = [
+                        selectinload(InAppOutboxModel.template).selectinload(InAppTemplateModel.tenant)
+                    ]
+                    updated_outbox = await self.uow.inAppOutboxes.getById(
+                        outbox_id, loader_options=loader_options
+                    )
+                    return InAppOutboxResponseDTO.fromEntityWithRelations(updated_outbox)
+                    
+            except Exception as e:
+                # Handle unexpected errors during send attempt
+                logger.error(f"Error during manual retry of In-App outbox {outbox_id}: {e}", exc_info=True)
+                error_message = f"{type(e).__name__}: {str(e) or 'Unknown error during send attempt'}"
+                outbox.lastErrorMessage = error_message
+                outbox.status = NotificationStatus.FAILED
+                
+                # Update outbox
+                await self.uow.inAppOutboxes.update(outbox)
+                await self.uow.commit()
+                
+                # Reload with relationships for response
+                loader_options = [
+                    selectinload(InAppOutboxModel.template).selectinload(InAppTemplateModel.tenant)
+                ]
+                updated_outbox = await self.uow.inAppOutboxes.getById(
+                    outbox_id, loader_options=loader_options
+                )
+                return InAppOutboxResponseDTO.fromEntityWithRelations(updated_outbox)
 

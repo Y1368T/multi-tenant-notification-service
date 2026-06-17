@@ -18,14 +18,14 @@ class DirectInAppRequestDTO(BaseModel):
 
         POST /in-app-notifications/send-direct?tenant_id=<uuid>
         {
-          "recipients": [{"address": "<fcm-token>", "externalId": "u-42"}],
+          "recipient": {"address": "<fcm-token>", "externalId": "u-42"},
           "title": "Payment Received",
           "message": "ETB 500 has been credited to your wallet.",
           "idempotencyKey": "pay-rcv-001"
         }
     """
 
-    recipients: List[RecipientDTO]
+    recipient: RecipientDTO
     title: str
     message: str
     idempotencyKey: str = ""
