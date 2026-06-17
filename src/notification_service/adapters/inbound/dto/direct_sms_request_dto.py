@@ -23,7 +23,7 @@ class DirectSMSRequestDTO(BaseModel):
 
         POST /sms-notifications/send-direct?tenant_id=<uuid>
         {
-          "recipients": [{"address": "+251912345678"}],
+          "recipient": {"address": "+251912345678"},
           "message": "Your OTP is 123456. Valid for 5 minutes.",
           "idempotencyKey": "otp-txn-001",
           "callbackUrl": "https://myservice.internal/webhook",
@@ -31,7 +31,7 @@ class DirectSMSRequestDTO(BaseModel):
         }
     """
 
-    recipients: List[RecipientDTO]
+    recipient: RecipientDTO
     message: str
     idempotencyKey: str = ""
     callbackUrl: Optional[str] = None

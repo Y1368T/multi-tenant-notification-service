@@ -151,19 +151,13 @@ class AfromessageSMSProvider(IProviderService):
             # Load configuration from database (tenantConfig.config)
             afro_config = AfromessageConfiguration.from_dict(tenantConfig.config)
             
-            # Get recipient addresses
-            addresses = [recipient.address for recipient in requestObject.recipients]
+            # Get recipient address
+            address = requestObject.recipient.address
             
-            if not addresses:
+            if not address:
                 return NotificationResponse(
-                    notificationId="",
-                    status="failed",
-                    channel="SMS",
-                    recipients=[],
-                    tenantId=str(tenantConfig.tenantId),
-                    createdAt=datetime.utcnow(),
                     success=False,
-                    message="No recipients provided"
+                    message="No recipient provided",
                 )
             
             # Construct API URL
@@ -179,8 +173,7 @@ class AfromessageSMSProvider(IProviderService):
             
             notificationResponsePerRecipient: List[NotifiationResponsePerRecipient]=[]
             
-            for address in addresses:
-                try:
+            try:
                     # Construct payload
                     payload = {
                         "from": afro_config.from_,
@@ -278,7 +271,7 @@ class AfromessageSMSProvider(IProviderService):
                             ))
                         isAllSent = False
                     
-                except Exception as exc:
+            except Exception as exc:
                     error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (Afromessage provider)'}"
                     logger.error(f"Error sending SMS to {address} via Afromessage: {error_message}", exc_info=True)
                     # Only save to outbox if saveToOutbox is True (fire-and-forget mode)

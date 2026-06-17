@@ -54,23 +54,23 @@ async def test_sms_handler_language_fetch():
     logger.info("\n📱 Simulating SMS handler processing notification...")
     
     # Create a notification request without language
-    recipients = [Recipient(address="test_customer_123")]  # Use customer ID that exists in mock server
+    recipient = Recipient(address="test_customer_123")  # Use customer ID that exists in mock server
     notification = NotificationRequest(
         templateName="test_template",
         serviceName="test_service",
-        recipients=recipients,
+        recipient=recipient,
         payload={"test": "value"},  # Payload cannot be empty
         lang=""  # Empty language - should fetch via RPC
     )
     
     logger.info(f"   Template: {notification.templateName}")
-    logger.info(f"   Recipient: {notification.recipients[0].address}")
+    logger.info(f"   Recipient: {notification.recipient.address}")
     logger.info(f"   Language provided: {notification.lang}")
     
     # Simulate the SMS handler's language fetching logic
     language = notification.lang if notification.lang else None
-    if not language and notification.recipients:
-        customer_id = notification.recipients[0].address
+    if not language:
+        customer_id = notification.recipient.address
         logger.info(f"\n   🔍 No language provided, fetching from customer service...")
         logger.info(f"   Customer ID: {customer_id}")
         

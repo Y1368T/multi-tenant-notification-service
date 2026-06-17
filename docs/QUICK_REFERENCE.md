@@ -41,8 +41,8 @@ self.customer_service = customer_service
 **Lines 79-80** - Replace with:
 ```python
 language = message.lang
-if not language and self.customer_service and message.recipients:
-    customer_id = message.recipients[0].address
+if not language and self.customer_service and getattr(message, "recipient", None):
+    customer_id = message.recipient.address
     try:
         language = await self.customer_service.get_customer_language_preference(
             customer_id=customer_id,
@@ -154,7 +154,7 @@ Send to RabbitMQ queue `notification.sms.{tenant}`:
 ```json
 {
     "serviceName": "payment-service",
-    "recipients": [{"address": "+251912345678"}],
+    "recipient": {"address": "+251912345678"},
     "templateName": "payment_confirmation",
     "payload": {"amount": "1000"},
     "idempotencyKey": "test-123"

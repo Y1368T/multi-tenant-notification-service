@@ -140,8 +140,8 @@ class KifiyaSMSProvider(IProviderService):
         config=KifiyaSMSConfig.fromDict(tenantConfig.config)
         notificationResponsePerRecipient: List[NotifiationResponsePerRecipient]=[]
         isAllSent:bool=True
-        for recipient in requestObject.recipients:
-            try:
+        recipient = requestObject.recipient
+        try:
                 payload = self._build_payload(
                     config=config,
                     recipient=recipient.address,
@@ -241,7 +241,7 @@ class KifiyaSMSProvider(IProviderService):
                             )
                         notificationResponsePerRecipient.append(notifcationResponse)
                         isAllSent = False
-            except Exception as exc:
+        except Exception as exc:
                 # Handle connection errors, timeouts, etc.
                 error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (Kifiya provider)'}"
                 logger.error(f"Error sending SMS via Kifiya to {recipient.address}: {error_message}", exc_info=True)

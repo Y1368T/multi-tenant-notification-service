@@ -28,10 +28,7 @@ class NotificationRequest:
     JSON structure:
     {
         "serviceName": "payment-service",
-        "recipients": [
-            {"address": "+251912345678"},
-            {"address": "+251923456789"}
-        ],
+        "recipient": {"address": "+251912345678"},
         "templateName": "account_balance",
         "payload": {"balance": "1000.00", "currency": "ETB"},
         "idempotencyKey": "unique-transaction-id-12345",
@@ -41,7 +38,7 @@ class NotificationRequest:
     }
     """
     serviceName: str  # service identifier (e.g., "payment-service")
-    recipients: List[Recipient]
+    recipient: Recipient
     templateName: str
     payload: Dict[str, Any]  # Template variables
     idempotencyKey: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -55,8 +52,8 @@ class NotificationRequest:
         """Validate request."""
         if not self.serviceName:
             raise ValueError("serviceName is required")
-        if not self.recipients:
-            raise ValueError("recipients list cannot be empty")
+        if not self.recipient or not self.recipient.address:
+            raise ValueError("recipient is required")
         if not self.templateName:
             raise ValueError("templateName is required")
         if not self.payload:
@@ -67,16 +64,30 @@ class NotificationRequest:
     @classmethod
     def fromDict(cls, data: Dict[str, Any]) -> "NotificationRequest":
         """Create NotificationRequest from dictionary."""
-        recipients = [
-            Recipient(
-                address=rec.get("address"),
-                externalId=rec.get("externalId") or rec.get("external_id")
-            ) 
-            for rec in data.get("recipients", [])
-        ]
+        recipient_data = data.get("recipient")
+        if recipient_data is None:
+            recipient_data = data.get("recipient")
+
+        if recipient_data is None:
+            raise ValueError("recipient is required")
+
+        if isinstance(recipient_data, list):
+            if len(recipient_data) == 0:
+                raise ValueError("recipient is required")
+            if len(recipient_data) > 1:
+                raise ValueError("Single notification request must contain exactly one recipient")
+            recipient_data = recipient_data[0]
+
+        if not isinstance(recipient_data, dict):
+            raise ValueError("recipient must be an object")
+
+        recipient = Recipient(
+            address=recipient_data.get("address"),
+            externalId=recipient_data.get("externalId") or recipient_data.get("external_id")
+        )
         return cls(
             serviceName=data.get("serviceName") or data.get("service_name"),
-            recipients=recipients,
+            recipient=recipient,
             templateName=data.get("templateName") or data.get("template_name"),
             payload=data["payload"],
             idempotencyKey=data.get("idempotencyKey") or data.get("idempotency_key", str(uuid.uuid4())),
@@ -90,10 +101,7 @@ class NotificationRequest:
         """Convert NotificationRequest to dictionary."""
         result = {
             "serviceName": self.serviceName,
-            "recipients": [
-                {"address": r.address, "externalId": r.externalId} 
-                for r in self.recipients
-            ],
+            "recipient": {"address": self.recipient.address, "externalId": self.recipient.externalId},
             "templateName": self.templateName,
             "payload": self.payload,
             "idempotencyKey": self.idempotencyKey,

@@ -68,7 +68,7 @@ class SMSNotificationController(ControllerBase):
         lookup or variable rendering is performed.
         """
         direct_request = DirectNotificationRequest(
-            recipients=[Recipient(address=r.address, externalId=r.externalId) for r in requestDto.recipients],
+            recipient=Recipient(address=requestDto.recipient.address, externalId=requestDto.recipient.externalId),
             message=requestDto.message,
             idempotencyKey=requestDto.idempotencyKey,
             callbackUrl=requestDto.callbackUrl,

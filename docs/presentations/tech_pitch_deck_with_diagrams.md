@@ -219,7 +219,7 @@ Examples: `notification.sms.qena`, `notification.email.qena`
 ```json
 {
   "serviceName": "payment",
-  "recipients": [{ "address": "0913327219" }],
+  "recipient": { "address": "0913327219" },
   "templateName": "transaction_alert",
   "payload": {
     "transactionNo": "TXN123456",
