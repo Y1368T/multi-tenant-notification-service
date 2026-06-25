@@ -183,10 +183,10 @@ class InAppChannelHandler(IChannelHandler):
         platform_apns = templateBody.get('apns')
         
         # Build FCM message payload from template
-        # templateBody contains language-specific title and body
+        # templateBody contains language-specific title and body/message
         fcm_message = {
             "title": templateBody.get("title", "Notification"),
-            "body": templateBody.get("body", ""),
+            "body": templateBody.get("body", templateBody.get("message", "")),
             "data": platform_data if platform_data is not None else {},
             "android": platform_android if platform_android is not None else {},
             "apns": platform_apns if platform_apns is not None else {}
