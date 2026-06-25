@@ -321,7 +321,7 @@ class KifiyaSMSProvider(IProviderService):
                 elif response.error:
                     return ProviderTestResponse(success=False,message=f"Failed to send test SMS: {response.error}")
             except Exception as e:
-                logger.error(f"Exception during Kifiya SMS test: {e}")
+                logger.error(f"Exception during Kifiya SMS test: {e._str__()}")
                 return ProviderTestResponse(success=False,message=f"Exception during test: {str(e)}")
     
     async def send_raw(

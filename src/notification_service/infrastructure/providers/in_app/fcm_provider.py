@@ -304,20 +304,18 @@ class FCMProvider(IProviderService):
             )
             
             return NotificationResponse(
-                notificationId=str(result.id),
                 tenantId=tenantConfig.tenantId,
                 channel="in_app",
                 success=True,
                 message="In-app notification sent successfully",
-                recipientResponse=NotifiationResponsePerRecipient(
+                recipientResponse=[NotifiationResponsePerRecipient(
                     notificationId=str(result.id),
                     status=NotificationStatus.SENT,
                     recipient=recipient.address,
                     createdAt=in_app_notification.createdAt,
                     success=True,
                     message=f"In-app notification sent successfully to {recipient.address}"
-                ),
-               
+                )],
             )
             
         except FirebaseError as e:
@@ -348,8 +346,7 @@ class FCMProvider(IProviderService):
                 return NotificationResponse(
                     success=False,
                     errorMessage=f"Failed to send notification: {error_message}",
-                    status=NotificationStatus.FAILED,
-                    recipientResponse=NotifiationResponsePerRecipient(
+                    recipientResponse=[NotifiationResponsePerRecipient(
                         notificationId=str(inAppOutbox.id),
                         status=NotificationStatus.FAILED,
                         recipient=recipient.address,
@@ -357,15 +354,14 @@ class FCMProvider(IProviderService):
                         success=False,
                         message="Saved to outbox for retrying later",
                         errorMessage=error_message,
-                    ),
+                    )],
                 )
             else:
                 # Immediate mode - just return failure, caller handles retry
                 return NotificationResponse(
                     success=False,
                     errorMessage=f"Failed to send notification: {error_message}",
-                    status=NotificationStatus.FAILED,
-                    recipientResponse=NotifiationResponsePerRecipient(
+                    recipientResponse=[NotifiationResponsePerRecipient(
                         notificationId=None,
                         status=NotificationStatus.FAILED,
                         recipient=recipient.address,
@@ -373,14 +369,13 @@ class FCMProvider(IProviderService):
                         success=False,
                         message="Failed to send notification",
                         errorMessage=error_message,
-                    ),
+                    )],
                 )
         except Exception as e:
             logger.error(f"Exception sending FCM notification to {recipient.address}: {e}", exc_info=True)
             return NotificationResponse(
                 success=False,
-                errorMessage=f"Exception sending notification: {str(e)}",
-                status="failed"
+                errorMessage=f"Exception sending notification: {str(e)}"
             )
     
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
