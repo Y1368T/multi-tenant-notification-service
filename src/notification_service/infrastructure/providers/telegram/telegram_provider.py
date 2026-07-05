@@ -106,39 +106,19 @@ class TelegramProvider(IProviderService):
             data = response.json()
             if data.get("ok"):
                 return ProviderTestResponse(
-                    status=True,
-                    message="Test message sent successfully",
-                    provider="telegram",
-                    data={
-                        "response": data,
-                        "request": {
-                            "url": url,
-                            "payload": payload
-                        }
-                    }
+                    success=True,
+                    message="Test message sent successfully"
                 )
             else:
                 return ProviderTestResponse(
-                    status=False,
-                    message=data.get("description", "Unknown error") or "Failed to send test message",
-                    provider="telegram",
-                    data={
-                        "response": data,
-                        "request": {
-                            "url": url,
-                            "payload": payload
-                        }
-                    }
+                    success=False,
+                    message=data.get("description", "Unknown error") or "Failed to send test message"
                 )
         except Exception as e:
             logger.error(f"Error in sending test message: {e}")
             return ProviderTestResponse(
-                status=False,
-                message=f"Failed to send test message: {e}",
-                provider="telegram",
-                data={
-                    "error": str(e)
-                }
+                success=False,
+                message=f"Failed to send test message: {e}"
             )
     
     async def send(
