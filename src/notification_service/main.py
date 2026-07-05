@@ -59,6 +59,8 @@ from notification_service.shared.exceptions.application_exceptions import (
     UnauthorizedError,
     InvalidAPIKeyError
 )
+from notification_service.infrastructure.providers.telegram.telegram_provider import TelegramProvider
+from notification_service.application.handlers.telegram_channel_handler import TelegramChannelHandler
 from sqlalchemy.exc import IntegrityError
 import logging
 import sys
@@ -393,11 +395,14 @@ def main()->FastAPI:
     builder.with_transient(FCMProvider)
     # Email Providers
     builder.with_transient(SMTPProvider)
+    # Telegram Providers
+    builder.with_transient(TelegramProvider)
     builder.with_transient(ProcessMessageUseCase)
     # Register concrete channel handlers directly (MessageRouter needs concrete types)
     builder.with_transient(SMSChannelHandler)
     builder.with_transient(InAppChannelHandler)
     builder.with_transient(EmailChannelHandler)
+    builder.with_transient(TelegramChannelHandler)
     builder.with_transient(IMessageHandler,MessageRouter)
     # Register TenantService as singleton so rabbitmqConsumer can be set at startup
     # and reused when creating tenants via API
