@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -119,104 +120,117 @@ class TelegramChannelHandler(IChannelHandler):
                 errorMessage=str(e)
             )
 
-        async def receiveDirectMessage(
-            self,
-            tenant_prefix: str,
-            message: DirectNotificationRequest,
-            isImmediateMode: bool = False,
-        ) -> NotificationResponse:
-            try:
-                logger.info(f"Receiving message for tenant {tenant_prefix} for telegram")
-                tenantdb: Tenant = None
-                async with self.unit_of_work:
-                    tenantdb = await self.unit_of_work.tenants.firstOrDefault(lambda t: t.tenant_prefix == tenant_prefix)
-                
-                if not tenantdb:
-                    logger.error(f"Tenant not found for tenant_prefix: {tenant_prefix}")
-                    return NotificationResponse(
-                        success=False,
-                        errorMessage=f"Tenant with prefix {tenant_prefix} not found"
-                    )
-                
-                tenantConfig = await self.loadTenantConfig(tenantdb.id)
-                if not tenantConfig:
-                    logger.error(f"Tenant config not found for tenant {tenantdb.id}")
-                    return NotificationResponse(
-                        success=False,
-                        errorMessage=f"Tenant config not found for tenant {tenantdb.id}"
-                    )
-                
-                config = tenantConfig.get(TelegramProvider.TELEGRAM.value)
-                if not config:
-                    logger.error(f"Tenant config not found for tenant {tenantdb.id}")
-                    return NotificationResponse(
-                        success=False,
-                        errorMessage=f"Tenant config not found for tenant {tenantdb.id}"
-                    )
-                
-                match config.providerName.lower():
-                    case TelegramProvider.TELEGRAM.value:
-                        return await self._handler[TelegramProvider.TELEGRAM].sendMessage(
-                            tenantConfig=tenantConfig,
-                            message=message,
-                            template=None,
-                            messageBody=message.body,
-                            isImmediateMode=isImmediateMode,
-                            tenantId=tenantdb.id,
-                        )
-                    case _:
-                        logger.error(f"Provider not found for tenant {tenantdb.id}")
-                        return NotificationResponse(
-                            success=False,
-                            errorMessage=f"Provider not found for tenant {tenantdb.id}"
-                        )
+    async def receiveDirectMessage(
+        self,
+        tenant_prefix: str,
+        message: DirectNotificationRequest,
+        isImmediateMode: bool = False,
+    ) -> NotificationResponse:
+        try:
+            logger.info(f"Receiving message for tenant {tenant_prefix} for telegram")
+            tenantdb: Tenant = None
+            async with self.unit_of_work:
+                tenantdb = await self.unit_of_work.tenants.firstOrDefault(lambda t: t.tenant_prefix == tenant_prefix)
             
-            except Exception as e:
-                logger.error(f"Error in receiveDirectMessage for tenant {tenant_prefix}: {str(e)}")
+            if not tenantdb:
+                logger.error(f"Tenant not found for tenant_prefix: {tenant_prefix}")
                 return NotificationResponse(
                     success=False,
-                    errorMessage=str(e)
+                    errorMessage=f"Tenant with prefix {tenant_prefix} not found"
                 )
-        async def loadTenantConfig(
-            self,
-            tenantId: UUID,
-        ) -> list:
-            cache_key = f"tenant_config:{tenantId}:telegram:{TelegramProvider.TELEGRAM.value}"
-            try:
-                cached = await self.redis.get(cache_key)
-                if cached:
-                    logger.info(f"Loaded tenant config from cache for tenant {tenantId}")
-                    return [TenantSMSConfiguration(**c) for c in cached]
-            except Exception as e:
-                logger.warning(f"Failed to load tenant config from cache for tenant {tenantId}: {str(e)}")
+            
+            tenantConfig = await self.loadTenantConfig(tenantdb.id)
+            if not tenantConfig:
+                logger.error(f"Tenant config not found for tenant {tenantdb.id}")
+                return NotificationResponse(
+                    success=False,
+                    errorMessage=f"Tenant config not found for tenant {tenantdb.id}"
+                )
+            
+            config = tenantConfig.get(TelegramProvider.TELEGRAM.value)
+            if not config:
+                logger.error(f"Tenant config not found for tenant {tenantdb.id}")
+                return NotificationResponse(
+                    success=False,
+                    errorMessage=f"Tenant config not found for tenant {tenantdb.id}"
+                )
+            
+            match config.providerName.lower():
+                case TelegramProvider.TELEGRAM.value:
+                    return await self._handler[TelegramProvider.TELEGRAM].sendMessage(
+                        tenantConfig=tenantConfig,
+                        message=message,
+                        template=None,
+                        messageBody=message.body,
+                        isImmediateMode=isImmediateMode,
+                        tenantId=tenantdb.id,
+                    )
+                case _:
+                    logger.error(f"Provider not found for tenant {tenantdb.id}")
+                    return NotificationResponse(
+                        success=False,
+                        errorMessage=f"Provider not found for tenant {tenantdb.id}"
+                    )
+        
+        except Exception as e:
+            logger.error(f"Error in receiveDirectMessage for tenant {tenant_prefix}: {str(e)}")
+            return NotificationResponse(
+                success=False,
+                errorMessage=str(e)
+            )
 
-            async with self.unit_of_work:
-                configs = await self.unit_of_work.tenantSMSConfigurations.find(
-                    lambda t: t.tenantId == tenantId and t.isActive == True and t.providerName == TelegramProvider.TELEGRAM.value
-                )
-            
-            if configs:
-                try:
-                    config_dicts = [
-                        {
-                            "id": str(c.id), "tenantId": str(c.tenantId),
-                            "providerName": c.providerName, "priority": c.priority,
-                            "isActive": c.isActive, "rateLimitPerMinute": c.rateLimitPerMinute,
-                            "rateLimitPerHour": c.rateLimitPerHour, "rateLimitPerDay": c.rateLimitPerDay,
-                            "config": c.config,
-                            "createdAt": c.createdAt.isoformat() if c.createdAt else None,
-                            "updatedAt": c.updatedAt.isoformat() if c.updatedAt else None,
-                        }
-                        for c in configs
-                    ]
-                    await self.redis.set(cache_key, json.dumps(config_dicts))
-                    logger.info(f"Loaded tenant config from DB for tenant {tenantId} and cached it")
-                    return [TenantSMSConfiguration(**c) for c in config_dicts]
-                except Exception as e:
-                    logger.error(f"Failed to cache tenant config for tenant {tenantId}: {str(e)}")
-                    return [c for c in configs]
-            else:
-                logger.warning(f"No tenant config found for tenant {tenantId}")
-                return None
-            
-            
+    async def loadTenantConfig(
+        self,
+        tenantId: UUID,
+    ) -> list:
+        cache_key = f"tenant_config:{tenantId}:telegram:{TelegramProvider.TELEGRAM.value}"
+        try:
+            cached = await self.redis.get(cache_key)
+            if cached:
+                logger.info(f"Loaded tenant config from cache for tenant {tenantId}")
+                return [TenantSMSConfiguration(**c) for c in cached]
+        except Exception as e:
+            logger.warning(f"Failed to load tenant config from cache for tenant {tenantId}: {str(e)}")
+
+        async with self.unit_of_work:
+            configs = await self.unit_of_work.tenantSMSConfigurations.find(
+                lambda t: t.tenantId == tenantId and t.isActive == True and t.providerName == TelegramProvider.TELEGRAM.value
+            )
+        
+        if configs:
+            try:
+                config_dicts = [
+                    {
+                        "id": str(c.id), "tenantId": str(c.tenantId),
+                        "providerName": c.providerName, "priority": c.priority,
+                        "isActive": c.isActive, "rateLimitPerMinute": c.rateLimitPerMinute,
+                        "rateLimitPerHour": c.rateLimitPerHour, "rateLimitPerDay": c.rateLimitPerDay,
+                        "config": c.config,
+                        "createdAt": c.createdAt.isoformat() if c.createdAt else None,
+                        "updatedAt": c.updatedAt.isoformat() if c.updatedAt else None,
+                    }
+                    for c in configs
+                ]
+                await self.redis.set(cache_key, json.dumps(config_dicts))
+                logger.info(f"Loaded tenant config from DB for tenant {tenantId} and cached it")
+                return [TenantSMSConfiguration(**c) for c in config_dicts]
+            except Exception as e:
+                logger.error(f"Failed to cache tenant config for tenant {tenantId}: {str(e)}")
+                return [c for c in configs]
+        else:
+            logger.warning(f"No tenant config found for tenant {tenantId}")
+            return None
+
+    async def loadTemplate(self, tenantId: str, templateName: str, language: str) -> dict:
+        pass
+
+    async def routeToProvider(
+        self,
+        request: NotificationRequest,
+        tenantId: str,
+        config: Dict[str, Any],
+        templateId: UUID,
+        template: str,
+        isImmediateMode: bool = False
+    ) -> NotificationResponse:
+        pass
