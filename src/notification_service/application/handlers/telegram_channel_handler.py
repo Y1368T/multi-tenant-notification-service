@@ -42,79 +42,55 @@ class TelegramChannelHandler(IChannelHandler):
             async with self.unit_of_work:
                 tenantdb = await self.unit_of_work.tenants.firstOrDefault(lambda t: t.tenant_prefix == tenant_prefix)
             
-                if not tenantdb:
-                    logger.error(f"Tenant not found for tenant_prefix: {tenant_prefix}")
-                    return NotificationResponse(
-                        success=False,
-                        errorMessage=f"Tenant with prefix {tenant_prefix} not found"
-                    )
-                template = await self.unit_of_work.smsTemplates.firstOrDefault(
-                    lambda t: t.tenantId == tenantdb.id
-                    and t.templateName == message.templateName
-                    and t.serviceName == message.serviceName
-                )
-                if not template:
-                    logger.error(f"Template not found for tenant {tenantdb.id} and templateName {message.templateName} and serviceName {message.serviceName}")
-                    return NotificationResponse(
-                        success=False,
-                        errorMessage=f"Template not found for tenant {tenantdb.id} and templateName {message.templateName} and serviceName {message.serviceName}"
-                    )
-                
-                checkIdempotency = await self.unit_of_work.smsNotifications.firstOrDefault(
-                    lambda n: n.idempotencyKey == message.idempotencyKey
-                    and n.templateId == template.id
-                )
-                if checkIdempotency:
-                    return NotificationResponse(
-                        success=True,
-                        message="Notification already sent."
-                    )
-            
-            tenantConfig = await self.loadTenantConfig(tenantdb.id)
-            if not tenantConfig:
-                logger.error(f"Tenant config not found for tenant {tenantdb.id}")
+            if not tenantdb:
+                logger.error(f"Tenant not found for tenant_prefix: {tenant_prefix}")
                 return NotificationResponse(
                     success=False,
-                    errorMessage=f"Tenant config not found for tenant {tenantdb.id}"
+                    errorMessage=f"Tenant with prefix {tenant_prefix} not found"
                 )
-
+            
+            # Use loadTemplate to get template details
             language = message.lang or "en"
-            template_body = template.contents.get(language, None)
-            if not template_body:
-                logger.error(f"Template body not found for tenant {tenantdb.id} and language {language}")
+            template_info = await self.loadTemplate(tenantdb.id, message.templateName, language)
+            if not template_info:
                 return NotificationResponse(
                     success=False,
-                    errorMessage=f"Template body not found for tenant {tenantdb.id} and language {language}"
+                    errorMessage=f"Template not found for tenant {tenantdb.id} and language {language}"
                 )
             
+            templateId = UUID(template_info["templateId"])
+            template_body = template_info["templateBody"]
+            
+            # General Format message
             message_body = template_body.format(**message.payload)
-            config = tenantConfig.get(TelegramProvider.TELEGRAM.value)
-            if not config:
-                logger.error(f"Tenant config not found for tenant {tenantdb.id}")
+            
+            tenantConfigList = await self.loadTenantConfig(tenantdb.id)
+            if not tenantConfigList:
                 return NotificationResponse(
                     success=False,
                     errorMessage=f"Tenant config not found for tenant {tenantdb.id}"
                 )
             
-            match config.providerName.lower():
-                case TelegramProvider.TELEGRAM.value:
-                    return await self._handler[TelegramProvider.TELEGRAM].sendMessage(
-                        tenantConfig=tenantConfig,
-                        message=message,
-                        template=template,
-                        messageBody=message_body,
-                        isImmediateMode=isImmediateMode,
-                        tenantId=tenantdb.id,
-                    )
-                case _:
-                    logger.error(f"Provider not found for tenant {tenantdb.id}")
-                    return NotificationResponse(
-                        success=False,
-                        errorMessage=f"Provider not found for tenant {tenantdb.id}"
-                    )
+            # Select first active config
+            config = next((c for c in tenantConfigList if c.isActive), None)
+            if not config:
+                return NotificationResponse(
+                    success=False,
+                    errorMessage=f"Active tenant config not found for tenant {tenantdb.id}"
+                )
+            
+            # Route to provider
+            return await self.routeToProvider(
+                request=message,
+                tenantId=str(tenantdb.id),
+                config=config,
+                templateId=templateId,
+                template=message_body,
+                isImmediateMode=isImmediateMode
+            )
             
         except Exception as e:
-            logger.error(f"Error in receiveMessage for tenant {tenant_prefix}: {str(e)}")
+            logger.error(f"Error in receiveMessage for tenant {tenant_prefix}: {str(e)}", exc_info=True)
             return NotificationResponse(
                 success=False,
                 errorMessage=str(e)
@@ -147,23 +123,23 @@ class TelegramChannelHandler(IChannelHandler):
                     errorMessage=f"Tenant config not found for tenant {tenantdb.id}"
                 )
             
-            config = tenantConfig.get(TelegramProvider.TELEGRAM.value)
+            config = next((c for c in tenantConfig if c.isActive), None)
             if not config:
-                logger.error(f"Tenant config not found for tenant {tenantdb.id}")
+                logger.error(f"Active tenant config not found for tenant {tenantdb.id}")
                 return NotificationResponse(
                     success=False,
-                    errorMessage=f"Tenant config not found for tenant {tenantdb.id}"
+                    errorMessage=f"Active tenant config not found for tenant {tenantdb.id}"
                 )
             
-            match config.providerName.lower():
+            provider_name = config.providerName.lower() if hasattr(config, 'providerName') else config.get("providerName", "").lower()
+            match provider_name:
                 case TelegramProvider.TELEGRAM.value:
-                    return await self._handler[TelegramProvider.TELEGRAM].sendMessage(
-                        tenantConfig=tenantConfig,
-                        message=message,
-                        template=None,
-                        messageBody=message.body,
-                        isImmediateMode=isImmediateMode,
-                        tenantId=tenantdb.id,
+                    return await self._handler[TelegramProvider.TELEGRAM].send(
+                        requestObject=message,
+                        tenantConfig=config,
+                        messageToSend=message.body,
+                        templateId=None,
+                        saveToOutbox=not isImmediateMode,
                     )
                 case _:
                     logger.error(f"Provider not found for tenant {tenantdb.id}")
@@ -222,7 +198,23 @@ class TelegramChannelHandler(IChannelHandler):
             return None
 
     async def loadTemplate(self, tenantId: str, templateName: str, language: str) -> dict:
-        pass
+        async with self.unit_of_work:
+            template = await self.unit_of_work.smsTemplates.firstOrDefault(
+                lambda t: t.tenantId == tenantId and t.templateName == templateName
+            )
+            if not template:
+                logger.error(f"Template not found for tenant {tenantId} and templateName {templateName}")
+                return None
+            
+            template_body = template.contents.get(language, None)
+            if not template_body:
+                logger.error(f"Template body not found for tenant {tenantId} and language {language}")
+                return None
+            
+            return {
+                "templateId": str(template.id),
+                "templateBody": template_body
+            }
 
     async def routeToProvider(
         self,
@@ -233,4 +225,19 @@ class TelegramChannelHandler(IChannelHandler):
         template: str,
         isImmediateMode: bool = False
     ) -> NotificationResponse:
-        pass
+        provider_name = config.providerName.lower() if hasattr(config, 'providerName') else config.get("providerName", "").lower()
+        match provider_name:
+            case TelegramProvider.TELEGRAM.value:
+                return await self._handler[TelegramProvider.TELEGRAM].send(
+                    requestObject=request,
+                    tenantConfig=config,
+                    messageToSend=template,
+                    templateId=templateId,
+                    saveToOutbox=not isImmediateMode,
+                )
+            case _:
+                logger.error(f"Provider not found for tenant {tenantId}")
+                return NotificationResponse(
+                    success=False,
+                    errorMessage=f"Provider not found for tenant {tenantId}"
+                )
