@@ -6,13 +6,19 @@ from notification_service.domain.interfaces import IMessageHandler
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 import re
 from notification_service.domain.value_objects.notification_response import NotificationResponse
+#new
+from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
+from notification_service.application.services.rate_limit_service import RateLimitService
+#new
 
 class ProcessMessageUseCase:
     """Use case for processing incoming messages"""
-
-    def __init__(self, messageRouter:IMessageHandler):
+#edited
+    def __init__(self, messageRouter: IMessageHandler, rateLimitService: RateLimitService, unitOfWork: IUnitOfWork):
         self.messageRouter = messageRouter
-
+        self.rateLimitService = rateLimitService
+        self.unitOfWork = unitOfWork
+#edited
     async def execute(
         self, 
         channel, 
@@ -40,8 +46,17 @@ class ProcessMessageUseCase:
                 success=False,
                 errorMessage=error_msg
             )
+        # new
+        async with self.unitOfWork:
+            tenantdb = await self.unitOfWork.tenants.firstOrDefault(lambda t: t.prefix == tenant)
+        if not tenantdb:
+            return NotificationResponse(success=False, errorMessage=f"Tenant with prefix {tenant} not found")
+
+        channelValue = channel.value if hasattr(channel, "value") else str(channel)
+        await self.rateLimitService.checkAndIncrement(tenantdb.id, tenant, channelValue)
+        # new
         return await self.messageRouter.doRoute(channel, tenant, message, isImmediateMode=isImmediateMode)
-    
+
     
     def validateMessage(self, message:NotificationRequest, channel:str) -> dict:
         """Validate the incoming message format"""
@@ -70,6 +85,11 @@ class ProcessMessageUseCase:
             case "email":
                 if not self.isValidEmail(recipient.address):
                     return {"success": False, "error": f"Invalid email address: {recipient.address}"}
+            #new
+             case "whatsapp":
+        if not self.isValidPhoneNumber(recipient.address):
+            return {"success": False, "error": f"Invalid WhatsApp number: {recipient.address}"}
+            #new
             # Add more channel validations as needed
 
         return {"success": True}
