@@ -88,7 +88,18 @@ class ConflictError(ApplicationException):
         error_code = code or "CONFLICT_ERROR"
         super().__init__(message, code=error_code, details=details or {})
 
+#new
+class RateLimitExceededError(ApplicationException):
+    """Raised when a tenant exceeds their configured send rate (429)."""
 
+    def __init__(self, tenantId: str, channel: str, window: str, limit: int):
+        self.tenantId = tenantId
+        self.channel = channel
+        code = "RATE_LIMIT_EXCEEDED"
+        message = f"Rate limit exceeded for tenant {tenantId} on channel {channel} ({window} limit: {limit})"
+        details = {"tenantId": tenantId, "channel": channel, "window": window, "limit": limit}
+        super().__init__(message, code=code, details=details)
+#new
 class ValueError(ApplicationException):
     """Raised when a value is invalid (400)."""
     
