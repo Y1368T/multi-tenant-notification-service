@@ -12,6 +12,12 @@ from notification_service.infrastructure.persistence.repositories.email_template
 from notification_service.infrastructure.persistence.repositories.sms_notification_repository import SmsNotificationRepository
 from notification_service.infrastructure.persistence.repositories.sms_outbox_repository import SmsOutboxRepository
 from notification_service.infrastructure.persistence.repositories.sms_template_repository import SmsTemplateRepository
+#new(whatsapp)
+from notification_service.infrastructure.persistence.repositories.whatsapp_template_repository import WhatsAppTemplateRepository
+from notification_service.infrastructure.persistence.repositories.whatsapp_outbox_repository import WhatsAppOutboxRepository
+from notification_service.infrastructure.persistence.repositories.whatsapp_notification_repository import WhatsAppNotificationRepository
+from notification_service.infrastructure.persistence.repositories.tenant_whatsapp_configuration_repository import TenantWhatsAppConfigurationRepository
+#new(whatsapp)
 from notification_service.infrastructure.persistence.repositories.in_app_notification_repository import InAppNotificationRepository
 from notification_service.infrastructure.persistence.repositories.in_app_template_repository import InAppTemplateRepository
 from notification_service.infrastructure.persistence.repositories.in_app_outbox_repository import InAppOutboxRepository
@@ -67,6 +73,20 @@ class UnitOfWork(IUnitOfWork):
     def smsTemplates(self):
         return self._smsTemplates
 
+#new(whatsapp)
+    @property
+    def whatsAppTemplates(self):
+        return self._whatsAppTemplates
+    
+    @property
+    def whatsAppOutboxes(self):
+        return self._whatsAppOutboxes
+    
+    @property
+    def whatsAppNotifications(self):
+        return self._whatsAppNotifications
+#new(whatsapp)
+
     @property
     def inAppNotifications(self):
         return self._inAppNotifications
@@ -86,6 +106,10 @@ class UnitOfWork(IUnitOfWork):
     @property
     def tenantSmsConfigurations(self):
         return self._tenantSmsConfigurations
+
+    @property
+    def tenantWhatsAppConfigurations(self):
+        return self._tenantWhatsAppConfigurations
 
     @property
     def tenantInAppConfigurations(self):
@@ -112,6 +136,12 @@ class UnitOfWork(IUnitOfWork):
         self._smsOutboxes = SmsOutboxRepository(self.session)
         self._smsTemplates = SmsTemplateRepository(self.session)
 
+#new(whatsapp)
+        self._whatsAppTemplates = WhatsAppTemplateRepository(self.session)
+        self._whatsAppOutboxes = WhatsAppOutboxRepository(self.session)
+        self._whatsAppNotifications = WhatsAppNotificationRepository(self.session)
+#new(whatsapp)
+
         self._inAppNotifications = InAppNotificationRepository(self.session)
         self._inAppTemplates = InAppTemplateRepository(self.session)
         self._inAppOutboxes = InAppOutboxRepository(self.session)
@@ -119,6 +149,9 @@ class UnitOfWork(IUnitOfWork):
         self._tenants = TenantRepository(self.session, TenantMapper())
         self._tenantEmailConfigurations = TenantEmailConfigurationRepository(self.session)
         self._tenantSmsConfigurations = TenantSmsConfigurationRepository(self.session)
+#new(whatsapp)
+        self._tenantWhatsAppConfigurations = TenantWhatsAppConfigurationRepository(self.session)
+#new(whatsapp)
         # TODO: Create TenantInAppConfigurationRepository, Model, and Mapper
         # For now, using SMS configuration repository as placeholder - needs to be replaced
         self._tenantInAppConfigurations = TenantInAppConfigurationRepository(self.session)
