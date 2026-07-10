@@ -246,7 +246,7 @@ class WhatsAppMetaCloudProvider(IProviderService):
                 error_msg = error_msg or f"WhatsApp send failed with status {response.status_code}"
 
                 if saveToOutbox:
-                    existingOutbox = await self.uow.whatsAppOutboxes.where(
+                    existingOutbox = await self.uow.whatsAppOutboxes.firstOrDefault(
                         lambda x: x.idempotencyKey == requestObject.idempotencyKey and x.recipientNumber == recipient
                     )
                     if existingOutbox:
