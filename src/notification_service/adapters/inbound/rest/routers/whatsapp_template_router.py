@@ -28,7 +28,7 @@ class WhatsAppTemplateController(ControllerBase):
         # Build PaginatedRequest using service method
         # Exceptions will be handled by global exception handlers
         paginated_request = self.whatsappTemplateService._build_paginated_request(params)
-        result = await self.whaysappTemplateService.get(paginated_request)
+        result = await self.whatsappTemplateService.get(paginated_request)
         return result
     
     @post("/create", response_model=WhatsAppTemplateResponseDTO)

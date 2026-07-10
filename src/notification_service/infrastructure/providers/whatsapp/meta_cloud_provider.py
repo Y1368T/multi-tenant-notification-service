@@ -1,9 +1,6 @@
 from __future__ import annotations
-from asyncio import exceptions
 
 import asyncio
-import base64
-import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -12,10 +9,10 @@ from uuid import UUID, uuid4
 import httpx
 from pydantic import BaseModel
 
-from notification_service.domain.entities.sms.sms_notification import SMSNotification
-from notification_service.domain.entities.sms.sms_outbox import SMSOutbox
+from notification_service.domain.entities.whatsapp.whatsapp_notification import WhatsAppNotification
+from notification_service.domain.entities.whatsapp.whatsapp_outbox import WhatsAppOutbox
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
-from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
+from notification_service.domain.entities.tenant.tenant_whatsapp_configuration import TenantWhatsAppConfiguration
 from notification_service.domain.interfaces.iprovider_service import IProviderService
 from notification_service.domain.value_objects.notification_request import NotificationRequest
 from notification_service.domain.value_objects.notification_response import (
@@ -30,115 +27,40 @@ from notification_service.infrastructure.services.webhook_client import WebhookC
 logger = logging.getLogger(__name__)
 
 
-class JasminHTTPConfig(BaseModel):
-    """Configuration for Jasmin HTTP send interface."""
+class MetaCloudConfig(BaseModel):
+    """Configuration for the WhatsApp Meta Cloud API."""
 
-    baseUrl: str
-    username: str
-    password: str
-    sender: Optional[str] = None
-    dlrUrl: Optional[str] = None
-    dlrLevel: Optional[str] = None
-    dlrMethod: Optional[str] = None
-    priority: Optional[int] = None
-    coding: Optional[int] = None
+    accessToken: str
+    phoneNumberId: str
+    businessAccountId: Optional[str] = None
+    apiVersion: str = "v20.0"
     timeoutSeconds: Optional[int] = 10
-    extraParams: Dict[str, Any] | None = None
 
     class Config:
         from_attributes = True
 
     @classmethod
-    def fromDict(cls, data: Dict[str, Any]) -> "JasminHTTPConfig":
+    def fromDict(cls, data: Dict[str, Any]) -> "MetaCloudConfig":
         return cls(
-            baseUrl=data.get("baseUrl", ""),
-            username=data.get("username", ""),
-            password=data.get("password", ""),
-            sender=data.get("sender"),
-            dlrUrl=data.get("dlrUrl"),
-            dlrLevel=str(data.get("dlrLevel")) if data.get("dlrLevel") is not None else None,
-            dlrMethod=data.get("dlrMethod"),
-            priority=int(data.get("priority", 0)) if data.get("priority") is not None else None,
-            coding=int(data.get("coding", 0)) if data.get("coding") is not None else None,
+            accessToken=data.get("accessToken", ""),
+            phoneNumberId=data.get("phoneNumberId", ""),
+            businessAccountId=data.get("businessAccountId"),
+            apiVersion=data.get("apiVersion", "v20.0"),
             timeoutSeconds=int(data.get("timeoutSeconds", 10)) if data.get("timeoutSeconds") is not None else 10,
-            extraParams=data.get("extraParams") or {},
         )
 
-    def toQueryParams(self, to: str, text: str, sender_override: Optional[str] = None) -> Dict[str, Any]:
-        params: Dict[str, Any] = {
-            "username": self.username,
-            "password": self.password,
-            "to": to,
-            "content": text,
-        }
+    def messagesUrl(self) -> str:
+        return f"https://graph.facebook.com/{self.apiVersion}/{self.phoneNumberId}/messages"
 
-        sender_value = sender_override or self.sender
-        if sender_value:
-            params["from"] = sender_value
-
-        if self.dlrUrl:
-            params["dlr-url"] = self.dlrUrl
-            if self.dlrLevel:
-                params["dlr-level"] = self.dlrLevel
-            if self.dlrMethod:
-                params["dlr-method"] = self.dlrMethod
-
-        if self.priority is not None:
-            params["priority"] = self.priority
-
-        if self.coding is not None:
-            params["coding"] = self.coding
-
-        if self.extraParams:
-            params.update(self.extraParams)
-
-        return params
+    def phoneNumberUrl(self) -> str:
+        return f"https://graph.facebook.com/{self.apiVersion}/{self.phoneNumberId}"
 
 
-class JasminSMPPConfig(BaseModel):
-    """Configuration for Jasmin SMPP client mode."""
-
-    host: str
-    port: int = 2775
-    systemId: str
-    password: str
-    systemType: str | None = None
-    bindType: str = "transceiver"  # transmitter / receiver / transceiver
-    sourceAddr: str | None = None
-    dataCoding: int | None = 0
-    registeredDelivery: int | None = 1
-    connectTimeoutSeconds: int | None = 10
-
-    class Config:
-        from_attributes = True
-
-    @classmethod
-    def fromDict(cls, data: Dict[str, Any]) -> "JasminSMPPConfig":
-        return cls(
-            host=data.get("host", ""),
-            port=int(data.get("port", 2775)) if data.get("port") is not None else 2775,
-            systemId=data.get("systemId", ""),
-            password=data.get("password", ""),
-            systemType=data.get("systemType"),
-            bindType=data.get("bindType", "transceiver"),
-            sourceAddr=data.get("sourceAddr"),
-            dataCoding=int(data.get("dataCoding", 0)) if data.get("dataCoding") is not None else 0,
-            registeredDelivery=int(data.get("registeredDelivery", 1))
-            if data.get("registeredDelivery") is not None
-            else 1,
-            connectTimeoutSeconds=int(data.get("connectTimeoutSeconds", 10))
-            if data.get("connectTimeoutSeconds") is not None
-            else 10,
-        )
-
-
-class JasminSMSProvider(IProviderService):
+class WhatsAppMetaCloudProvider(IProviderService):
     """
-    Jasmin SMS provider that supports both HTTP and SMPP based on tenant configuration.
+    WhatsApp provider backed by Meta's WhatsApp Cloud API.
 
-    tenantConfig.config MUST contain a key "mode" with value "http" or "smpp".
-    For "http" mode, JasminHTTPConfig is used.
-    For "smpp" mode, JasminSMPPConfig is used.
+    tenantConfig.config MUST contain "accessToken" and "phoneNumberId".
     """
 
     def __init__(self, uow: IUnitOfWork, webhook_client: WebhookClient) -> None:
@@ -159,24 +81,24 @@ class JasminSMSProvider(IProviderService):
         """Send callback to the provided URL."""
         if not callback_url:
             return
-        
+
         if not self.webhook_client:
             logger.warning("WebhookClient not configured, skipping callback")
             return
-        
+
         try:
             payload = NotificationCallbackPayload(
                 idempotencyKey=idempotency_key,
                 status=status,
-                channel="sms",
+                channel="whatsapp",
                 recipient=recipient,
                 timestamp=datetime.utcnow(),
                 notificationId=notification_id,
                 errorMessage=error_message
             )
-            
+
             logger.info(f"Sending callback to {callback_url} for {recipient}: status={status}")
-            
+
             asyncio.create_task(
                 self.webhook_client.send_callback(
                     callback_url=callback_url,
@@ -191,236 +113,211 @@ class JasminSMSProvider(IProviderService):
 
     async def test(self, config: Dict[str, Any], address: str) -> ProviderTestResponse:
         """
-        Test Jasmin configuration.
-
-        - For HTTP mode: perform a lightweight GET on baseUrl.
-        - For SMPP mode: currently a configuration validation only (no network dial).
+        Test Meta Cloud API configuration by fetching the phone number resource.
+        This validates the access token and phone number ID without sending a message.
         """
         try:
-            
-            http_conf = JasminHTTPConfig.fromDict(config or {})
-            
-            if not http_conf.baseUrl or not http_conf.username or not http_conf.password:
-                    return ProviderTestResponse(
-                        success=False,
-                        message="baseUrl, username and password are required for Jasmin HTTP configuration",
-                    )
-            credentials = f"{http_conf.username}:{http_conf.password}"
-            encoded_credentials = base64.b64encode(credentials.encode()).decode()
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Basic {encoded_credentials}",
-            }
-            payload = {
-                "to": address,
-                "content": "Jasmin SMS gateway test message",
-                "from": http_conf.sender or "",  # Use sender if available
-            }
-            response= await self.client.post(
-                    http_conf.baseUrl,
-                    content=json.dumps(payload),
-                    headers=headers,
-                    timeout=http_conf.timeoutSeconds or 10,
-                )
-            response.raise_for_status()
-            try:
-                    body = response.json()
-            except Exception:  # pragma: no cover - non-json body
-                    body = {"raw": response.text}
+            cfg = MetaCloudConfig.fromDict(config or {})
 
-                # Parse Jasmin HTTP response for success/failure
-                # Success: {'data': 'Success "503f7101-3bb8-4966-992c-1bd3ff8d2ea2'}
-                # Failure: {'message': 'Error "Authentication failure for username:unified'}
-            if "data" in body and isinstance(body["data"], str) and body["data"].startswith("Success"):
-                    
-               logger.info(f"Jasmin HTTP SMS sent successfully to {address}, response: {body}")
-               
+            if not cfg.accessToken or not cfg.phoneNumberId:
+                return ProviderTestResponse(
+                    success=False,
+                    message="accessToken and phoneNumberId are required for WhatsApp Meta Cloud configuration",
+                )
+
+            headers = {"Authorization": f"Bearer {cfg.accessToken}"}
+            response = await self.client.get(
+                cfg.phoneNumberUrl(),
+                headers=headers,
+                timeout=cfg.timeoutSeconds or 10,
+            )
+
+            if response.status_code == 200:
+                logger.info(f"WhatsApp Meta Cloud config OK for phoneNumberId {cfg.phoneNumberId}")
+                return ProviderTestResponse(success=True, message="WhatsApp Meta Cloud API reachable")
             else:
-                logger.error(f"Failed to send test SMS via Jasmin HTTP to {address}, response: {body}")
-                return ProviderTestResponse(success=False, message="Failed to send test SMS",)
-                
-            return ProviderTestResponse(success=True, message="Jasmin SMS gateway reachable")
-        except Exception as exc:  # pragma: no cover - network/config errors
-            logger.error(f"Exception during Jasmin SMS test: {exc}")
+                try:
+                    body = response.json()
+                except Exception:
+                    body = {"raw": response.text}
+                logger.error(f"WhatsApp Meta Cloud test failed for {cfg.phoneNumberId}: {body}")
+                return ProviderTestResponse(success=False, message=f"Meta Cloud API error: {body}")
+        except Exception as exc:
+            logger.error(f"Exception during WhatsApp Meta Cloud test: {exc}")
             return ProviderTestResponse(success=False, message=f"Exception during test: {str(exc)}")
 
-    
     async def send(
-         self,
+        self,
         requestObject: NotificationRequest,
-        tenantConfig: TenantSMSConfiguration,
+        tenantConfig: TenantWhatsAppConfiguration,
         messageToSend: str,
         templateId: UUID,
         saveToOutbox: bool = True
     ) -> NotificationResponse:
-        """Send SMS using Jasmin HTTP API.
-        
+        """Send a WhatsApp text message using the Meta Cloud API.
+
         Args:
             saveToOutbox: If True, save failed messages to outbox for retry (fire-and-forget mode).
                          If False, just return failure (immediate mode, caller handles retry).
         """
-        http_conf = JasminHTTPConfig.fromDict(tenantConfig.config or {})
+        cfg = MetaCloudConfig.fromDict(tenantConfig.config or {})
         recipient: str = requestObject.recipient.address
         notificationResponsePerRecipient: List[NotifiationResponsePerRecipient] = []
+
         if not recipient:
             return NotificationResponse(
                 success=False,
                 errorMessage="No recipient provided",
             )
-        elif not http_conf.baseUrl or not http_conf.username or not http_conf.password:
+        elif not cfg.accessToken or not cfg.phoneNumberId:
             return NotificationResponse(
                 success=False,
-                errorMessage="Invalid Jasmin HTTP configuration: baseUrl, username and password are required",
+                errorMessage="Invalid WhatsApp Meta Cloud configuration: accessToken and phoneNumberId are required",
             )
 
-        
-        credentials = f"{http_conf.username}:{http_conf.password}"
-        encoded_credentials = base64.b64encode(credentials.encode()).decode()
         headers = {
+            "Authorization": f"Bearer {cfg.accessToken}",
             "Content-Type": "application/json",
-            "Authorization": f"Basic {encoded_credentials}",
         }
-        isAllSent:bool=False
         payload = {
-                "to": recipient,
-                "hex_content": messageToSend.encode("utf-16-be").hex(),  # Encode to UCS2 hex for Unicode/Amharic
-                "from": http_conf.sender or "",
-                "coding": 8,  # UCS2 encoding for Unicode
-            }
-        try:
-                logger.info(f"Sending SMS via Jasmin HTTP to {recipient}")
-                response = await self.client.post(
-                    http_conf.baseUrl,
-                    content=json.dumps(payload),
-                    headers=headers,
-                    timeout=http_conf.timeoutSeconds or 10,
-                )
-                response.raise_for_status()
-                # Jasmin returns JSON by default
-                try:
-                    body = response.json()
-                except Exception:  # pragma: no cover - non-json body
-                    body = {"raw": response.text}
+            "messaging_product": "whatsapp",
+            "to": recipient,
+            "type": "text",
+            "text": {"body": messageToSend},
+        }
+        isAllSent: bool = False
 
-                # Parse Jasmin HTTP response for success/failure
-                # Success: {'data': 'Success "503f7101-3bb8-4966-992c-1bd3ff8d2ea2'}
-                # Failure: {'message': 'Error "Authentication failure for username:unified'}
-                if "data" in body and isinstance(body["data"], str) and body["data"].startswith("Success"):
-                    
-                    logger.info(f"Jasmin HTTP SMS sent successfully to {recipient}, response: {body}")
-                    
-                    smsnotification=SMSNotification(
-                        id=uuid4(),
-                        recipientNumber=recipient,
-                        messageContent=messageToSend,
-                        templateId=templateId,
-                        status="sent",
-                        idempotencyKey=requestObject.idempotencyKey,
-                        createdAt=datetime.utcnow(),
-                        updatedAt=datetime.utcnow()
+        try:
+            logger.info(f"Sending WhatsApp message via Meta Cloud API to {recipient}")
+            response = await self.client.post(
+                cfg.messagesUrl(),
+                json=payload,
+                headers=headers,
+                timeout=cfg.timeoutSeconds or 10,
+            )
+
+            try:
+                body = response.json()
+            except Exception:
+                body = {"raw": response.text}
+
+            # Meta Cloud API success shape: {"messages": [{"id": "wamid...."}], ...}
+            # Meta Cloud API failure shape: {"error": {"message": "...", "code": ..., ...}}
+            if response.status_code == 200 and "messages" in body and body["messages"]:
+                providerMessageId = body["messages"][0].get("id")
+                logger.info(f"WhatsApp message sent successfully to {recipient}, id: {providerMessageId}")
+
+                whatsappNotification = WhatsAppNotification(
+                    id=uuid4(),
+                    recipientNumber=recipient,
+                    messageContent=messageToSend,
+                    templateId=templateId,
+                    status="sent",
+                    idempotencyKey=requestObject.idempotencyKey,
+                    createdAt=datetime.utcnow(),
+                    updatedAt=datetime.utcnow()
+                )
+                await self.uow.whatsAppNotifications.add(whatsappNotification)
+                await self.uow.commit()
+
+                notifcationResponse = NotifiationResponsePerRecipient(
+                    notificationId=str(whatsappNotification.id),
+                    status="sent",
+                    recipient=recipient,
+                    createdAt=whatsappNotification.createdAt,
+                    deliveredAt=whatsappNotification.createdAt,
+                    success=True,
+                    message="WhatsApp message sent successfully"
+                )
+                notificationResponsePerRecipient.append(notifcationResponse)
+                isAllSent = True
+
+                await self._send_callback(
+                    callback_url=requestObject.callbackUrl,
+                    callback_headers=requestObject.callbackHeaders,
+                    idempotency_key=requestObject.idempotencyKey,
+                    status="sent",
+                    recipient=recipient,
+                    notification_id=str(whatsappNotification.id)
+                )
+            else:
+                error_body = body.get("error", {})
+                error_msg = error_body.get("message") if isinstance(error_body, dict) else str(body)
+                error_msg = error_msg or f"WhatsApp send failed with status {response.status_code}"
+
+                if saveToOutbox:
+                    existingOutbox = await self.uow.whatsAppOutboxes.where(
+                        lambda x: x.idempotencyKey == requestObject.idempotencyKey and x.recipientNumber == recipient
                     )
-                    await self.uow.smsNotifications.add(smsnotification)
-                    await self.uow.commit()
-                    notifcationResponse=NotifiationResponsePerRecipient(
-                        notificationId=str(smsnotification.id),
-                        status="sent",
-                        recipient=recipient,
-                        createdAt=smsnotification.createdAt,
-                        deliveredAt=smsnotification.createdAt,
-                        success=True,
-                        message="SMS sent successfully"
-                    )
-                    notificationResponsePerRecipient.append(notifcationResponse)
-                    isAllSent = True
-                    
-                    # Send callback on success (if callbackUrl provided)
-                    await self._send_callback(
-                        callback_url=requestObject.callbackUrl,
-                        callback_headers=requestObject.callbackHeaders,
-                        idempotency_key=requestObject.idempotencyKey,
-                        status="sent",
-                        recipient=recipient,
-                        notification_id=str(smsnotification.id)
-                    )
-                elif "message" in body and isinstance(body["message"], str) and body["message"].startswith("Error"):
-                    error_msg = body.get("message", body["message"])
-                    # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
-                    if saveToOutbox:
-                        #check if smsoutbox exist by the idempotency key and recipient number
-                        existingOutbox = await self.uow.smsOutboxes.where(
-                            lambda x: x.idempotencyKey == requestObject.idempotencyKey and x.recipientNumber == recipient
-                        )
-                        if existingOutbox:
-                            logger.info(f"SMS outbox already exists for idempotencyKey {requestObject.idempotencyKey} and recipient {recipient}, skipping creation.")
-                            existingOutbox.updatedAt = datetime.utcnow()
-                            existingOutbox.lastErrorMessage = error_msg
-                            existingOutbox.lastRetryAt = datetime.utcnow()
-                            existingOutbox.providerAttempted = "JasminHTTP"
-                            existingOutbox.status="failed"
-                            await self.uow.smsOutboxes.update(existingOutbox)
-                            await self.uow.commit()
-                            notifcationResponse=NotifiationResponsePerRecipient(
-                                notificationId=str(existingOutbox.id),
-                                status=existingOutbox.status,
-                                recipient=recipient,
-                                createdAt=existingOutbox.createdAt,
-                                success=False,
-                                message="SMS outbox already exists, skipping creation",
-                                errorMessage=error_msg,
-                            )
-                            notificationResponsePerRecipient.append(notifcationResponse)
-                            isAllSent = False
-                        else:
-                            smsOutBox=SMSOutbox(
-                                id=uuid4(),
-                                recipientNumber=recipient,
-                                messageContent=messageToSend,
-                                idempotencyKey=requestObject.idempotencyKey,
-                                templateId=templateId,
-                                retryCount=0,
-                                status="failed",
-                                lastErrorMessage=error_msg,
-                                providerAttempted="jasmin",
-                                callbackUrl=requestObject.callbackUrl,
-                                callbackHeaders=requestObject.callbackHeaders,
-                                createdAt=datetime.utcnow(),
-                                updatedAt=datetime.utcnow()
-                            )
-                            await self.uow.smsOutboxes.add(smsOutBox)
-                            await self.uow.commit()
-                            logger.error(f"Failed to send SMS via Jasmin HTTP to {recipient}, saved to outbox: {body}")
-                            notifcationResponse=NotifiationResponsePerRecipient(
-                                notificationId=str(smsOutBox.id),
-                                status="failed",
-                                recipient=recipient,
-                                createdAt=smsOutBox.createdAt,
-                                success=False,
-                                message="Saved to outbox for retrying later",
-                                errorMessage=error_msg,
-                            )
-                            notificationResponsePerRecipient.append(notifcationResponse)
-                            isAllSent = False
-                    else:
-                        # Immediate mode - just return failure, caller handles retry
-                        logger.error(f"Failed to send SMS via Jasmin HTTP to {recipient}: {error_msg}")
-                        notifcationResponse=NotifiationResponsePerRecipient(
-                            notificationId=None,
-                            status="failed",
+                    if existingOutbox:
+                        logger.info(f"WhatsApp outbox already exists for idempotencyKey {requestObject.idempotencyKey} and recipient {recipient}, skipping creation.")
+                        existingOutbox.updatedAt = datetime.utcnow()
+                        existingOutbox.lastErrorMessage = error_msg
+                        existingOutbox.lastRetryAt = datetime.utcnow()
+                        existingOutbox.providerAttempted = "meta_cloud"
+                        existingOutbox.status = "failed"
+                        await self.uow.whatsAppOutboxes.update(existingOutbox)
+                        await self.uow.commit()
+                        notifcationResponse = NotifiationResponsePerRecipient(
+                            notificationId=str(existingOutbox.id),
+                            status=existingOutbox.status,
                             recipient=recipient,
-                            createdAt=datetime.utcnow(),
+                            createdAt=existingOutbox.createdAt,
                             success=False,
-                            message="Failed to send SMS",
+                            message="WhatsApp outbox already exists, skipping creation",
                             errorMessage=error_msg,
                         )
                         notificationResponsePerRecipient.append(notifcationResponse)
                         isAllSent = False
-        except Exception as exc:  
-            error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (Jasmin HTTP)'}"
-            logger.error(f"Error sending SMS via Jasmin HTTP to {recipient}: {error_message}", exc_info=True)
-                    
-            # Only save to outbox if saveToOutbox is True (fire-and-forget mode)
+                    else:
+                        whatsappOutbox = WhatsAppOutbox(
+                            id=uuid4(),
+                            recipientNumber=recipient,
+                            messageContent=messageToSend,
+                            idempotencyKey=requestObject.idempotencyKey,
+                            templateId=templateId,
+                            retryCount=0,
+                            status="failed",
+                            lastErrorMessage=error_msg,
+                            providerAttempted="meta_cloud",
+                            callbackUrl=requestObject.callbackUrl,
+                            callbackHeaders=requestObject.callbackHeaders,
+                            createdAt=datetime.utcnow(),
+                            updatedAt=datetime.utcnow()
+                        )
+                        await self.uow.whatsAppOutboxes.add(whatsappOutbox)
+                        await self.uow.commit()
+                        logger.error(f"Failed to send WhatsApp message to {recipient}, saved to outbox: {body}")
+                        notifcationResponse = NotifiationResponsePerRecipient(
+                            notificationId=str(whatsappOutbox.id),
+                            status="failed",
+                            recipient=recipient,
+                            createdAt=whatsappOutbox.createdAt,
+                            success=False,
+                            message="Saved to outbox for retrying later",
+                            errorMessage=error_msg,
+                        )
+                        notificationResponsePerRecipient.append(notifcationResponse)
+                        isAllSent = False
+                else:
+                    logger.error(f"Failed to send WhatsApp message to {recipient}: {error_msg}")
+                    notifcationResponse = NotifiationResponsePerRecipient(
+                        notificationId=None,
+                        status="failed",
+                        recipient=recipient,
+                        createdAt=datetime.utcnow(),
+                        success=False,
+                        message="Failed to send WhatsApp message",
+                        errorMessage=error_msg,
+                    )
+                    notificationResponsePerRecipient.append(notifcationResponse)
+                    isAllSent = False
+        except Exception as exc:
+            error_message = f"{type(exc).__name__}: {str(exc) or 'No error details (WhatsApp Meta Cloud)'}"
+            logger.error(f"Error sending WhatsApp message to {recipient}: {error_message}", exc_info=True)
+
             if saveToOutbox:
-                smsOutBox=SMSOutbox(
+                whatsappOutbox = WhatsAppOutbox(
                     id=uuid4(),
                     recipientNumber=recipient,
                     messageContent=messageToSend,
@@ -432,38 +329,36 @@ class JasminSMSProvider(IProviderService):
                     updatedAt=datetime.utcnow(),
                     lastErrorMessage=error_message,
                     lastRetryAt=datetime.utcnow(),
-                    providerAttempted="jasmin",
+                    providerAttempted="meta_cloud",
                     callbackUrl=requestObject.callbackUrl,
                     callbackHeaders=requestObject.callbackHeaders,
                 )
-                await self.uow.smsOutboxes.add(smsOutBox)
+                await self.uow.whatsAppOutboxes.add(whatsappOutbox)
                 await self.uow.commit()
-                notifcationResponse=NotifiationResponsePerRecipient(
-                    notificationId=str(smsOutBox.id),
+                notifcationResponse = NotifiationResponsePerRecipient(
+                    notificationId=str(whatsappOutbox.id),
                     status="failed",
                     recipient=recipient,
-                    createdAt=smsOutBox.createdAt,
+                    createdAt=whatsappOutbox.createdAt,
                     success=False,
                     message="Saved to outbox for retrying later",
                     errorMessage=error_message,
                 )
             else:
-                # Immediate mode - just return failure, caller handles retry
-                notifcationResponse=NotifiationResponsePerRecipient(
+                notifcationResponse = NotifiationResponsePerRecipient(
                     notificationId=None,
                     status="failed",
                     recipient=recipient,
                     createdAt=datetime.utcnow(),
                     success=False,
-                    message="Failed to send SMS",
+                    message="Failed to send WhatsApp message",
                     errorMessage=error_message,
                 )
             notificationResponsePerRecipient.append(notifcationResponse)
             isAllSent = False
 
         return NotificationResponse(
-            
-            channel="SMS",
+            channel="WHATSAPP",
             tenantId=str(tenantConfig.tenantId),
             success=isAllSent,
             message="Processing completed" if isAllSent else "Some messages failed to send",
@@ -474,61 +369,57 @@ class JasminSMSProvider(IProviderService):
         self,
         recipient: str,
         message: str,
-        tenantConfig: TenantSMSConfiguration
+        tenantConfig: TenantWhatsAppConfiguration
     ) -> tuple[bool, Optional[str]]:
         """
-        Send a raw SMS message (used for outbox retry).
-        
+        Send a raw WhatsApp message (used for outbox retry).
+
         Args:
-            recipient: Phone number to send to
+            recipient: WhatsApp number to send to
             message: Already-rendered message content
-            tenantConfig: Tenant SMS configuration with provider credentials
-            
+            tenantConfig: Tenant WhatsApp configuration with provider credentials
+
         Returns:
             Tuple of (success: bool, error_message: Optional[str])
         """
         try:
-            http_conf = JasminHTTPConfig.fromDict(tenantConfig.config or {})
-            
-            if not http_conf.baseUrl or not http_conf.username or not http_conf.password:
-                return (False, "Invalid Jasmin HTTP configuration: baseUrl, username and password are required")
-            
-            credentials = f"{http_conf.username}:{http_conf.password}"
-            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+            cfg = MetaCloudConfig.fromDict(tenantConfig.config or {})
+
+            if not cfg.accessToken or not cfg.phoneNumberId:
+                return (False, "Invalid WhatsApp Meta Cloud configuration: accessToken and phoneNumberId are required")
+
             headers = {
+                "Authorization": f"Bearer {cfg.accessToken}",
                 "Content-Type": "application/json",
-                "Authorization": f"Basic {encoded_credentials}",
             }
-            
             payload = {
+                "messaging_product": "whatsapp",
                 "to": recipient,
-                "hex_content": message.encode("utf-16-be").hex(),  # Encode to UCS2 hex for Unicode/Amharic
-                "from": http_conf.sender or "",
-                "coding": 8,  # UCS2 encoding for Unicode
+                "type": "text",
+                "text": {"body": message},
             }
-            
+
             response = await self.client.post(
-                http_conf.baseUrl,
-                content=json.dumps(payload),
+                cfg.messagesUrl(),
+                json=payload,
                 headers=headers,
-                timeout=http_conf.timeoutSeconds or 10,
+                timeout=cfg.timeoutSeconds or 10,
             )
-            response.raise_for_status()
-            
+
             try:
                 body = response.json()
             except Exception:
                 body = {"raw": response.text}
-            
-            if "data" in body and isinstance(body["data"], str) and body["data"].startswith("Success"):
-                logger.info(f"SMS sent successfully to {recipient} via Jasmin HTTP (retry)")
+
+            if response.status_code == 200 and "messages" in body and body["messages"]:
+                logger.info(f"WhatsApp message sent successfully to {recipient} via Meta Cloud API (retry)")
                 return (True, None)
             else:
-                error_msg = body.get("message", str(body))
-                logger.error(f"Failed to send SMS to {recipient} via Jasmin HTTP: {error_msg}")
+                error_body = body.get("error", {})
+                error_msg = error_body.get("message") if isinstance(error_body, dict) else str(body)
+                logger.error(f"Failed to send WhatsApp message to {recipient} via Meta Cloud API: {error_msg}")
                 return (False, error_msg)
-                
+
         except Exception as e:
-            logger.error(f"Exception sending SMS to {recipient} via Jasmin HTTP: {e}")
+            logger.error(f"Exception sending WhatsApp message to {recipient} via Meta Cloud API: {e}")
             return (False, str(e))
-    

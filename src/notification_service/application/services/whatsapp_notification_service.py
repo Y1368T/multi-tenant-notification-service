@@ -1,8 +1,7 @@
 from uuid import UUID
 from typing import Optional, List, Dict, Any
 from notification_service.application.use_cases.process_message_usecase import ProcessMessageUseCase
-from notification_service.domain.entities.sms.sms_notification import SMSNotification
-from notification_service.domain.value_objects.providers import SMSProvider
+from notification_service.domain.entities.whatsapp.whatsapp_notification import WhatsAppNotification
 from notification_service.domain.value_objects.notification_types import NotificationChannel
 import uuid
 
@@ -14,7 +13,7 @@ from notification_service.domain.entities.tenant import Tenant
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.value_objects.notification_status import NotificationStatus
 from notification_service.domain.value_objects.paginated_result import PaginatedResult
-from notification_service.adapters.inbound.dto.sms_notification_response_dto import SMSNotificationResponseDTO
+from notification_service.adapters.inbound.dto.whatsapp_notification_response_dto import WhatsAppNotificationResponseDTO
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
     PaginatedRequest,
@@ -23,27 +22,27 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
     FilterOp
 )
 from notification_service.application.services.base_service import BaseService
-        
-class SMSNotificationService(BaseService[SMSNotification, SMSNotificationResponseDTO]):
+
+class WhatsAppNotificationService(BaseService[WhatsAppNotification, WhatsAppNotificationResponseDTO]):
     def __init__(self, uow: IUnitOfWork, processMessageUseCase: ProcessMessageUseCase, messageRouter: IMessageHandler):
-        super().__init__(uow, SMSNotification, SMSNotificationResponseDTO)
+        super().__init__(uow, WhatsAppNotification, WhatsAppNotificationResponseDTO)
         self.uow = uow
         self.processMessageUseCase = processMessageUseCase
         self.messageRouter = messageRouter
-    
+
     def _get_repository(self):
-        """Get SMS notifications repository."""
-        return self.uow.smsNotifications
-    
+        """Get WhatsApp notifications repository."""
+        return self.uow.whatsAppNotifications
+
     def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
         """Extract custom filters from request DTO."""
         filters = {}
         if hasattr(params, 'status') and params.status:
             filters["status"] = params.status
         return filters
-    
+
     def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
-        """Build related filters for SMS notifications."""
+        """Build related filters for WhatsApp notifications."""
         related_filters: List[RelatedFilter] = []
         if hasattr(params, 'tenantId') and params.tenantId:
             related_filters.append(
@@ -55,17 +54,17 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
                 )
             )
         return related_filters
-    
+
     def _get_includes(self) -> List[str]:
-        """Get relationship paths to eager load for SMS notifications."""
+        """Get relationship paths to eager load for WhatsApp notifications."""
         return ["template", "template.tenant"]
-    
+
     def _get_search_fields(self) -> Optional[List[str]]:
-        """Get search fields for SMS notifications."""
+        """Get search fields for WhatsApp notifications."""
         return ["recipientNumber", "template.templateName", "template.tenant.name", "template.tenant.prefix"]
-    
+
     def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
-        """Build PaginatedRequest for SMS notifications."""
+        """Build PaginatedRequest for WhatsApp notifications."""
         # Build root filters
         root_filters = {}
         if hasattr(params, 'id') and params.id:
@@ -73,24 +72,17 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
                 root_filters['id'] = UUID(params.id) if isinstance(params.id, str) else params.id
             except (ValueError, AttributeError):
                 root_filters['id'] = params.id
-        
-        # if hasattr(params, 'tenantId') and params.tenantId:
-        #     try:
-        #         tenant_id_value = UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
-        #         root_filters['tenantId'] = tenant_id_value
-        #     except (ValueError, AttributeError):
-        #         root_filters['tenantId'] = params.tenantId
-        
+
         # Extract custom filters
         custom_filters = self._extract_custom_filters(params)
         root_filters.update(custom_filters)
-        
+
         # Build related filters
         related_filters = self._build_related_filters(params)
-        
+
         # Get search fields
         search_fields = self._get_search_fields()
-        
+
         # Build and return PaginatedRequest
         return PaginatedRequest(
             page=params.page,
@@ -103,60 +95,60 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
             relatedFilters=related_filters
         )
 
-    async def prepareAndSendSms(
-        self, 
-        tenantId: UUID, 
+    async def prepareAndSendWhatsApp(
+        self,
+        tenantId: UUID,
         messageData: NotificationRequest
     ) -> NotificationResponse:
-        """Prepare and send an SMS notification."""
-        
+        """Prepare and send a WhatsApp notification."""
+
         valid = self.processMessageUseCase.validateMessage(
             message=messageData,
-            channel=NotificationChannel.SMS
+            channel=NotificationChannel.WHATSAPP
         )
-        
+
         if not valid.get("success"):
             return NotificationResponse(
                 success=False,
                 message=valid.get("error", "Validation failed")
             )
-        
+
         async with self.uow:
             tenant = await self.uow.tenants.getById(tenantId)
-            
+
             if not tenant:
                 return NotificationResponse(
                     success=False,
                     message="Tenant does not exist"
                 )
-            
+
             # REST API is always fire-and-forget mode:
             # - Failed messages go to outbox for automatic retry
             # - callbackUrl (if provided) is for async status updates, not mode selection
             # Immediate mode (isImmediateMode=True) is only for RabbitMQ RPC pattern
             isImmediateMode = False
-            
+
             response = await self.messageRouter.doRoute(
-                NotificationChannel.SMS, 
+                NotificationChannel.WHATSAPP,
                 tenant.prefix,  # Pass Tenant object
                 messageData,
                 isImmediateMode=isImmediateMode
             )
             return response
 
-    async def prepareAndSendDirectSms(
+    async def prepareAndSendDirectWhatsApp(
         self,
         tenantId: UUID,
         messageData: DirectNotificationRequest,
     ) -> NotificationResponse:
-        """Send an SMS without a pre-defined template."""
+        """Send a WhatsApp message without a pre-defined template."""
         if not getattr(messageData, "recipient", None) or not messageData.recipient.address:
             return NotificationResponse(success=False, message="recipient is required")
         recipient = messageData.recipient
         if not isinstance(recipient.address, str) or not recipient.address:
             return NotificationResponse(success=False, message="recipient must have a valid address")
         if not self.processMessageUseCase.isValidPhoneNumber(recipient.address):
-            return NotificationResponse(success=False, message=f"Invalid phone number: {recipient.address}")
+            return NotificationResponse(success=False, message=f"Invalid WhatsApp number: {recipient.address}")
         if not messageData.message or not messageData.message.strip():
             return NotificationResponse(success=False, message="message is required")
         if not messageData.idempotencyKey:
@@ -168,13 +160,13 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
                 return NotificationResponse(success=False, message="Tenant does not exist")
 
             return await self.messageRouter.doDirectRoute(
-                NotificationChannel.SMS, tenant.prefix, messageData, isImmediateMode=False
+                NotificationChannel.WHATSAPP, tenant.prefix, messageData, isImmediateMode=False
             )
-    
-    async def sendBulkSms(
+
+    async def sendBulkWhatsApp(
         self, tenantId: UUID, notifications: List[NotificationRequest]
     ) -> BulkNotificationResponse:
-        """Send multiple independent SMS notifications in one call.
+        """Send multiple independent WhatsApp notifications in one call.
 
         Each item carries its own recipient(s), payload, and idempotency key so
         content can be fully recipient-specific. Failures on individual items are
@@ -211,7 +203,7 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
                 notification.recipient.address if getattr(notification, "recipient", None) else "unknown"
             )
             try:
-                result = await self.prepareAndSendSms(tenantId, notification)
+                result = await self.prepareAndSendWhatsApp(tenantId, notification)
                 if result.success:
                     if result.recipientResponse:
                         for rr in result.recipientResponse:
@@ -241,37 +233,35 @@ class SMSNotificationService(BaseService[SMSNotification, SMSNotificationRespons
     async def getNotificationStatus(self, notificationId: UUID) -> str:
         """Get notification status by ID."""
         async with self.uow:
-            notification = await self.uow.smsNotifications.getById(notificationId)
+            notification = await self.uow.whatsAppNotifications.getById(notificationId)
             if not notification:
                 from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
-                raise EntityNotFoundError("SMSNotification", str(notificationId))
+                raise EntityNotFoundError("WhatsAppNotification", str(notificationId))
             return notification.status
-    
-    async def updateNotificationStatus(self, notificationId: UUID, status: str) -> SMSNotification:
+
+    async def updateNotificationStatus(self, notificationId: UUID, status: str) -> WhatsAppNotification:
         """Update notification status."""
         async with self.uow:
-            notification = await self.uow.smsNotifications.getById(notificationId)
+            notification = await self.uow.whatsAppNotifications.getById(notificationId)
             if not notification:
                 from notification_service.shared.exceptions.application_exceptions import EntityNotFoundError
-                raise EntityNotFoundError("SMSNotification", str(notificationId))
+                raise EntityNotFoundError("WhatsAppNotification", str(notificationId))
             notification.status = status
-            updated = await self.uow.smsNotifications.update(notification)
+            updated = await self.uow.whatsAppNotifications.update(notification)
             await self.uow.commit()
             return updated
-    
+
     async def deleteNotification(self, notificationId: UUID):
         """Delete notification by ID."""
         await self.delete(notificationId)
-    
+
     # Keep old method for backward compatibility
     async def getAllNotificationsAdvanced(
         self,
         req: PaginatedRequest
-    ) -> PaginatedResponseDTO[SMSNotificationResponseDTO]:
+    ) -> PaginatedResponseDTO[WhatsAppNotificationResponseDTO]:
         """
         SQL-only filtering, deep relationship filtering, sorting and multi-field search.
         (Deprecated - use get() instead)
         """
         return await self.get(req)
-    
-    

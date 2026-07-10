@@ -86,9 +86,9 @@ class ProcessMessageUseCase:
                 if not self.isValidEmail(recipient.address):
                     return {"success": False, "error": f"Invalid email address: {recipient.address}"}
             #new
-             case "whatsapp":
-        if not self.isValidPhoneNumber(recipient.address):
-            return {"success": False, "error": f"Invalid WhatsApp number: {recipient.address}"}
+            case "whatsapp":
+                if not self.isValidPhoneNumber(recipient.address):
+                    return {"success": False, "error": f"Invalid WhatsApp number: {recipient.address}"}
             #new
             # Add more channel validations as needed
 

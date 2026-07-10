@@ -1,12 +1,11 @@
 from typing import Optional, Dict, List, Any
 from uuid import UUID
-from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
-from notification_service.domain.value_objects.providers import SMSProvider
+from notification_service.domain.entities.tenant.tenant_whatsapp_configuration import TenantWhatsAppConfiguration
+from notification_service.domain.value_objects.providers import WhatsAppProvider
 from notification_service.infrastructure import RedisCache
-from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
-from notification_service.infrastructure.providers.sms.jasmin_sms_provider import JasminSMSProvider
+from notification_service.infrastructure.providers.whatsapp.meta_cloud_provider import WhatsAppMetaCloudProvider
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
-from notification_service.adapters.inbound.dto.tenant_sms_confuguration_request_dto import TenantSMSConfigurationResponseDTO
+from notification_service.adapters.inbound.dto.tenant_whatsapp_confuguration_request_dto import TenantWhatsAppConfigurationResponseDTO
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
     PaginatedRequest,
     PaginatedRequestDTO,
@@ -18,45 +17,43 @@ from notification_service.shared.exceptions.application_exceptions import Applic
 import logging
 
 logger = logging.getLogger(__name__)
-class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSMSConfigurationResponseDTO]):
+class TenantWhatsAppConfigurationService(BaseService[TenantWhatsAppConfiguration, TenantWhatsAppConfigurationResponseDTO]):
 
     def __init__(
         self,
         uow: IUnitOfWork,
-        afro_service: AfromessageSMSProvider,
-        jasmin_service: JasminSMSProvider,
+        meta_cloud_service: WhatsAppMetaCloudProvider,
         redis: RedisCache,
     ):
-        super().__init__(uow, TenantSMSConfiguration, TenantSMSConfigurationResponseDTO)
+        super().__init__(uow, TenantWhatsAppConfiguration, TenantWhatsAppConfigurationResponseDTO)
         self.uow = uow
         self._handlers = {
-            SMSProvider.AFROMESSAGE: afro_service,
-            SMSProvider.JASMIN: jasmin_service,
+            WhatsAppProvider.META_CLOUD: meta_cloud_service,
         }
         self.redis = redis
-    
+
     def _get_repository(self):
-        """Get tenant SMS configurations repository."""
-        return self.uow.tenantSmsConfigurations
-    
+        """Get tenant WhatsApp configurations repository."""
+        return self.uow.tenantWhatsAppConfigurations
+
     def _extract_custom_filters(self, params: PaginatedRequestDTO) -> Dict[str, Any]:
         """Extract custom filters from request DTO."""
         filters = {}
         if hasattr(params, 'isActive') and params.isActive is not None:
             filters["isActive"] = params.isActive
         return filters
-    
+
     def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
-        """Build related filters for tenant SMS configurations."""
-        # Tenant SMS configurations don't have related filters by default
+        """Build related filters for tenant WhatsApp configurations."""
+        # Tenant WhatsApp configurations don't have related filters by default
         return []
-    
+
     def _get_search_fields(self) -> Optional[List[str]]:
-        """Get search fields for tenant SMS configurations."""
+        """Get search fields for tenant WhatsApp configurations."""
         return ["providerName"]
-    
+
     def _build_paginated_request(self, params: PaginatedRequestDTO) -> PaginatedRequest:
-        """Build PaginatedRequest for tenant SMS configurations."""
+        """Build PaginatedRequest for tenant WhatsApp configurations."""
         # Build root filters
         root_filters = {}
         if hasattr(params, 'id') and params.id:
@@ -64,24 +61,24 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
                 root_filters['id'] = UUID(params.id) if isinstance(params.id, str) else params.id
             except (ValueError, AttributeError):
                 root_filters['id'] = params.id
-        
+
         if hasattr(params, 'tenantId') and params.tenantId:
             try:
                 tenant_id_value = UUID(params.tenantId) if isinstance(params.tenantId, str) else params.tenantId
                 root_filters['tenantId'] = tenant_id_value
             except (ValueError, AttributeError):
                 root_filters['tenantId'] = params.tenantId
-        
+
         # Extract custom filters
         custom_filters = self._extract_custom_filters(params)
         root_filters.update(custom_filters)
-        
+
         # Build related filters
         related_filters = self._build_related_filters(params)
-        
+
         # Get search fields
         search_fields = self._get_search_fields()
-        
+
         # Build and return PaginatedRequest
         return PaginatedRequest(
             page=params.page,
@@ -94,142 +91,139 @@ class TenantSMSConfigurationService(BaseService[TenantSMSConfiguration, TenantSM
             relatedFilters=related_filters
         )
 
-    async def getConfigurationByTenantId(self, tenantId: UUID) -> TenantSMSConfiguration:
-        """Retrieve SMS configuration for a given tenant.
-        
+    async def getConfigurationByTenantId(self, tenantId: UUID) -> TenantWhatsAppConfiguration:
+        """Retrieve WhatsApp configuration for a given tenant.
+
         Args:
             tenantId: Tenant identifier
 
         Returns:
-            TenantSMSConfiguration object if found, None otherwise
+            TenantWhatsAppConfiguration object if found, None otherwise
         """
         async with self.uow:
-            config = await self.uow.tenantSmsConfigurations.find(lambda x:x.tenantId==tenantId)
+            config = await self.uow.tenantWhatsAppConfigurations.find(lambda x: x.tenantId == tenantId)
             return config
+
     # Keep old methods for backward compatibility
-    async def createConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
-        """Create a new SMS configuration (deprecated - use create() instead)."""
+    async def createConfiguration(self, config: TenantWhatsAppConfiguration) -> TenantWhatsAppConfiguration:
+        """Create a new WhatsApp configuration (deprecated - use create() instead)."""
         try:
             async with self.uow:
-                created_config = await self.uow.tenantSmsConfigurations.create(config)
+                created_config = await self.uow.tenantWhatsAppConfigurations.create(config)
                 await self.uow.commit()
-                cache_key = f"tenant_config:sms:{config.tenantId}"
+                cache_key = f"tenant_config:whatsapp:{config.tenantId}"
                 await self.redis.set(cache_key, created_config.__dict__, expire=60*60*24)
                 return created_config
         except Exception as e:
             raise ApplicationException(
-                f"Error creating SMS configuration: {e}",
-                code="ERROR_CREATING_SMS_CONFIGURATION",
+                f"Error creating WhatsApp configuration: {e}",
+                code="ERROR_CREATING_WHATSAPP_CONFIGURATION",
                 details={"config": config}
             )
         finally:
             if config:
-                cache_key = f"tenant_config:sms:{config.tenantId}"
+                cache_key = f"tenant_config:whatsapp:{config.tenantId}"
                 await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
                 return config
-    
+
     # Keep old methods for backward compatibility
-    async def updateConfiguration(self, config: TenantSMSConfiguration) -> TenantSMSConfiguration:
-        """Update an existing SMS configuration (deprecated - use update() instead)."""
+    async def updateConfiguration(self, config: TenantWhatsAppConfiguration) -> TenantWhatsAppConfiguration:
+        """Update an existing WhatsApp configuration (deprecated - use update() instead)."""
         try:
             async with self.uow:
-                updated_config = await self.uow.tenantSmsConfigurations.update(config)
+                updated_config = await self.uow.tenantWhatsAppConfigurations.update(config)
                 await self.uow.commit()
-                cache_key = f"tenant_config:sms:{config.tenantId}"
+                cache_key = f"tenant_config:whatsapp:{config.tenantId}"
                 await self.redis.delete(cache_key)
                 await self.redis.set(cache_key, updated_config.__dict__, expire=60*60*24)
                 return updated_config
         except Exception as e:
             raise ApplicationException(
-                f"Error updating SMS configuration: {e}",
-                code="ERROR_UPDATING_SMS_CONFIGURATION",
+                f"Error updating WhatsApp configuration: {e}",
+                code="ERROR_UPDATING_WHATSAPP_CONFIGURATION",
                 details={"configId": config.id}
             )
         finally:
             if config:
-                cache_key = f"tenant_config:sms:{config.tenantId}"
+                cache_key = f"tenant_config:whatsapp:{config.tenantId}"
                 await self.redis.delete(cache_key)
                 await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
                 return config
-    
+
     async def deleteConfiguration(self, configId: UUID) -> None:
-        """Delete an existing SMS configuration (deprecated - use delete() instead)."""
-        
+        """Delete an existing WhatsApp configuration (deprecated - use delete() instead)."""
+
         async with self.uow:
             try:
-                config = await self.uow.tenantSmsConfigurations.getById(configId)
+                config = await self.uow.tenantWhatsAppConfigurations.getById(configId)
                 if config:
-                    cache_key = f"tenant_config:sms:{config.tenantId}"
+                    cache_key = f"tenant_config:whatsapp:{config.tenantId}"
                     await self.redis.delete(cache_key)
-                    await self.uow.tenantSmsConfigurations.delete(configId)
+                    await self.uow.tenantWhatsAppConfigurations.delete(configId)
                     await self.uow.commit()
             except Exception as e:
-                logger.error(f"Error deleting SMS configuration: {e}")
+                logger.error(f"Error deleting WhatsApp configuration: {e}")
                 raise ApplicationException(
-                    f"Error deleting SMS configuration: {e}",
-                    code="ERROR_DELETING_SMS_CONFIGURATION",
+                    f"Error deleting WhatsApp configuration: {e}",
+                    code="ERROR_DELETING_WHATSAPP_CONFIGURATION",
                     details={"configId": configId}
                 )
             finally:
                 if config:
-                    cache_key = f"tenant_config:sms:{config.tenantId}"
+                    cache_key = f"tenant_config:whatsapp:{config.tenantId}"
                     await self.redis.delete(cache_key)
                     return config
 
-    async def partialUpdate(self, configId: UUID, updates: Dict[str, Any]) -> TenantSMSConfiguration:
-        """Partial update of an existing SMS configuration (deprecated - use partialUpdate() instead)."""
+    async def partialUpdate(self, configId: UUID, updates: Dict[str, Any]) -> TenantWhatsAppConfiguration:
+        """Partial update of an existing WhatsApp configuration (deprecated - use partialUpdate() instead)."""
         try:
             async with self.uow:
-                config = await self.uow.tenantSmsConfigurations.getById(configId)
+                config = await self.uow.tenantWhatsAppConfigurations.getById(configId)
                 if config:
-                    cache_key = f"tenant_config:sms:{config.tenantId}"
+                    cache_key = f"tenant_config:whatsapp:{config.tenantId}"
                     await self.redis.delete(cache_key)
-                    await self.uow.tenantSmsConfigurations.partialUpdate(configId, updates)
+                    await self.uow.tenantWhatsAppConfigurations.partialUpdate(configId, updates)
                     await self.uow.commit()
                     await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
                     return config
         except Exception as e:
             raise ApplicationException(
-                f"Error partial updating SMS configuration: {e}",
-                code="ERROR_PARTIAL_UPDATING_SMS_CONFIGURATION",
+                f"Error partial updating WhatsApp configuration: {e}",
+                code="ERROR_PARTIAL_UPDATING_WHATSAPP_CONFIGURATION",
                 details={"configId": configId}
             )
         finally:
             if config:
-                cache_key = f"tenant_config:sms:{config.tenantId}"
+                cache_key = f"tenant_config:whatsapp:{config.tenantId}"
                 await self.redis.delete(cache_key)
                 await self.redis.set(cache_key, config.__dict__, expire=60*60*24)
                 return config
-            
-    async def getConfigurationById(self, configId: UUID) -> Optional[TenantSMSConfiguration]:
-        """Retrieve SMS configuration by its ID (custom method)."""
+
+    async def getConfigurationById(self, configId: UUID) -> Optional[TenantWhatsAppConfiguration]:
+        """Retrieve WhatsApp configuration by its ID (custom method)."""
         async with self.uow:
-            config = await self.uow.tenantSmsConfigurations.getById(configId)
+            config = await self.uow.tenantWhatsAppConfigurations.getById(configId)
             return config
-        
-    async def doACircuitBreakerCheck(self, config: TenantSMSConfiguration, provider: SMSProvider) -> bool:
-        """Perform a circuit breaker check for SMS configurations.
-        
+
+    async def doACircuitBreakerCheck(self, config: TenantWhatsAppConfiguration, provider: WhatsAppProvider) -> bool:
+        """Perform a circuit breaker check for WhatsApp configurations.
+
         Returns:
             bool: True if the circuit is closed, False if open
         """
-        # Placeholder implementation for circuit breaker logic
-        
         match provider:
-            case SMSProvider.AFROMESSAGE:
-                # Implement Afromessage-specific circuit breaker logic
-                return await self._handlers[provider].circuit_breaker_check(config)
-            case SMSProvider.JASMIN:
-                # Placeholder: implement Jasmin-specific circuit breaker logic if needed
+            case WhatsAppProvider.META_CLOUD:
+                # Placeholder: implement Meta Cloud-specific circuit breaker logic if needed
                 return True
             case _:
                 return False
         return False
+
     # Keep old method for backward compatibility
     async def getAllConfigurationsAdvanced(
         self,
         req: PaginatedRequest
-    ) -> PaginatedResponseDTO[TenantSMSConfigurationResponseDTO]:
+    ) -> PaginatedResponseDTO[TenantWhatsAppConfigurationResponseDTO]:
         """
         SQL-only filtering, deep relationship filtering, sorting and multi-field search.
         (Deprecated - use get() instead)

@@ -32,9 +32,9 @@ def register_controllers(builder: Builder) -> None:
         SMSOutboxController,
         #new
         # WhatsApp controllers
-        WhatsappNotificationController,
+        WhatsAppNotificationController,
         TenantWhatsAppConfigurationController,
-        WhatAppTemplateController,
+        WhatsAppTemplateController,
         WhatsAppOutboxController,
         #new
         # In-App controllers
