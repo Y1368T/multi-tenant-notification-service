@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Dict, Any, Optional
 from uuid import uuid4
 from datetime import datetime
-from notification_service.domain.entities.whatsapp.whatsapp_template import whatsAppTemplates
+from notification_service.domain.entities.whatsapp.whatsapp_template import WhatsAppTemplate
 from uuid import UUID
 from notification_service.adapters.inbound.dto.paginated_request_dto import PaginatedRequestDTO
 from notification_service.shared.validators.input_validators import validateStringInput
@@ -89,7 +89,7 @@ class WhatsAppTemplateRequestDTO(BaseModel):
                 template_text,
                 fieldName=f'content.{lang}',
                 maxLength=1000,
-                allowHtml=False  # No HTML in SMS templates
+                allowHtml=False  # No HTML in WhatsApp templates
             )
             
             sanitized_content[lang] = sanitized

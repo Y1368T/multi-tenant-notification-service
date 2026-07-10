@@ -1,4 +1,4 @@
-"""Mapper for SmsTemplate entity and model."""
+"""Mapper for WhatsAppTemplate entity and model."""
 from typing import Optional
 from sqlalchemy import inspect
 from notification_service.domain.entities.whatsapp.whatsapp_template import WhatsAppTemplate

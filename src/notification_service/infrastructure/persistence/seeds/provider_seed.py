@@ -535,6 +535,74 @@ PROVIDER_SEED_DATA: tuple[Provider, ...] = (
         createdAt=datetime.fromisoformat("2025-11-05 20:01:54.087337"),
         updatedAt=datetime.fromisoformat("2025-11-05 20:01:54.087354"),
     ),
+    #new
+    # WhatsApp Meta Cloud API Provider
+    Provider(
+        id=UUID("d3f1a2b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b"),
+        providerName="meta_cloud",
+        displayName="WhatsApp (Meta Cloud API)",
+        channel="whatsapp",
+        description="Send WhatsApp messages via Meta's WhatsApp Cloud API.",
+        docsUrl="https://developers.facebook.com/docs/whatsapp/cloud-api",
+        testEndpoint="/api/providers/whatsapp/meta_cloud/test",
+        configSchema={
+            "title": "WhatsApp Meta Cloud API Configuration",
+            "type": "object",
+            "required": ["accessToken", "phoneNumberId"],
+            "properties": {
+                "accessToken": {
+                    "title": "Access Token",
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Permanent or temporary Meta Cloud API access token",
+                },
+                "phoneNumberId": {
+                    "title": "Phone Number ID",
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The WhatsApp Business phone number ID from Meta's developer console",
+                },
+                "businessAccountId": {
+                    "title": "Business Account ID",
+                    "type": "string",
+                    "description": "Optional WhatsApp Business Account ID",
+                },
+                "apiVersion": {
+                    "title": "API Version",
+                    "type": "string",
+                    "default": "v20.0",
+                    "description": "Meta Graph API version to use",
+                },
+            },
+        },
+        uiSchema={
+            "accessToken": {
+                "ui:widget": "password",
+                "ui:placeholder": "EAAG...",
+                "ui:help": "Enter your Meta Cloud API access token.",
+            },
+            "phoneNumberId": {
+                "ui:widget": "text",
+                "ui:placeholder": "1234567890",
+                "ui:help": "Enter your WhatsApp Business phone number ID.",
+            },
+            "businessAccountId": {
+                "ui:widget": "text",
+                "ui:placeholder": "1234567890",
+                "ui:help": "Optional: your WhatsApp Business Account ID.",
+            },
+            "apiVersion": {
+                "ui:widget": "text",
+                "ui:placeholder": "v20.0",
+                "ui:help": "Meta Graph API version (default v20.0).",
+            },
+            "ui:order": ["accessToken", "phoneNumberId", "businessAccountId", "apiVersion"],
+        },
+        isActive=True,
+        createdAt=datetime.fromisoformat("2026-07-09 00:00:00.000000"),
+        updatedAt=datetime.fromisoformat("2026-07-09 00:00:00.000000"),
+    ),
+    #new
 )
 
 async def seed_providers(database: Database) -> bool:

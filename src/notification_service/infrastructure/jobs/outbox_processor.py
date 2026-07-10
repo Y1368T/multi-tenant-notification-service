@@ -326,7 +326,7 @@ class OutboxProcessor:
             uow = UnitOfWork(self.database)
             async with uow:
                 # Query eligible messages
-                pending = await uow.whatsappOutboxes.find(
+                pending = await uow.whatsAppOutboxes.find(
                     lambda o: (o.status in [NotificationStatus.PENDING, NotificationStatus.FAILED])
                     and o.retryCount < self.max_retries
                     and (o.nextRetryAt is None or o.nextRetryAt <= datetime.utcnow())
@@ -348,7 +348,7 @@ class OutboxProcessor:
         tenant_id = None
         try:
             # Load template to get tenant info
-            template = await uow.whatsappTemplates.getById(outbox.templateId)
+            template = await uow.whatsAppTemplates.getById(outbox.templateId)
             if not template:
                 logger.error(f"Template not found for WhatsApp outbox {outbox.id}")
                 await self._mark_permanently_failed(uow, outbox, "whatsapp", "Template not found")
@@ -409,10 +409,10 @@ class OutboxProcessor:
                 createdAt=datetime.utcnow(),
                 updatedAt=datetime.utcnow()
             )
-            await uow.whatsappNotifications.add(notification)
+            await uow.whatsAppNotifications.add(notification)
             
             # Delete from outbox
-            await uow.whatsappOutboxes.delete(outbox.id)
+            await uow.whatsAppOutboxes.delete(outbox.id)
             await uow.commit()
             
             logger.info(f"WhatsApp outbox {outbox.id} successfully moved to notifications")
@@ -651,7 +651,7 @@ class OutboxProcessor:
                 if channel == "sms":
                     await uow.smsOutboxes.update(outbox)
                 elif channel == "whatsapp":
-                    await uow.whatsappOutboxes.update(outbox)
+                    await uow.whatsAppOutboxes.update(outbox)
                 elif channel == "email":
                     await uow.emailOutbox.update(outbox)
                 elif channel == "inapp":
@@ -681,7 +681,7 @@ class OutboxProcessor:
                 if channel == "sms":
                     await uow.smsOutboxes.update(outbox)
                 elif channel == "whatsapp":
-                    await uow.whatsappOutboxes.update(outbox)
+                    await uow.whatsAppOutboxes.update(outbox)
                 elif channel == "email":
                     await uow.emailOutbox.update(outbox)
                 elif channel == "inapp":
@@ -710,7 +710,7 @@ class OutboxProcessor:
             if channel == "sms":
                 await uow.smsOutboxes.update(outbox)
             elif channel == "whatsapp":
-                await uow.whatsappOutboxes.update(outbox)
+                await uow.whatsAppOutboxes.update(outbox)
             elif channel == "email":
                 await uow.emailOutbox.update(outbox)
             elif channel == "inapp":
