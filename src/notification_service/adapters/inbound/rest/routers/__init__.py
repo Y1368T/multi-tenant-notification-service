@@ -14,6 +14,11 @@ from notification_service.adapters.inbound.rest.routers.email_notification_route
 from notification_service.adapters.inbound.rest.routers.email_template_router import EmailTemplateController
 from notification_service.adapters.inbound.rest.routers.email_outbox_router import EmailOutboxController
 from notification_service.adapters.inbound.rest.routers.tenant_email_configuration_router import TenantEmailConfigurationController
+# Telegram controllers
+from notification_service.adapters.inbound.rest.routers.telegram_notification_router import TelegramNotificationController
+from notification_service.adapters.inbound.rest.routers.telegram_template_router import TelegramTemplateController
+from notification_service.adapters.inbound.rest.routers.telegram_outbox_router import TelegramOutboxController
+from notification_service.adapters.inbound.rest.routers.tenant_telegram_configuration_router import TenantTelegramConfigurationController
 
 
 def register_controllers(builder: Builder) -> None:
@@ -34,6 +39,11 @@ def register_controllers(builder: Builder) -> None:
         EmailTemplateController,
         EmailOutboxController,
         TenantEmailConfigurationController,
+        # Telegram controllers
+        TelegramNotificationController,
+        TelegramTemplateController,
+        TelegramOutboxController,
+        TenantTelegramConfigurationController,
         # Provider controller
         ProviderSupportedController,
     )
