@@ -162,7 +162,7 @@ class TenantWhatsAppConfigurationResponseDTO(BaseModel):
 
 
 class TenantWhatsAppConfigurationFilterDTO(PaginatedRequestDTO):
-    """Filter DTO for tenant SMS configuration queries with custom filters."""
+    """Filter DTO for tenant WhatsApp configuration queries with custom filters."""
     isActive: Optional[bool] = Field(None, alias="isActive", description="Filter by active status")
     tenantId: Optional[UUID] = Field(None, alias="tenantId", description="Filter by tenant ID")
     providerName: Optional[str] = Field(None, alias="providerName", description="Filter by provider name")

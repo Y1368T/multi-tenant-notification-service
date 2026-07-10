@@ -1,4 +1,4 @@
-"""Mapper for SMSOutbox entity and model."""
+"""Mapper for WhatsAppOutbox entity and model."""
 from typing import Optional
 from sqlalchemy import inspect
 from notification_service.domain.entities.whatsapp.whatsapp_outbox import WhatsAppOutbox
@@ -6,7 +6,7 @@ from notification_service.infrastructure.persistence.models.whatsapp.whatsapp_ou
 
 
 class WhatsAppOutboxMapper:
-    """Mapper for converting between SMSOutbox entity and SmsOutboxModel."""
+    """Mapper for converting between WhatsAppOutbox entity and WhatsAppOutboxModel."""
     
     @staticmethod
     def toEntity(model: WhatsAppOutboxModel) -> WhatsAppOutbox:
@@ -22,7 +22,7 @@ class WhatsAppOutboxMapper:
             return None
         
         # Import here to avoid circular dependency
-        from notification_service.infrastructure.persistence.mappers.whatsapp.whatsapp_template_mapper import WhatsAppTemplateMapper
+        from notification_service.infrastructure.persistence.mappers.whatsapp_template_mapper import WhatsAppTemplateMapper
         
         # Extract template if loaded
         template_entity = None

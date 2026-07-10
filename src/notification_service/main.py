@@ -20,6 +20,9 @@ from notification_service.application.services import tenant_sms_configuration_s
 from notification_service.application.services import tenant_whatsapp_configuration_service
 from notification_service.application.services import whatsapp_notification_service
 from notification_service.application.services import whatsapp_outbox_service
+#new
+from notification_service.application.services.whatsapp_template_service import WhatsAppTemplateService
+#new
 from notification_service.application.handlers.whatsapp_channel_handler import WhatsAppChannelHandler
 from notification_service.infrastructure.providers.whatsapp.meta_cloud_provider import WhatsAppMetaCloudProvider
 #new
@@ -544,11 +547,22 @@ async def lifespan(app: FastAPI):
     # Get email and in-app providers
     email_provider = get_service(app, SMTPProvider)
     inapp_provider = get_service(app, FCMProvider)
-    
+
+    #new
+    # Build WhatsApp providers dictionary (provider_name -> provider instance)
+    meta_cloud_provider = get_service(app, WhatsAppMetaCloudProvider)
+    whatsapp_providers = {
+        "meta_cloud": meta_cloud_provider
+    }
+    #new
+
     # Create OutboxProcessor instance
     outbox_processor = OutboxProcessor(
         database=database,
         sms_providers=sms_providers,
+        #new
+        whatsapp_providers=whatsapp_providers,
+        #new
         email_provider=email_provider,
         inapp_provider=inapp_provider,
         settings=settings,

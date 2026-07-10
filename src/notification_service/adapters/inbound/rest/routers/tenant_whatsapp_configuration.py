@@ -13,7 +13,7 @@ from uuid import UUID
 from typing import Dict, Any, List
 
 @api_controller(prefix="/tenant-whatsapp-configurations", tags=["Tenant WhatsApp Configurations"])
-class TenantSMSConfigurationController(ControllerBase):
+class TenantWhatsAppConfigurationController(ControllerBase):
     
     def __init__(self, tenantWhatsAppConfigurationService: TenantWhatsAppConfigurationService = Depends()):
         
@@ -77,7 +77,7 @@ class TenantSMSConfigurationController(ControllerBase):
         
         # Convert to response DTO
         if hasattr(TenantWhatsAppConfigurationResponseDTO, 'fromEntityWithRelations'):
-            return TenantWhatsAppSConfigurationResponseDTO.fromEntityWithRelations(updated_entity)
+            return TenantWhatsAppConfigurationResponseDTO.fromEntityWithRelations(updated_entity)
         else:
             return updated_entity
     
