@@ -45,6 +45,11 @@ from notification_service.infrastructure.services.customer_service_client import
 from notification_service.infrastructure.services.webhook_client import WebhookClient
 from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
+# Telegram services
+from notification_service.application.services.telegram_template_service import TelegramTemplateService
+from notification_service.application.services.telegram_notification_service import TelegramNotificationService
+from notification_service.application.services.telegram_outbox_service import TelegramOutboxService
+from notification_service.application.services.tenant_telegram_configuration_service import TenantTelegramConfigurationService
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -425,6 +430,11 @@ def main()->FastAPI:
     builder.with_transient(TenantEmailConfigurationService)
     # Provider Service
     builder.with_transient(ProviderService)
+    # Telegram Services
+    builder.with_transient(TelegramTemplateService)
+    builder.with_transient(TelegramNotificationService)
+    builder.with_transient(TelegramOutboxService)
+    builder.with_transient(TenantTelegramConfigurationService)
     
     logging.basicConfig(
     level=logging.INFO,  # Set to INFO to see info logs
@@ -506,6 +516,7 @@ async def lifespan(app: FastAPI):
     # Get email and in-app providers
     email_provider = get_service(app, SMTPProvider)
     inapp_provider = get_service(app, FCMProvider)
+    telegram_provider = get_service(app, TelegramProvider)
     
     # Create OutboxProcessor instance
     outbox_processor = OutboxProcessor(
@@ -513,6 +524,7 @@ async def lifespan(app: FastAPI):
         sms_providers=sms_providers,
         email_provider=email_provider,
         inapp_provider=inapp_provider,
+        telegram_provider=telegram_provider,
         settings=settings,
         webhook_client=webhook_client
     )
