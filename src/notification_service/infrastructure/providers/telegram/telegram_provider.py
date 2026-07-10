@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -18,6 +18,7 @@ from notification_service.domain.value_objects.notification_response import (
 )
 from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
 from notification_service.infrastructure.services.webhook_client import WebhookClient
+from notification_service.domain.entities.tenant_telegram_configuration import TenantTelegramConfiguration
 
 logger = logging.getLogger(__name__)
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
@@ -29,9 +30,10 @@ class TelegramConfig(BaseModel):
 
     @classmethod
     def fromDict(cls, data: Dict[str, Any]) -> "TelegramConfig":
+        bot_token = data.get("botToken") or data.get("bot_token") or ""
         return cls(
-            botToken=data.get("botToken"),
-            parseMode=data.get("parseMode", "")
+            botToken=bot_token,
+            parseMode=data.get("parseMode") or data.get("parse_mode", "")
         )
 
     def toDict(self) -> Dict[str, Any]:
@@ -124,7 +126,7 @@ class TelegramProvider(IProviderService):
     async def send(
         self,
         requestObject: NotificationRequest,
-        tenantConfig: Any,
+        tenantConfig: TenantTelegramConfiguration,
         messageToSend: str,
         templateId: UUID,
         saveToOutbox: bool = True,
@@ -161,7 +163,7 @@ class TelegramProvider(IProviderService):
                     idempotency_key=requestObject.idempotencyKey,
                     status="sent",
                     recipient=requestObject.recipient.address,
-                    notification_id=str(requestObject.id),
+                    notification_id=requestObject.idempotencyKey,
                 )
 
                 response = NotificationResponse(
@@ -172,7 +174,7 @@ class TelegramProvider(IProviderService):
                             notificationId=message_id,
                             status="sent",
                             recipient=chat_id,
-                            createdAt=datetime.utcnow(),
+                            createdAt=datetime.now(UTC),
                             success=True,
                             message="Telegram message sent successfully",
                         )
@@ -186,7 +188,7 @@ class TelegramProvider(IProviderService):
                     idempotency_key=requestObject.idempotencyKey,
                     status="failed",
                     recipient=requestObject.recipient.address,
-                    notification_id=str(requestObject.id),
+                    notification_id=requestObject.idempotencyKey,
                     error_message=data.get("description", "Failed to send telegram message")
                 )
                 return NotificationResponse(
@@ -197,7 +199,7 @@ class TelegramProvider(IProviderService):
                             notificationId=None,
                             status="failed",
                             recipient=chat_id,
-                            createdAt=datetime.utcnow(),
+                            createdAt=datetime.now(UTC),
                             success=False,
                             errorMessage=data.get("description", "Failed to send telegram message"),
                         )
@@ -214,7 +216,7 @@ class TelegramProvider(IProviderService):
                         notificationId=None,
                         status="failed",
                         recipient=chat_id,
-                        createdAt=datetime.utcnow(),
+                        createdAt=datetime.now(UTC),
                         success=False,
                         errorMessage=error_message,
                     )
