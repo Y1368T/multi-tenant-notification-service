@@ -22,7 +22,7 @@ class WhatsAppNotificationMapper:
             return None
         
         # Import here to avoid circular dependency
-        from notification_service.infrastructure.persistence.mappers.whatsapp.whatsapp_template_mapper import WhatsAppTemplateMapper
+        from notification_service.infrastructure.persistence.mappers.whatsapp_template_mapper import WhatsAppTemplateMapper
         
         # Extract template if loaded
         template_entity = None
@@ -90,7 +90,7 @@ class WhatsAppNotificationMapper:
         Returns:
             List of WhatsAppNotification domain entities
         """
-        return [SMSNotificationMapper.toEntity(model) for model in models]
+        return [WhatsAppNotificationMapper.toEntity(model) for model in models]
     
     @staticmethod
     def toListOfModels(entities: list[WhatsAppNotification]) -> list[WhatsAppNotificationModel]:

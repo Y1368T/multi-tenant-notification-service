@@ -55,7 +55,7 @@ class WhatsAppNotificationController(ControllerBase):
         own recipient, payload, and idempotency key. Valid items are processed
         even when others fail (partial success).
         """
-        result = await self.whastappNotificationService.sendBulkWhatsApp(
+        result = await self.whatsappNotificationService.sendBulkWhatsApp(
             tenant_id, requestDto.notifications
         )
         return result

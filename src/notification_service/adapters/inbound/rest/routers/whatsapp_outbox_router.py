@@ -9,7 +9,7 @@ from notification_service.domain.value_objects.paginated_result import Paginated
 @api_controller(prefix="/whatsapp-outboxes", tags=["WhatsApp Outboxes"])
 class WhatsAppOutboxController(ControllerBase):
     def __init__(self, whatsappOutboxService: WhatsAppOutboxService = Depends()):
-        self.whastappOutboxService = whatsappOutboxService
+        self.whatsappOutboxService = whatsappOutboxService
     
     @get("/get", response_model=PaginatedResponseDTO[WhatsAppOutboxResponseDTO])
     async def get(self, params: WhatsAppOutboxFilterDTO = Depends()) -> PaginatedResponseDTO[WhatsAppOutboxResponseDTO]:

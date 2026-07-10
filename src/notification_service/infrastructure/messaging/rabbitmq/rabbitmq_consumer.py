@@ -482,7 +482,7 @@ class RabbitMQConsumer(IMessageConsumer):
             logger.info(f"Processing WhatsApp notification in {'immediate' if is_immediate_mode else 'fire-and-forget'} mode")
             
             response = await self.processMessageUseCase.execute(
-                NotificationChannel.WhatsApp, 
+                NotificationChannel.WHATSAPP, 
                 tenant_prefix, 
                 notification_request,
                 isImmediateMode=is_immediate_mode
