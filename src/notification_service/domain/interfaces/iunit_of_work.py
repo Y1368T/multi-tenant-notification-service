@@ -108,6 +108,31 @@ class IUnitOfWork(ABC):
         """Get tenant in-app configurations repository."""
         pass
     
+    # Telegram repositories
+    @property
+    @abstractmethod
+    def telegramNotifications(self) -> IGenericRepository:
+        """Get Telegram notifications repository."""
+        pass
+    
+    @property
+    @abstractmethod
+    def telegramOutboxes(self) -> IGenericRepository:
+        """Get Telegram outbox repository."""
+        pass
+    
+    @property
+    @abstractmethod
+    def telegramTemplates(self) -> IGenericRepository:
+        """Get Telegram templates repository."""
+        pass
+    
+    @property
+    @abstractmethod
+    def tenantTelegramConfigurations(self) -> IGenericRepository:
+        """Get tenant Telegram configurations repository."""
+        pass
+    
     @abstractmethod
     async def __aenter__(self):
         """Enter async context manager."""
