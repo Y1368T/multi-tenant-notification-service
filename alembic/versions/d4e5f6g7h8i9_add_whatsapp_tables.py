@@ -102,7 +102,7 @@ def upgrade() -> None:
         sa.Column('updatedAt', sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(['tenantId'], ['tenants.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('tenantId', 'id'),
-        sa.UniqueConstraint('tenantId', 'providerName', name='uix_tenant_provider')
+        sa.UniqueConstraint('tenantId', 'providerName', name='uix_tenant_whatsapp_provider')
     )
     op.create_index(op.f('ix_tenantWhatsAppConfigurations_id'), 'tenantWhatsAppConfigurations', ['id'], unique=False)
 
