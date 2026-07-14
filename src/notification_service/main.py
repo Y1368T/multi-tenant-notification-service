@@ -279,6 +279,16 @@ def registerExceptionHandlers(app: FastAPI):
         )
     #new(rate limit service)
     
+    #new(rate limit service)
+    @app.exception_handler(RateLimitExceededError)
+    async def rateLimitExceededHandler(request: Request, exc: RateLimitExceededError):
+        logger.warning(f"RateLimitExceededError: {exc.message}")
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content=exc.to_error_response(status.HTTP_429_TOO_MANY_REQUESTS)
+        )
+    #new(rate limit service)
+    
     @app.exception_handler(IntegrityError)
     async def integrityErrorHandler(request: Request, exc: IntegrityError):
         """
@@ -415,6 +425,10 @@ def main()->FastAPI:
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSProvider)
     builder.with_transient(JasminSMSProvider)
+    #new
+    # WhatsApp Providers
+    builder.with_transient(WhatsAppMetaCloudProvider)
+    #new
     #new
     # WhatsApp Providers
     builder.with_transient(WhatsAppMetaCloudProvider)
