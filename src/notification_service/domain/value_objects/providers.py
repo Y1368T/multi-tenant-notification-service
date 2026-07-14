@@ -17,3 +17,6 @@ class PushProvider(Enum):
     FIREBASE = "fcm"
     ONESIGNAL = "onesignal"
 
+class TelegramProvider(Enum):
+    TELEGRAM = "telegram"
+    

@@ -535,6 +535,50 @@ PROVIDER_SEED_DATA: tuple[Provider, ...] = (
         createdAt=datetime.fromisoformat("2025-11-05 20:01:54.087337"),
         updatedAt=datetime.fromisoformat("2025-11-05 20:01:54.087354"),
     ),
+    Provider(
+        id=UUID("c3d4e5f6-a7b8-9012-cdef-345678901234"),
+        providerName="telegram",
+        displayName="Telegram Bot",
+        channel="telegram",
+        description="Send notifications via Telegram Bot API. Recipients must start a conversation with your bot first.",
+        docsUrl="https://core.telegram.org/bots/api",
+        testEndpoint="/api/providers/telegram/telegram/test",
+        configSchema={
+            "title": "Telegram Bot Configuration",
+            "type": "object",
+            "required": ["botToken"],
+            "properties": {
+                "botToken": {
+                    "title": "Bot Token",
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Token from @BotFather (e.g. 123456789:AAFxxxxx)",
+                },
+                "parseMode": {
+                    "title": "Parse Mode",
+                    "type": "string",
+                    "default": "HTML",
+                    "description": "Message formatting: HTML, Markdown, or empty for plain text",
+                },
+            },
+        },
+        uiSchema={
+            "botToken": {
+                "ui:widget": "password",
+                "ui:placeholder": "123456789:AAFxxxxxxxxxxxxx",
+                "ui:help": "Enter your telegram bot token here.",
+            },
+            "parseMode": {
+                "ui:widget": "text",
+                "ui:placeholder": "HTML",
+                "ui:help": "Enter your telegram parse mode here.",
+            },
+            "ui:order": ["botToken", "parseMode"],
+        },
+        isActive=True,
+        createdAt=datetime.fromisoformat("2026-07-02 09:00:00.000000"),
+        updatedAt=datetime.fromisoformat("2026-07-02 09:00:00.000000"),
+    ),
 )
 
 async def seed_providers(database: Database) -> bool:
