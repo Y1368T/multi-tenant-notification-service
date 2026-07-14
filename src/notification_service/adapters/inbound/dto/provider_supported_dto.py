@@ -52,7 +52,7 @@ class TestRequestDto(BaseModel):
     @classmethod
     def validateChannel(cls, v: str) -> str:
         """Validate channel."""
-        allowedChannels = ["sms", "email", "inapp", "whatsapp"]
+        allowedChannels = ["sms", "email", "inapp", "whatsapp", "telegram"]
         sanitized = validateStringInput(v, fieldName='channel')
         if sanitized.lower() not in allowedChannels:
             raise ValueError(f"Channel must be one of: {', '.join(allowedChannels)}")
@@ -186,7 +186,7 @@ class ProviderSupportedDTO(BaseModel):
     @classmethod
     def validateChannel(cls, v: str) -> str:
         """Validate channel."""
-        allowedChannels = ["sms", "email", "inapp", "whatsapp"]
+        allowedChannels = ["sms", "email", "inapp", "whatsapp", "telegram"]
         sanitized = validateStringInput(v, fieldName='channel')
         if sanitized.lower() not in allowedChannels:
             raise ValueError(f"Channel must be one of: {', '.join(allowedChannels)}")
@@ -300,7 +300,7 @@ class ProviderFilterDTO(PaginatedRequestDTO):
         normalized = sanitized.lower()
         
         # Validate against allowed channels
-        allowedChannels = ["sms", "email", "inapp", "whatsapp"]
+        allowedChannels = ["sms", "email", "inapp", "whatsapp", "telegram"]
         if normalized not in allowedChannels:
             raise ValueError(f"Channel must be one of: {', '.join(allowedChannels)}")
         
