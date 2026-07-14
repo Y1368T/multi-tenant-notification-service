@@ -10,6 +10,9 @@ from notification_service.domain.value_objects.notification_response import Prov
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.infrastructure.providers.email.smtp_provider import SMTPProvider
 from notification_service.infrastructure.providers.telegram.telegram_provider import TelegramProvider as TelegramProviderImpl
+#new
+from notification_service.infrastructure.providers.whatsapp.meta_cloud_provider import WhatsAppMetaCloudProvider
+#new
 from notification_service.adapters.inbound.dto.paginated_request_dto import (
     PaginatedRequest,
     PaginatedRequestDTO,
@@ -30,6 +33,8 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         fcmProvider: FCMProvider,
         smtpProvider: SMTPProvider,
         telegramProvider: TelegramProviderImpl = None,
+        metaCloudProvider: WhatsAppMetaCloudProvider = None
+        
     ):
         super().__init__(uow, Provider, ProviderResponseDTO)
         self.uow = uow
@@ -39,6 +44,7 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         self.fcmProvider = fcmProvider
         self.smtpProvider = smtpProvider
         self.telegramProvider = telegramProvider
+        self.metaCloudProvider = metaCloudProvider
     def _get_repository(self):
         """Get providers repository."""
         return self.uow.providers
@@ -159,6 +165,16 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
                         return await self.telegramProvider.test(provider_config, dto.address)
                     case _:
                         raise ValueError(f"Unsupported provider: {dto.providerName}")
+            #new
+            case "whatsapp":
+                match dto.providerName:
+                    case "meta_cloud":
+                        # Extract nested config if it exists, otherwise use config directly
+                        provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
+                        return await self.metaCloudProvider.test(provider_config, dto.address)
+                    case _:
+                        raise ValueError(f"Unsupported provider: {dto.providerName}")
+            #new
                 
             case _:
                 raise ValueError(f"Unsupported channel: {dto.channel}")

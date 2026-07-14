@@ -16,6 +16,16 @@ from notification_service.config.settings import Settings
 from qena_shared_lib.dependencies.http import get_service
 from notification_service.application.services import in_app_notification_service
 from notification_service.application.services import tenant_sms_configuration_service
+#new
+from notification_service.application.services import tenant_whatsapp_configuration_service
+from notification_service.application.services import whatsapp_notification_service
+from notification_service.application.services import whatsapp_outbox_service
+#new
+from notification_service.application.services.whatsapp_template_service import WhatsAppTemplateService
+#new
+from notification_service.application.handlers.whatsapp_channel_handler import WhatsAppChannelHandler
+from notification_service.infrastructure.providers.whatsapp.meta_cloud_provider import WhatsAppMetaCloudProvider
+#new
 from notification_service.application.services import in_app_template_service
 from notification_service.application.services import sms_notification_service
 from notification_service.application.services import tenant_inapp_configuration_service
@@ -40,6 +50,10 @@ from notification_service.application.services.email_template_service import Ema
 from notification_service.application.services.email_outbox_service import EmailOutboxService
 from notification_service.application.services.tenant_email_configuration import TenantEmailConfigurationService
 from notification_service.application.services.provider_service import ProviderService
+#new(rate limit service)
+from notification_service.shared.exceptions.application_exceptions import RateLimitExceededError
+from notification_service.application.services.rate_limit_service import RateLimitService
+#new(rate limit service)
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.infrastructure.services.customer_service_client import CustomerServiceClient
 from notification_service.infrastructure.services.webhook_client import WebhookClient
@@ -255,6 +269,26 @@ def registerExceptionHandlers(app: FastAPI):
             content=exc.to_error_response(status.HTTP_409_CONFLICT)
         )
     
+    #new(rate limit service)
+    @app.exception_handler(RateLimitExceededError)
+    async def rateLimitExceededHandler(request: Request, exc: RateLimitExceededError):
+        logger.warning(f"RateLimitExceededError: {exc.message}")
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content=exc.to_error_response(status.HTTP_429_TOO_MANY_REQUESTS)
+        )
+    #new(rate limit service)
+    
+    #new(rate limit service)
+    @app.exception_handler(RateLimitExceededError)
+    async def rateLimitExceededHandler(request: Request, exc: RateLimitExceededError):
+        logger.warning(f"RateLimitExceededError: {exc.message}")
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content=exc.to_error_response(status.HTTP_429_TOO_MANY_REQUESTS)
+        )
+    #new(rate limit service)
+    
     @app.exception_handler(IntegrityError)
     async def integrityErrorHandler(request: Request, exc: IntegrityError):
         """
@@ -391,6 +425,14 @@ def main()->FastAPI:
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSProvider)
     builder.with_transient(JasminSMSProvider)
+    #new
+    # WhatsApp Providers
+    builder.with_transient(WhatsAppMetaCloudProvider)
+    #new
+    #new
+    # WhatsApp Providers
+    builder.with_transient(WhatsAppMetaCloudProvider)
+    #new
     # In-App Providers
     builder.with_transient(FCMProvider)
     # Email Providers
@@ -398,10 +440,16 @@ def main()->FastAPI:
     # Telegram Providers
     builder.with_transient(TelegramProvider)
     builder.with_transient(ProcessMessageUseCase)
+    #new
+    # Rate Limit Service
+    builder.with_transient(RateLimitService)
+    #new
     # Register concrete channel handlers directly (MessageRouter needs concrete types)
     builder.with_transient(SMSChannelHandler)
     builder.with_transient(InAppChannelHandler)
     builder.with_transient(EmailChannelHandler)
+    
+    builder.with_transient(WhatsAppChannelHandler)
     builder.with_transient(TelegramChannelHandler)
     builder.with_transient(IMessageHandler,MessageRouter)
     # Register TenantService as singleton so rabbitmqConsumer can be set at startup
@@ -413,6 +461,13 @@ def main()->FastAPI:
     builder.with_transient(sms_notification_service.SMSNotificationService)
     builder.with_transient(sms_outbox_service.SMSOutboxService)
     builder.with_transient(SMSTemplateService)
+    # new
+    #whatsapp services
+    builder.with_transient(tenant_whatsapp_configuration_service.TenantWhatsAppConfigurationService)
+    builder.with_transient(whatsapp_notification_service.WhatsAppNotificationService)
+    builder.with_transient(whatsapp_outbox_service.WhatsAppOutboxService)
+    builder.with_transient(WhatsAppTemplateService)
+    # new
     # In-App Services
     builder.with_transient(in_app_notification_service.InAppNotificationService)
     builder.with_transient(in_app_template_service.InAppTemplateService)
@@ -506,11 +561,22 @@ async def lifespan(app: FastAPI):
     # Get email and in-app providers
     email_provider = get_service(app, SMTPProvider)
     inapp_provider = get_service(app, FCMProvider)
-    
+
+    #new
+    # Build WhatsApp providers dictionary (provider_name -> provider instance)
+    meta_cloud_provider = get_service(app, WhatsAppMetaCloudProvider)
+    whatsapp_providers = {
+        "meta_cloud": meta_cloud_provider
+    }
+    #new
+
     # Create OutboxProcessor instance
     outbox_processor = OutboxProcessor(
         database=database,
         sms_providers=sms_providers,
+        #new
+        whatsapp_providers=whatsapp_providers,
+        #new
         email_provider=email_provider,
         inapp_provider=inapp_provider,
         settings=settings,
