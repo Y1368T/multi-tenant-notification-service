@@ -31,6 +31,34 @@ from .tenant_sms_confuguration_request_dto import (
     TenantSMSConfigurationFilterDTO
 )
 
+#new
+# WhatsApp Notification DTOs
+from .whatsapp_notification_request_dto import WhatsAppNotificationFilterDTO
+from .whatsapp_notification_response_dto import WhatsAppNotificationResponseDTO
+
+# WhatsApp Template DTOs
+from .whatsapp_template_request_dto import (
+    WhatsAppTemplateRequestDTO,
+    WhatsAppTemplateResponseDTO,
+    WhatsAppTemplateFilterDTO
+)
+
+# WhatsApp Outbox DTOs
+from .whatsapp_outbox_request_dto import (
+    WhatsAppOutboxRequestDTO,
+    WhatsAppOutbocFilterDTO  # Note: typo in original file name
+)
+from .whatsapp_outbox_filter_dto import WhatsAppOutboxFilterDTO
+from .whatsapp_outbox_response_dto import WhatsAppOutboxResponseDTO
+
+# Tenant WhatsApp Configuration DTOs
+from .tenant_whatsapp_confuguration_request_dto import (
+    TenantWhatsAppConfigurationRequestDto,
+    TenantWhatsAppConfigurationResponseDTO,
+    TenantWhatsAppConfigurationFilterDTO
+)
+#new
+
 # Tenant InApp Configuration DTOs
 from .tenant_inapp_configuration_request_dto import (
     TenantInAppConfigurationRequestDto,
@@ -96,6 +124,28 @@ __all__ = [
     "TenantSMSConfigurationRequestDto",
     "TenantSMSConfigurationResponseDTO",
     "TenantSMSConfigurationFilterDTO",
+
+    #new
+    # WhatsApp Notification DTOs
+    "WhatsAppNotificationFilterDTO",
+    "WhatsAppNotificationResponseDTO",
+    
+    # WhatsApp Template DTOs
+    "WhatsAppTemplateRequestDTO",
+    "WhatsAppTemplateResponseDTO",
+    "WhatsAppTemplateFilterDTO",
+    
+    # WhatsApp Outbox DTOs
+    "WhatsAppOutboxRequestDTO",
+    "WhatsAppOutboxResponseDTO",
+    "WhatsAppOutboxFilterDTO",
+    "WhatsAppOutbocFilterDTO",  # Note: typo in original file
+    
+    # Tenant WhatsApp Configuration DTOs
+    "TenantWhatsAppConfigurationRequestDto",
+    "TenantWhatsAppConfigurationResponseDTO",
+    "TenantWhatsAppConfigurationFilterDTO",
+    #new
     
     # Tenant InApp Configuration DTOs
     "TenantInAppConfigurationRequestDto",

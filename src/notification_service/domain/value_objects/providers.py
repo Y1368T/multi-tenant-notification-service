@@ -19,4 +19,6 @@ class PushProvider(Enum):
 
 class TelegramProvider(Enum):
     TELEGRAM = "telegram"
-    
+class WhatsAppProvider(Enum):
+    META_CLOUD = "meta_cloud"
+    TWILIO = "twilio"

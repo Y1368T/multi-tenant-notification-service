@@ -281,6 +281,9 @@ class RabbitMQConsumer(IMessageConsumer):
             "sms": self.handleSmsMessage,
             "email": self.handleEmailMessage,
             "inapp": self.handleInAppMessage,
+            #new
+            "whatsapp": self.handleWhatsAppMessage,
+            #new
         }
         
         handler = handlers.get(channel.lower())
@@ -457,6 +460,48 @@ class RabbitMQConsumer(IMessageConsumer):
             if self._is_rpc_mode(message) and response:
                 await self._send_rpc_response(message, response)
     
+    #new
+    async def handleWhatsAppMessage(self, message: AbstractIncomingMessage) -> None:
+        """Handle incoming WhatsApp notification message."""
+        response = None
+        try:
+            payload = json.loads(message.body.decode())
+            
+            logger.info(f"Received WhatsApp notification: {payload}")
+            
+            notification_request = NotificationRequest.fromDict(payload)
+            queue_name = message.routing_key
+            
+            queue_parts = queue_name.split('.')
+            if len(queue_parts) != 3 or queue_parts[0] != "notification":
+                raise ValueError(f"Invalid queue name format: {queue_name}")
+            tenant_prefix = queue_parts[2]
+            
+            # Detect processing mode
+            is_immediate_mode = self._is_rpc_mode(message)
+            logger.info(f"Processing WhatsApp notification in {'immediate' if is_immediate_mode else 'fire-and-forget'} mode")
+            
+            response = await self.processMessageUseCase.execute(
+                NotificationChannel.WHATSAPP, 
+                tenant_prefix, 
+                notification_request,
+                isImmediateMode=is_immediate_mode
+            )
+
+            logger.info(f"Successfully processed WhatsApp notification")
+                
+        except Exception as e:
+            logger.error(f"Error processing WhatsApp message: {e}")
+            response = NotificationResponse(
+                success=False,
+                errorMessage=str(e),
+                message="Failed to process notification"
+            )
+            raise
+        finally:
+            if self._is_rpc_mode(message) and response:
+                await self._send_rpc_response(message, response)
+    #new
     async def handleInAppMessage(self, message: AbstractIncomingMessage) -> None:
         """Handle incoming in-app notification message."""
         response = None
