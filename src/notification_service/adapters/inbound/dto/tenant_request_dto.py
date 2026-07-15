@@ -29,6 +29,8 @@ class TenantRequestDTO(BaseModel):
                 "name": "Tenant A",
                 "prefix": "TENANTA",
                 "isActive": True,
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z",
                 "supportedChannels": ["sms", "email"],
                 "preferedCommunicationMethod": "rabbitmq",
                 "callbackUrl": "https://service.internal/webhooks/notification",
