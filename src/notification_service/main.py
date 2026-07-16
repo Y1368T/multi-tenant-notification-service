@@ -16,19 +16,20 @@ from notification_service.config.settings import Settings
 from qena_shared_lib.dependencies.http import get_service
 from notification_service.application.services import in_app_notification_service
 from notification_service.application.services import tenant_sms_configuration_service
-#new
+#Admin Dashboard
+from notification_service.application.services.dashboard_service import DashboardService
+#Whatsapp
 from notification_service.application.services import tenant_whatsapp_configuration_service
 from notification_service.application.services import whatsapp_notification_service
 from notification_service.application.services import whatsapp_outbox_service
-#new
 from notification_service.application.services.whatsapp_template_service import WhatsAppTemplateService
-#new
 from notification_service.application.handlers.whatsapp_channel_handler import WhatsAppChannelHandler
 from notification_service.infrastructure.providers.whatsapp.meta_cloud_provider import WhatsAppMetaCloudProvider
-#new
+#In-App
 from notification_service.application.services import in_app_template_service
 from notification_service.application.services import sms_notification_service
 from notification_service.application.services import tenant_inapp_configuration_service
+#SMS
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.domain.interfaces.imessage_handler import IMessageHandler
 from notification_service.application.services import sms_outbox_service
@@ -421,18 +422,15 @@ def main()->FastAPI:
     builder.with_singleton(CustomerServiceClient)
     builder.with_singleton(WebhookClient)
     builder.with_transient(IUnitOfWork,UnitOfWork)
+    builder.with_transient(DashboardService)
     # SMS Providers
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSProvider)
     builder.with_transient(JasminSMSProvider)
-    #new
     # WhatsApp Providers
     builder.with_transient(WhatsAppMetaCloudProvider)
-    #new
-    #new
     # WhatsApp Providers
     builder.with_transient(WhatsAppMetaCloudProvider)
-    #new
     # In-App Providers
     builder.with_transient(FCMProvider)
     # Email Providers
