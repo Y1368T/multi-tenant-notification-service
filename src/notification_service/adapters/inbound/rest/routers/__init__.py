@@ -3,12 +3,12 @@ from notification_service.adapters.inbound.rest.routers.tenant_routers import Te
 from notification_service.adapters.inbound.rest.routers.sms_notification_router import SMSNotificationController
 from notification_service.adapters.inbound.rest.routers.tenant_sms_configuration import TenantSMSConfigurationController
 from notification_service.adapters.inbound.rest.routers.sms_template_router import SMSTemplateController
-#new
+#Whatsapp
 from notification_service.adapters.inbound.rest.routers.whatsapp_notification_router import WhatsAppNotificationController
 from notification_service.adapters.inbound.rest.routers.tenant_whatsapp_configuration import TenantWhatsAppConfigurationController
 from notification_service.adapters.inbound.rest.routers.whatsapp_template_router import WhatsAppTemplateController
 from notification_service.adapters.inbound.rest.routers.whatsapp_outbox_router import WhatsAppOutboxController
-#new
+
 from notification_service.adapters.inbound.rest.routers.provider_supported_router import ProviderSupportedController
 from notification_service.adapters.inbound.rest.routers.in_app_notification_router import InAppNotificationController
 from notification_service.adapters.inbound.rest.routers.in_app_template_router import InAppTemplateController
@@ -21,6 +21,10 @@ from notification_service.adapters.inbound.rest.routers.email_template_router im
 from notification_service.adapters.inbound.rest.routers.email_outbox_router import EmailOutboxController
 from notification_service.adapters.inbound.rest.routers.tenant_email_configuration_router import TenantEmailConfigurationController
 
+from notification_service.adapters.inbound.rest.routers.dashboard_router import (
+        DashboardController,
+        AnalyticsController,
+    )
 
 def register_controllers(builder: Builder) -> None:
     builder.with_controllers(
@@ -30,13 +34,14 @@ def register_controllers(builder: Builder) -> None:
         TenantSMSConfigurationController,
         SMSTemplateController,
         SMSOutboxController,
-        #new
         # WhatsApp controllers
         WhatsAppNotificationController,
         TenantWhatsAppConfigurationController,
         WhatsAppTemplateController,
         WhatsAppOutboxController,
-        #new
+        # Admin Dashboard controllers
+        DashboardController,
+        AnalyticsController,
         # In-App controllers
         InAppNotificationController,
         InAppTemplateController,
