@@ -73,6 +73,8 @@ from notification_service.shared.exceptions.application_exceptions import (
     UnauthorizedError,
     InvalidAPIKeyError
 )
+from notification_service.infrastructure.providers.telegram.telegram_provider import TelegramProvider
+from notification_service.application.handlers.telegram_channel_handler import TelegramChannelHandler
 from sqlalchemy.exc import IntegrityError
 import logging
 import sys
@@ -277,6 +279,16 @@ def registerExceptionHandlers(app: FastAPI):
         )
     #new(rate limit service)
     
+    #new(rate limit service)
+    @app.exception_handler(RateLimitExceededError)
+    async def rateLimitExceededHandler(request: Request, exc: RateLimitExceededError):
+        logger.warning(f"RateLimitExceededError: {exc.message}")
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content=exc.to_error_response(status.HTTP_429_TOO_MANY_REQUESTS)
+        )
+    #new(rate limit service)
+    
     @app.exception_handler(IntegrityError)
     async def integrityErrorHandler(request: Request, exc: IntegrityError):
         """
@@ -417,10 +429,16 @@ def main()->FastAPI:
     # WhatsApp Providers
     builder.with_transient(WhatsAppMetaCloudProvider)
     #new
+    #new
+    # WhatsApp Providers
+    builder.with_transient(WhatsAppMetaCloudProvider)
+    #new
     # In-App Providers
     builder.with_transient(FCMProvider)
     # Email Providers
     builder.with_transient(SMTPProvider)
+    # Telegram Providers
+    builder.with_transient(TelegramProvider)
     builder.with_transient(ProcessMessageUseCase)
     #new
     # Rate Limit Service
@@ -430,10 +448,9 @@ def main()->FastAPI:
     builder.with_transient(SMSChannelHandler)
     builder.with_transient(InAppChannelHandler)
     builder.with_transient(EmailChannelHandler)
-    #new
-    #whatsapp handler
+    
     builder.with_transient(WhatsAppChannelHandler)
-    #new
+    builder.with_transient(TelegramChannelHandler)
     builder.with_transient(IMessageHandler,MessageRouter)
     # Register TenantService as singleton so rabbitmqConsumer can be set at startup
     # and reused when creating tenants via API
