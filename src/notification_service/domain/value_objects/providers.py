@@ -16,8 +16,9 @@ class EmailProvider(Enum):
 class PushProvider(Enum):
     FIREBASE = "fcm"
     ONESIGNAL = "onesignal"
-#new
+
+class TelegramProvider(Enum):
+    TELEGRAM = "telegram"
 class WhatsAppProvider(Enum):
     META_CLOUD = "meta_cloud"
     TWILIO = "twilio"
-#new

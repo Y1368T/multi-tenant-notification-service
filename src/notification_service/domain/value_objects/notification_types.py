@@ -7,3 +7,4 @@ class NotificationChannel(str, Enum):
     EMAIL = "email"
     INAPP = "inapp"
     WHATSAPP = "whatsapp"
+    TELEGRAM = "telegram"

@@ -9,6 +9,7 @@ from notification_service.infrastructure.providers.sms.jasmin_sms_provider impor
 from notification_service.domain.value_objects.notification_response import ProviderTestResponse
 from notification_service.infrastructure.providers.sms.afromessage_provider import AfromessageSMSProvider
 from notification_service.infrastructure.providers.email.smtp_provider import SMTPProvider
+from notification_service.infrastructure.providers.telegram.telegram_provider import TelegramProvider as TelegramProviderImpl
 #new
 from notification_service.infrastructure.providers.whatsapp.meta_cloud_provider import WhatsAppMetaCloudProvider
 #new
@@ -31,9 +32,9 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         jasminSmsProvider: JasminSMSProvider,
         fcmProvider: FCMProvider,
         smtpProvider: SMTPProvider,
-        #new
-        metaCloudProvider: WhatsAppMetaCloudProvider,
-        #new
+        telegramProvider: TelegramProviderImpl = None,
+        metaCloudProvider: WhatsAppMetaCloudProvider = None
+        
     ):
         super().__init__(uow, Provider, ProviderResponseDTO)
         self.uow = uow
@@ -42,9 +43,8 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         self.jasminSmsProvider = jasminSmsProvider
         self.fcmProvider = fcmProvider
         self.smtpProvider = smtpProvider
-        #new
+        self.telegramProvider = telegramProvider
         self.metaCloudProvider = metaCloudProvider
-        #new
     def _get_repository(self):
         """Get providers repository."""
         return self.uow.providers
@@ -153,6 +153,16 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
                         # Extract nested config if it exists, otherwise use config directly
                         provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
                         return await self.smtpProvider.test(provider_config, dto.address)
+                    case _:
+                        raise ValueError(f"Unsupported provider: {dto.providerName}")
+                        
+            case "telegram":
+                match dto.providerName:
+                    case "telegram":
+                        if not self.telegramProvider:
+                            raise ValueError("TelegramProvider is not initialized")
+                        provider_config = dto.config.get("config", dto.config) if isinstance(dto.config, dict) else dto.config
+                        return await self.telegramProvider.test(provider_config, dto.address)
                     case _:
                         raise ValueError(f"Unsupported provider: {dto.providerName}")
             #new
