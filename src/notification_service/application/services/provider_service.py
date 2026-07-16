@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.domain.entities.providers_supported import Provider
 from uuid import UUID
@@ -20,6 +22,12 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
 )
 from notification_service.application.services.base_service import BaseService
 from pydantic import ValidationError
+# added for provider-health persistence
+from sqlalchemy import update as sqlUpdate
+from notification_service.infrastructure.persistence.models.providers_supported import ProviderModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderService(BaseService[Provider, ProviderResponseDTO]):
@@ -121,7 +129,32 @@ class ProviderService(BaseService[Provider, ProviderResponseDTO]):
         async with self.uow:
             provider = await self.uow.providers.firstOrDefault(lambda p: p.providerName == name)
             return provider
-    async def testProvider(self, dto:TestRequestDto)->ProviderTestResponse:
+
+    async def testProvider(self, dto: TestRequestDto) -> ProviderTestResponse:
+       
+        result = await self._executeProviderTest(dto)
+
+        try:
+            async with self.uow:
+                session = self.uow.session  # type: ignore[attr-defined]
+                await session.execute(
+                    sqlUpdate(ProviderModel)
+                    .where(
+                        ProviderModel.providerName == dto.providerName,
+                        ProviderModel.channel == dto.channel,
+                    )
+                    .values(lastTestedAt=datetime.utcnow(), lastTestSuccess=result.success)
+                )
+        except Exception:
+            # A failure to record test history should never mask the test
+            # result itself reaching the caller - log and move on.
+            logger.exception(
+                "Failed to persist provider test result for %s/%s", dto.channel, dto.providerName
+            )
+
+        return result
+
+    async def _executeProviderTest(self, dto: TestRequestDto) -> ProviderTestResponse:
         # Implement the logic to test the provider with the given configuration
         match dto.channel:
             case "sms":
