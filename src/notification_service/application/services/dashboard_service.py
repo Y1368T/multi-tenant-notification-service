@@ -42,7 +42,14 @@ CHANNEL_MODELS = {
     "email": (EmailOutboxModel, EmailTemplateModel),
     "inapp": (InAppOutboxModel, InAppTemplateModel),
     "whatsapp": (WhatsAppOutboxModel, WhatsAppTemplateModel),
-    "telegram": (TelegramOutboxModel, TelegramTemplateModel),
+    # NOTE: no "telegram" entry - TelegramOutboxModel/TelegramTemplateModel
+    # don't exist yet. Telegram currently has a provider + channel handler
+    # (see infrastructure/providers/telegram/) but no dedicated outbox/
+    # template persistence table, unlike sms/email/inapp/whatsapp. Adding
+    # a channel here requires an actual table with the same shape (status,
+    # retryCount, sentAt, lastRetryAt, lastErrorMessage, providerAttempted,
+    # templateId) to union against - see GUIDE.md "Adding a new channel"
+    # for the checklist once that table exists.
 }
 
 CACHE_PREFIX = "dashboard"
