@@ -7,8 +7,9 @@ from .email import *
 from .whatsapp import *
 #new
 from .providers_supported import ProviderModel
+from .message_aggregate import MessageAggregateModel
 
-__all__ = ["BaseModel", "ProviderModel"]
+__all__ = ["BaseModel", "ProviderModel", "MessageAggregateModel"]
 __all__.extend(tenant.__all__)
 __all__.extend(sms.__all__)
 __all__.extend(in_app.__all__)
