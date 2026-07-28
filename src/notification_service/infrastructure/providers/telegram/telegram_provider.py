@@ -18,7 +18,7 @@ from notification_service.domain.value_objects.notification_response import (
 )
 from notification_service.adapters.inbound.dto.notification_callback import NotificationCallbackPayload
 from notification_service.infrastructure.services.webhook_client import WebhookClient
-from notification_service.domain.entities.tenant_telegram_configuration import TenantTelegramConfiguration
+from notification_service.domain.entities.tenant.tenant_telegram_configuration import TenantTelegramConfiguration
 
 logger = logging.getLogger(__name__)
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
