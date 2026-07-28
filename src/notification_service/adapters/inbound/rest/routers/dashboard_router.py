@@ -6,7 +6,6 @@ from fastapi import Depends, Query
 from qena_shared_lib.http import ControllerBase, api_controller, get
 
 from notification_service.adapters.inbound.dto.dashboard_dto import (
-    DashboardActivityResponseDTO,
     DashboardChannelsResponseDTO,
     DashboardProviderHealthResponseDTO,
     DashboardStatsResponseDTO,
@@ -52,14 +51,7 @@ class DashboardController(ControllerBase):
         result = await self.dashboardService.getChannelBreakdown(period)
         return DashboardChannelsResponseDTO(**result)
 
-    @get("/activity", response_model=DashboardActivityResponseDTO)
-    async def activity(
-        self,
-        limit: int = Query(20, ge=1, le=100),
-    ) -> DashboardActivityResponseDTO:
-        """Recent activity feed (delivered / failed / retry / tenant_created)."""
-        result = await self.dashboardService.getActivity(limit)
-        return DashboardActivityResponseDTO(**result)
+
 
     @get("/top-tenants", response_model=DashboardTopTenantsResponseDTO)
     async def topTenants(
