@@ -60,6 +60,7 @@ from notification_service.infrastructure.services.customer_service_client import
 from notification_service.infrastructure.services.webhook_client import WebhookClient
 from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
+from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -581,9 +582,13 @@ async def lifespan(app: FastAPI):
         webhook_client=webhook_client
     )
     
-    # Start background task
+    # Start background tasks
     outbox_task = asyncio.create_task(outbox_processor.start())
     logger.info("OutboxProcessor background task started")
+
+    metrics_processor = MetricsRollupProcessor(database=database)
+    metrics_task = asyncio.create_task(metrics_processor.start())
+    logger.info("MetricsRollupProcessor background task started")
 
     try:
         yield
@@ -596,9 +601,13 @@ async def lifespan(app: FastAPI):
         await db.disconnect()
         await redis.disconnect()
         
-        # Cancel both tasks
+        # Cancel all tasks
         rabbitmq_task.cancel()
         outbox_task.cancel()
+        
+        logger.info("Shutting down MetricsRollupProcessor...")
+        metrics_processor.stop()
+        metrics_task.cancel()
         await asyncio.gather(rabbitmq_task, outbox_task, return_exceptions=True)
         
         if rpc_client:  # Use the variable from outer scope
