@@ -62,21 +62,6 @@ class DashboardChannelsResponseDTO(BaseModel):
     channels: List[ChannelBreakdownItemDTO]
 
 
-# ---------------------------------------------------------------------------
-# 4. GET /admin/dashboard/activity
-# ---------------------------------------------------------------------------
-class ActivityItemDTO(BaseModel):
-    id: str
-    type: str  
-    channel: Optional[str] = None
-    tenantName: Optional[str] = None
-    message: str
-    timestamp: datetime
-
-
-class DashboardActivityResponseDTO(BaseModel):
-    items: List[ActivityItemDTO]
-
 
 # ---------------------------------------------------------------------------
 # 5. GET /admin/dashboard/top-tenants

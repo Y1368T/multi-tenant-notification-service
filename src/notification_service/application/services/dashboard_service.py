@@ -313,89 +313,7 @@ class DashboardService:
 
         return await self._cached(f"channels:{period}", ttlSeconds=30, compute=compute)
                     
-    # -- 4. GET /admin/dashboard/activity -------------------------------------
 
-    async def getActivity(self, limit: int = 20) -> dict:
-        
-        async def compute() -> dict:
-            async with self.uow:
-                session = self._session()
-                uq = self._unioned_query()
-
-                # Final-state events: only rows that have actually resolved
-                # (delivered or failed) - a still-"pending" row hasn't done
-                # anything yet worth reporting.
-                finalStateStmt = select(
-                    uq.c.channel, uq.c.status, uq.c.sentAt, uq.c.updatedAt,
-                    uq.c.lastErrorMessage, uq.c.tenantId,
-                ).where(uq.c.status.in_(DELIVERED_STATUSES + FAILED_STATUSES)).order_by(
-                    uq.c.updatedAt.desc()
-                ).limit(limit)
-                finalStateRows = (await session.execute(finalStateStmt)).all()
-
-                # Retry events: any row that has ever been retried, timed
-                # at its most recent retry.
-                retryStmt = select(
-                    uq.c.channel, uq.c.lastRetryAt, uq.c.tenantId,
-                ).where(uq.c.lastRetryAt.isnot(None)).order_by(uq.c.lastRetryAt.desc()).limit(limit)
-                retryRows = (await session.execute(retryStmt)).all()
-
-                tenantCreatedStmt = select(
-                    TenantModel.id, TenantModel.name, TenantModel.createdAt
-                ).order_by(TenantModel.createdAt.desc()).limit(limit)
-                tenantCreatedRows = (await session.execute(tenantCreatedStmt)).all()
-
-                tenantIds = {r.tenantId for r in finalStateRows if r.tenantId} | {r.tenantId for r in retryRows if r.tenantId}
-                tenantNames: Dict[UUID, str] = {}
-                if tenantIds:
-                    tRows = (
-                        await session.execute(select(TenantModel.id, TenantModel.name).where(TenantModel.id.in_(tenantIds)))
-                    ).all()
-                    tenantNames = {r.id: r.name for r in tRows}
-
-                items = []
-                for row in finalStateRows:
-                    success = row.status in DELIVERED_STATUSES
-                    tenantName = tenantNames.get(row.tenantId) if row.tenantId else None
-                    timestamp = row.sentAt if success and row.sentAt else row.updatedAt
-                    detail = f": {row.lastErrorMessage}" if not success and row.lastErrorMessage else ""
-                    items.append({
-                        "id": f"{row.channel}-final-{timestamp.isoformat()}-{tenantName or 'unknown'}",
-                        "type": "delivered" if success else "failed",
-                        "channel": row.channel,
-                        "tenantName": tenantName,
-                        "message": (
-                            f"{row.channel.upper()} delivered" if success else f"{row.channel.upper()} delivery failed{detail}"
-                        ) + (f" for {tenantName}" if tenantName else ""),
-                        "timestamp": timestamp,
-                    })
-
-                for row in retryRows:
-                    tenantName = tenantNames.get(row.tenantId) if row.tenantId else None
-                    items.append({
-                        "id": f"{row.channel}-retry-{row.lastRetryAt.isoformat()}-{tenantName or 'unknown'}",
-                        "type": "retry",
-                        "channel": row.channel,
-                        "tenantName": tenantName,
-                        "message": f"Retry attempted for {row.channel.upper()} message" + (f" ({tenantName})" if tenantName else ""),
-                        "timestamp": row.lastRetryAt,
-                    })
-
-                for row in tenantCreatedRows:
-                    items.append({
-                        "id": f"tenant-{row.id}",
-                        "type": "tenant_created",
-                        "channel": None,
-                        "tenantName": row.name,
-                        "message": f"Tenant '{row.name}' created",
-                        "timestamp": row.createdAt,
-                    })
-
-                items.sort(key=lambda i: i["timestamp"], reverse=True)
-                return {"items": items[:limit]}
-
-        return await self._cached(f"activity:{limit}", ttlSeconds=15, compute=compute)
- 
     # -- 5. GET /admin/dashboard/top-tenants ----------------------------------
 
     async def getTopTenants(self, limit: int = 5, period: str = "7d") -> dict:
@@ -404,12 +322,33 @@ class DashboardService:
             async with self.uow:
                 session = self._session()
                 uq = self._unioned_query()
+                
+                # Step 1: Query top `limit` tenantIds ordered by total messages sent
+                topTenantsStmt = select(
+                    uq.c.tenantId,
+                    func.count().label("sent")
+                ).where(
+                    uq.c.createdAt >= since, 
+                    uq.c.tenantId.isnot(None)
+                ).group_by(uq.c.tenantId).order_by(func.count().desc()).limit(limit)
+                
+                topTenantRows = (await session.execute(topTenantsStmt)).all()
+                if not topTenantRows:
+                    return {"items": []}
+                
+                tenantIds = [row.tenantId for row in topTenantRows]
+                
+                # Step 2: Query detailed channel breakdown ONLY for those top tenants
                 stmt = select(
                     uq.c.tenantId,
                     uq.c.channel,
                     func.count().label("sent"),
                     func.sum(case((uq.c.status.in_(DELIVERED_STATUSES), 1), else_=0)).label("delivered"),
-                ).where(uq.c.createdAt >= since, uq.c.tenantId.isnot(None)).group_by(uq.c.tenantId, uq.c.channel)
+                ).where(
+                    uq.c.createdAt >= since, 
+                    uq.c.tenantId.in_(tenantIds)
+                ).group_by(uq.c.tenantId, uq.c.channel)
+                
                 rows = (await session.execute(stmt)).all()
 
                 perTenant: Dict[UUID, Dict[str, Any]] = {}
@@ -420,23 +359,21 @@ class DashboardService:
                     if (row.sent or 0) > 0:
                         entry["channels"].add(row.channel)
 
-                ranked = sorted(perTenant.items(), key=lambda kv: kv[1]["sent"], reverse=True)[:limit]
-                if not ranked:
-                    return {"items": []}
-
-                tenantIds = [tid for tid, _ in ranked]
+                # Fetch tenant names
                 tenantRows = (
                     await session.execute(select(TenantModel.id, TenantModel.name).where(TenantModel.id.in_(tenantIds)))
                 ).all()
                 tenantNames = {r.id: r.name for r in tenantRows}
 
                 items = []
-                for tenantId, agg in ranked:
-                    if tenantId not in tenantNames:
-                        continue  # tenant deleted after messages were sent; skip rather than fabricate a name
+                # Keep the order from topTenantRows
+                for tid in tenantIds:
+                    if tid not in tenantNames or tid not in perTenant:
+                        continue
+                    agg = perTenant[tid]
                     items.append({
-                        "tenantId": str(tenantId),
-                        "tenantName": tenantNames[tenantId],
+                        "tenantId": str(tid),
+                        "tenantName": tenantNames[tid],
                         "totalMessages": agg["sent"],
                         "deliveryRate": _safe_rate(agg["delivered"], agg["sent"]),
                         "channels": sorted(agg["channels"]),
@@ -444,6 +381,7 @@ class DashboardService:
                 return {"items": items}
 
         return await self._cached(f"top-tenants:{limit}:{period}", ttlSeconds=60, compute=compute)
+
 
     # -- 6. GET /admin/dashboard/provider-health -----------------------------
 
