@@ -16,19 +16,20 @@ from notification_service.config.settings import Settings
 from qena_shared_lib.dependencies.http import get_service
 from notification_service.application.services import in_app_notification_service
 from notification_service.application.services import tenant_sms_configuration_service
-#new
+#Admin Dashboard
+from notification_service.application.services.dashboard_service import DashboardService
+#Whatsapp
 from notification_service.application.services import tenant_whatsapp_configuration_service
 from notification_service.application.services import whatsapp_notification_service
 from notification_service.application.services import whatsapp_outbox_service
-#new
 from notification_service.application.services.whatsapp_template_service import WhatsAppTemplateService
-#new
 from notification_service.application.handlers.whatsapp_channel_handler import WhatsAppChannelHandler
 from notification_service.infrastructure.providers.whatsapp.meta_cloud_provider import WhatsAppMetaCloudProvider
-#new
+#In-App
 from notification_service.application.services import in_app_template_service
 from notification_service.application.services import sms_notification_service
 from notification_service.application.services import tenant_inapp_configuration_service
+#SMS
 from notification_service.domain.interfaces.imessage_consumer import IMessageConsumer
 from notification_service.domain.interfaces.imessage_handler import IMessageHandler
 from notification_service.application.services import sms_outbox_service
@@ -59,6 +60,7 @@ from notification_service.infrastructure.services.customer_service_client import
 from notification_service.infrastructure.services.webhook_client import WebhookClient
 from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
+from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -421,18 +423,15 @@ def main()->FastAPI:
     builder.with_singleton(CustomerServiceClient)
     builder.with_singleton(WebhookClient)
     builder.with_transient(IUnitOfWork,UnitOfWork)
+    builder.with_transient(DashboardService)
     # SMS Providers
     builder.with_transient(AfromessageSMSProvider)
     builder.with_transient(KifiyaSMSProvider)
     builder.with_transient(JasminSMSProvider)
-    #new
     # WhatsApp Providers
     builder.with_transient(WhatsAppMetaCloudProvider)
-    #new
-    #new
     # WhatsApp Providers
     builder.with_transient(WhatsAppMetaCloudProvider)
-    #new
     # In-App Providers
     builder.with_transient(FCMProvider)
     # Email Providers
@@ -583,9 +582,13 @@ async def lifespan(app: FastAPI):
         webhook_client=webhook_client
     )
     
-    # Start background task
+    # Start background tasks
     outbox_task = asyncio.create_task(outbox_processor.start())
     logger.info("OutboxProcessor background task started")
+
+    metrics_processor = MetricsRollupProcessor(database=database)
+    metrics_task = asyncio.create_task(metrics_processor.start())
+    logger.info("MetricsRollupProcessor background task started")
 
     try:
         yield
@@ -598,9 +601,13 @@ async def lifespan(app: FastAPI):
         await db.disconnect()
         await redis.disconnect()
         
-        # Cancel both tasks
+        # Cancel all tasks
         rabbitmq_task.cancel()
         outbox_task.cancel()
+        
+        logger.info("Shutting down MetricsRollupProcessor...")
+        metrics_processor.stop()
+        metrics_task.cancel()
         await asyncio.gather(rabbitmq_task, outbox_task, return_exceptions=True)
         
         if rpc_client:  # Use the variable from outer scope

@@ -18,3 +18,5 @@ class ProviderModel(BaseModel):
     configSchema = Column(JSON, name="configSchema", nullable=False)
     uiSchema = Column(JSON, name="uiSchema")
     isActive = Column(Boolean, name="isActive", default=True, nullable=False)
+    lastTestedAt = Column(DateTime, name="lastTestedAt", nullable=True)
+    lastTestSuccess = Column(Boolean, name="lastTestSuccess", nullable=True)
