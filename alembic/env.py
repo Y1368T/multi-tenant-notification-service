@@ -41,6 +41,8 @@ from notification_service.infrastructure.persistence.models.tenant.tenant_email_
 from notification_service.infrastructure.persistence.models.tenant.tenant_sms_configuration import TenantSMSConfigurationModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.tenant.tenant_inapp_configuration import TenantInAppConfigurationModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.tenant.tenant_telegram_configuration import TenantTelegramConfigurationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.user.user import UserModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.user.user_tenant import UserTenantModel  # noqa: F401
 # Telegram channel models — must be imported so Alembic autogenerate detects the tables
 from notification_service.infrastructure.persistence.models.telegram.telegram_template import TelegramTemplateModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.telegram.telegram_notification import TelegramNotificationModel  # noqa: F401
