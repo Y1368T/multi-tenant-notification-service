@@ -26,8 +26,15 @@ from notification_service.adapters.inbound.rest.routers.dashboard_router import 
         AnalyticsController,
     )
 
+from notification_service.adapters.inbound.rest.routers.auth_router import AuthController
+from notification_service.adapters.inbound.rest.routers.admin_router import AdminAPIController
+from notification_service.adapters.inbound.rest.routers.tenant_manager_router import TenantManagerAPIController
+
 def register_controllers(builder: Builder) -> None:
     builder.with_controllers(
+        AuthController,
+        AdminAPIController,
+        TenantManagerAPIController,
         TenantController,
         # SMS controllers
         SMSNotificationController,

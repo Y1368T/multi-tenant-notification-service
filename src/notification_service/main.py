@@ -496,6 +496,9 @@ def main()->FastAPI:
     # Override OpenAPI schema generation to fix version and anyOf issues
     app.openapi = lambda: customOpenapi(app)
     
+    from notification_service.adapters.inbound.middleware import AuthMiddleware
+    app.add_middleware(AuthMiddleware)
+    
     app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],                # restrict in production e.g. ["https://app.example.com"]
