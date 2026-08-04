@@ -25,6 +25,9 @@ class TenantModel(BaseModel):
     emailTemplates = relationship("EmailTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
     inAppTemplates = relationship("InAppTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
     inAppConfigurations = relationship("TenantInAppConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
+    telegramConfigurations = relationship("TenantTelegramConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
+    telegramTemplates = relationship("TelegramTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
+    userMemberships = relationship("UserTenantModel", back_populates="tenant", cascade="all, delete-orphan")
     #new
     whatsAppConfigurations = relationship("TenantWhatsAppConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
     whatsAppTemplates = relationship("WhatsAppTemplateModel", back_populates="tenant", cascade="all, delete-orphan")
