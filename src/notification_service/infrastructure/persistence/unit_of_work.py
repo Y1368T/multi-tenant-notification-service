@@ -28,6 +28,10 @@ from notification_service.infrastructure.persistence.repositories.provider_repos
 from notification_service.domain.entities.providers_supported import Provider
 from notification_service.infrastructure.persistence.models.providers_supported import ProviderModel
 from notification_service.infrastructure.persistence.mappers.provider_mapper import ProviderMapper
+from notification_service.infrastructure.persistence.repositories.user_repository import UserRepository
+from notification_service.infrastructure.persistence.repositories.user_tenant_repository import UserTenantRepository
+from notification_service.infrastructure.persistence.mappers.user_mapper import UserMapper
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,6 +115,14 @@ class UnitOfWork(IUnitOfWork):
     def tenantTelegramConfigurations(self):
         return self._tenantTelegramConfigurations
 
+    @property
+    def users(self):
+        return self._users
+
+    @property
+    def userTenants(self):
+        return self._userTenants
+
     async def __aenter__(self):
         """Enter async context manager.
         
@@ -147,7 +159,10 @@ class UnitOfWork(IUnitOfWork):
         self._telegramTemplates = TelegramTemplateRepository(self.session)
         self._tenantTelegramConfigurations = TenantTelegramConfigurationRepository(self.session)
         self._providers = ProviderRepository(self.session)
+        self._users = UserRepository(self.session, UserMapper())
+        self._userTenants = UserTenantRepository(self.session)
         return self
+
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context manager; rollback on error, close session.
