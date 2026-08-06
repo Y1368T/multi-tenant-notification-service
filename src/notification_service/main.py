@@ -494,6 +494,7 @@ async def lifespan(app: FastAPI):
 
     settings=get_service(app,Settings)
 
+    rpc_client = None
     if settings.enable_customer_language_rpc:
         rpc_client = get_service(app, RabbitMQRPCClient)
         await rpc_client.connect()

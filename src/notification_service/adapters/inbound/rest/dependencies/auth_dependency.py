@@ -1,10 +1,19 @@
-"""FastAPI dependency for JWT authentication, user context resolution, and multi-tenant authorization."""
+"""FastAPI dependency for JWT authentication, user context resolution, and multi-tenant authorization.
+
+Key design note:
+    UnitOfWork requires a Database singleton that is registered in the qena_shared_lib DI
+    container at startup (builder.with_singleton(Database)).  FastAPI cannot auto-inject that
+    non-Pydantic type through Depends(UnitOfWork) directly, so I pull both UnitOfWork and
+    KeycloakClient from the app container via ``request.app`` instead.
+"""
 import logging
 from dataclasses import dataclass
-from typing import Optional, List, Callable
+from typing import Optional, List
 from uuid import UUID
-from fastapi import Depends, HTTPException, status
+
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from qena_shared_lib.dependencies.http import get_service
 
 from notification_service.domain.entities.user.user import User
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
@@ -40,15 +49,19 @@ class UserContext:
 
 
 async def get_user_context(
+    request: Request,
     token: str = Depends(oauth2_scheme),
-    uow: IUnitOfWork = Depends(UnitOfWork),
-    keycloakClient: IKeycloakClient = Depends(KeycloakClient),
 ) -> UserContext:
-    """Extract and resolve the UserContext from Bearer token."""
+    """Extract and resolve the UserContext from Bearer token.
+
+    Resolution order:
+    1. Try to decode as a signed backend session token (fast, no DB hit).
+    2. Fallback: verify as a Keycloak access token, then look up the local user.
+    """
     if not token:
         raise UnauthorizedError("Authorization token is required")
 
-    # 1. Attempt decoding as signed backend session token first
+    # Attempt decoding as signed backend session token first (no DB needed)
     try:
         payload = decode_backend_session_token(token)
         user_id = UUID(payload["user_id"])
@@ -64,11 +77,17 @@ async def get_user_context(
         # Fall back to Keycloak token verification
         pass
 
-    # 2. Fallback: Verify token as Keycloak JWT token
-    payload = await keycloakClient.verifyToken(token)
+    # Fallback: Verify token as Keycloak access token
+    keycloak_client: IKeycloakClient = get_service(request.app, IKeycloakClient)
+    payload = await keycloak_client.verifyToken(token)
     keycloakId: str = payload.get("sub")
     if not keycloakId:
         raise UnauthorizedError("Token missing 'sub' claim")
+
+    # Build UnitOfWork using the Database singleton from the DI container
+    from notification_service.infrastructure.persistence.db_session.session import Database
+    database = get_service(request.app, Database)
+    uow = UnitOfWork(database=database)
 
     async with uow:
         user = await uow.users.getByKeycloakId(keycloakId)
@@ -85,7 +104,7 @@ async def get_user_context(
     return UserContext(
         user_id=user.id,
         email=user.email,
-        full_name=f"{user.firstName} {user.lastName}",
+        full_name=user.fullName or "",
         role=eff_role,
         tenant_id=eff_tenant_id,
         user=user,
@@ -93,12 +112,15 @@ async def get_user_context(
 
 
 async def get_current_user(
+    request: Request,
     ctx: UserContext = Depends(get_user_context),
-    uow: IUnitOfWork = Depends(UnitOfWork),
 ) -> User:
     """Legacy helper returning User domain entity."""
     if ctx.user:
         return ctx.user
+    from notification_service.infrastructure.persistence.db_session.session import Database
+    database = get_service(request.app, Database)
+    uow = UnitOfWork(database=database)
     async with uow:
         user = await uow.users.getById(ctx.user_id)
         if not user:
@@ -132,7 +154,7 @@ def enforce_tenant_access(ctx: UserContext, target_tenant_id: Optional[UUID]) ->
 async def require_admin(
     ctx: UserContext = Depends(get_user_context),
 ) -> UserContext:
-    """Dependency requiring super-admin or admin role."""
+    """Dependency requiring super-admin role."""
     if not ctx.is_super_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
