@@ -50,6 +50,11 @@ from notification_service.application.services.telegram_template_service import 
 from notification_service.application.services.telegram_notification_service import TelegramNotificationService
 from notification_service.application.services.telegram_outbox_service import TelegramOutboxService
 from notification_service.application.services.tenant_telegram_configuration_service import TenantTelegramConfigurationService
+from notification_service.application.services.auth_service import AuthService
+from notification_service.infrastructure.services.keycloak_client import KeycloakClient
+from notification_service.domain.interfaces.ikeycloak_client import IKeycloakClient
+
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -435,6 +440,10 @@ def main()->FastAPI:
     builder.with_transient(TelegramNotificationService)
     builder.with_transient(TelegramOutboxService)
     builder.with_transient(TenantTelegramConfigurationService)
+    # Auth Services
+    builder.with_singleton(IKeycloakClient, KeycloakClient)
+    builder.with_transient(AuthService)
+
     
     logging.basicConfig(
     level=logging.INFO,  # Set to INFO to see info logs
