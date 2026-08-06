@@ -4,10 +4,16 @@ from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 from notification_service.infrastructure.persistence.models.base import Base
 
+
 class UserTenantModel(Base):
-    """SQLAlchemy model for user_tenants."""
+    """SQLAlchemy model for user_tenants table.
+
+    Junction table linking users to tenants with a role.
+    Composite primary key: (user_id, tenant_id).
+    Tenant-level role: 'tenant-manager' or 'member'.
+    """
     __tablename__ = "user_tenants"
-    
+
     __table_args__ = (
         CheckConstraint(
             "role IN ('tenant-manager', 'member')",
@@ -15,12 +21,23 @@ class UserTenantModel(Base):
         ),
     )
 
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), name="userId", primary_key=True, nullable=False)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), name="tenantId", primary_key=True, nullable=False)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        name="userId",
+        primary_key=True,
+        nullable=False,
+    )
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        name="tenantId",
+        primary_key=True,
+        nullable=False,
+    )
     role = Column(String(50), name="role", nullable=False, default="member", index=True)
-    # status = Column(String, name="status", nullable=False)
     isActive = Column(Boolean, name="isActive", nullable=False, default=True)
-    joinedAt = Column(DateTime, name="joinedAt", nullable=False, default=datetime.now())
+    joinedAt = Column(DateTime, name="joinedAt", nullable=False, default=datetime.now)
 
     # Relationships
     user = relationship("UserModel", back_populates="tenantMemberships")
