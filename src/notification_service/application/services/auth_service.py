@@ -139,10 +139,14 @@ class AuthService:
 
         # Decode access token to get keycloakId (sub claim)
         payload = await self.keycloakClient.verifyToken(tokens["access_token"])
-        keycloakId: str = payload["sub"]
+        keycloakId: Optional[str] = payload.get("sub")
 
         async with self.uow:
-            user = await self.uow.users.getByKeycloakId(keycloakId)
+            user = None
+            if keycloakId:
+                user = await self.uow.users.getByKeycloakId(keycloakId)
+            if user is None:
+                user = await self.uow.users.getByEmail(email)
             if user is None:
                 raise UnauthorizedError(
                     "User authenticated with Keycloak but not found in local database. "

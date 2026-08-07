@@ -19,11 +19,12 @@ class UserTenantMapper:
             joinedAt=model.joinedAt,
         )
 
-        if getattr(model, "tenant", None):
-            entity.tenantName = model.tenant.name or ""
-            entity.tenantPrefix = model.tenant.prefix or ""
-        if getattr(model, "user", None):
-            entity.userEmail = model.user.email or ""
+        # Avoid triggering async lazy loads while the session is still in-flight.
+        if "tenant" in model.__dict__ and model.__dict__["tenant"] is not None:
+            entity.tenantName = model.__dict__["tenant"].name or ""
+            entity.tenantPrefix = model.__dict__["tenant"].prefix or ""
+        if "user" in model.__dict__ and model.__dict__["user"] is not None:
+            entity.userEmail = model.__dict__["user"].email or ""
         return entity
 
     @staticmethod

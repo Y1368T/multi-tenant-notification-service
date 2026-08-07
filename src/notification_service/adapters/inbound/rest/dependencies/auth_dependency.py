@@ -80,9 +80,10 @@ async def get_user_context(
     # Fallback: Verify token as Keycloak access token
     keycloak_client: IKeycloakClient = get_service(request.app, IKeycloakClient)
     payload = await keycloak_client.verifyToken(token)
-    keycloakId: str = payload.get("sub")
-    if not keycloakId:
-        raise UnauthorizedError("Token missing 'sub' claim")
+    keycloakId: Optional[str] = payload.get("sub")
+    token_email: Optional[str] = payload.get("email")
+    if not keycloakId and not token_email:
+        raise UnauthorizedError("Token missing identity claims")
 
     # Build UnitOfWork using the Database singleton from the DI container
     from notification_service.infrastructure.persistence.db_session.session import Database
@@ -90,7 +91,11 @@ async def get_user_context(
     uow = UnitOfWork(database=database)
 
     async with uow:
-        user = await uow.users.getByKeycloakId(keycloakId)
+        user = None
+        if keycloakId:
+            user = await uow.users.getByKeycloakId(keycloakId)
+        if user is None and token_email:
+            user = await uow.users.getByEmail(token_email)
         if user is None:
             raise UnauthorizedError("User not found")
         if not user.isActive:
