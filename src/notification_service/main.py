@@ -62,6 +62,7 @@ from notification_service.infrastructure.persistence.seeds.provider_seed import 
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
 from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
 from notification_service.infrastructure.services.redis_session_manager import RedisSessionManager
+from notification_service.infrastructure.services.keycloak_admin_service import KeycloakAdminService
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -421,6 +422,7 @@ def main()->FastAPI:
     builder.with_singleton(Database)
     builder.with_singleton(RedisCache)
     builder.with_singleton(RedisSessionManager)
+    builder.with_transient(KeycloakAdminService)
     builder.with_singleton(RabbitMQRPCClient)
     builder.with_singleton(CustomerServiceClient)
     builder.with_singleton(WebhookClient)

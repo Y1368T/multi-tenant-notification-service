@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     keycloak_client_id: str = "mtns-backend"
     keycloak_client_secret: str = ""
     
+    keycloak_admin_client_id: str = "admin-cli"
+    keycloak_admin_client_secret: str = ""
+    
     # Outbox retry settings
     outbox_poll_interval_seconds: int = 60  # Poll every 1 minute
     outbox_max_retries: int = 5  # Maximum retry attempts before marking as permanently failed
