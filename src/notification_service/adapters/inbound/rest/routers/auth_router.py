@@ -155,11 +155,12 @@ class AuthController(ControllerBase):
         
         return LoginResponseDTO(user=user_response)
 
-    @post("/logout", status_code=204)
+    @post("/logout", status_code=status.HTTP_200_OK)
     async def logout(self, request: Request, response: Response):
         """
-        Invalidate session and clear the HTTP-only cookie.
+        Invalidate session in Keycloak, clear from Redis, and clear the HTTP-only cookie.
         """
+        # Clear the HTTP-only cookie first
         response.delete_cookie(
             key="mtns_session",
             path="/",
@@ -168,17 +169,56 @@ class AuthController(ControllerBase):
             samesite="strict"
         )
         
-        # Optionally invalidate from Redis
+        token = request.cookies.get("mtns_session")
+        if not token:
+            return {"message": "Logged out successfully"}
+            
         try:
-            token = request.cookies.get("mtns_session")
-            if token:
-                settings = get_service(request.app, Settings)
-                redis_session_manager = get_service(request.app, RedisSessionManager)
+            settings = get_service(request.app, Settings)
+            redis_session_manager = get_service(request.app, RedisSessionManager)
+            
+            # Decode session token to get session_id
+            try:
                 payload = jwt.decode(token, settings.session_signing_key, algorithms=["HS256"])
                 session_id = payload.get("session_id")
-                if session_id:
-                    await redis_session_manager.delete_session(session_id)
-        except Exception:
-            pass # Ignore errors on logout
+            except Exception as e:
+                # Token is invalid or expired, just return success
+                return {"message": "Logged out successfully"}
+
+            if not session_id:
+                return {"message": "Logged out successfully"}
+
+            # Retrieve session data to get the refresh token
+            session_data = await redis_session_manager.get_session(session_id)
+            if not session_data:
+                # Session already expired in Redis
+                return {"message": "Logged out successfully"}
+
+            refresh_token = session_data.get("keycloak_refresh_token")
             
-        return None
+            # Invalidate session in Keycloak
+            if refresh_token:
+                keycloak_logout_url = f"{settings.keycloak_url}/realms/{settings.keycloak_realm}/protocol/openid-connect/logout"
+                data = {
+                    "client_id": settings.keycloak_client_id,
+                    "refresh_token": refresh_token,
+                }
+                if settings.keycloak_client_secret:
+                    data["client_secret"] = settings.keycloak_client_secret
+                
+                try:
+                    async with httpx.AsyncClient() as client:
+                        # Keycloak logout doesn't require authorization header if using refresh_token and client_id
+                        await client.post(keycloak_logout_url, data=data, timeout=5.0)
+                except httpx.RequestError as e:
+                    # Log the error but don't fail the logout process for the user
+                    print(f"Failed to invalidate Keycloak session: {e}")
+            
+            # Delete session from Redis
+            await redis_session_manager.delete_session(session_id)
+            
+        except Exception as e:
+            # We swallow exceptions on logout to ensure the user is logged out locally
+            print(f"Error during logout: {e}")
+            
+        return {"message": "Logged out successfully"}
