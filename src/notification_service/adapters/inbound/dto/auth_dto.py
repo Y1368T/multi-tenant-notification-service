@@ -11,8 +11,7 @@ class UserResponseDTO(BaseModel):
     full_name: str
     role: str
     tenant_id: Optional[UUID] = None
+    tenant_name: Optional[str] = None
 
 class LoginResponseDTO(BaseModel):
-    session_token: str
-    expires_in: int
     user: UserResponseDTO

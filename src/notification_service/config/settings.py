@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     admin_api_key: Optional[str] = None  # Admin API key for bypassing tenant authentication
     session_signing_key: str = "default_unsafe_key_for_dev_only"  # Secret used for signing backend session tokens
     
+    # Keycloak settings
+    keycloak_url: str = "http://localhost:8080"
+    keycloak_realm: str = "mtns"
+    keycloak_client_id: str = "mtns-backend"
+    keycloak_client_secret: str = ""
+    
     # Outbox retry settings
     outbox_poll_interval_seconds: int = 60  # Poll every 1 minute
     outbox_max_retries: int = 5  # Maximum retry attempts before marking as permanently failed
