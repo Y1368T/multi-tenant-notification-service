@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError, TimeoutError
+from notification_service.infrastructure.cache.redis_cache import RedisCache
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +14,14 @@ logger = logging.getLogger(__name__)
 class RedisSessionManager:
     """Service for managing user sessions in Redis."""
 
-    def __init__(self, redis_client: Redis):
+    def __init__(self, redis_cache: RedisCache):
         """
         Initialize the RedisSessionManager.
 
         Args:
-            redis_client: An initialized async redis-py client.
+            redis_cache: An initialized RedisCache instance.
         """
-        self.redis = redis_client
+        self.redis = redis_cache.client
 
     def _get_key(self, session_id: str) -> str:
         """Format the Redis key for a session."""

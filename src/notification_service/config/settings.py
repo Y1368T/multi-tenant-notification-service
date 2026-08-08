@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     
     # Security settings
     admin_api_key: Optional[str] = None  # Admin API key for bypassing tenant authentication
+    session_signing_key: str = "default_unsafe_key_for_dev_only"  # Secret used for signing backend session tokens
     
     # Outbox retry settings
     outbox_poll_interval_seconds: int = 60  # Poll every 1 minute
