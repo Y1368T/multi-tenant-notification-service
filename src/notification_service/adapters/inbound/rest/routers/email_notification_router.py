@@ -3,8 +3,9 @@ import logging
 from uuid import UUID
 from typing import Dict, Any, List
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from qena_shared_lib.http import ControllerBase, get, post, api_controller
+from notification_service.adapters.inbound.dependencies import verify_tenant_access
 
 from notification_service.application.services.email_notification_service import EmailNotificationService
 from notification_service.domain.value_objects.notification_request import NotificationRequest, Recipient
@@ -36,7 +37,7 @@ class EmailNotificationController(ControllerBase):
         result = await self.emailNotificationService.get(paginated_request)
         return result
 
-    @post("/send")
+    @post("/send", dependencies=[Depends(verify_tenant_access)])
     async def send(self, tenant_id: UUID, requestDto: NotificationRequest):
         """Send Email notification (custom endpoint)."""
         result = await self.emailNotificationService.prepareAndSendEmail(
@@ -44,7 +45,7 @@ class EmailNotificationController(ControllerBase):
         )
         return result
 
-    @post("/send-bulk")
+    @post("/send-bulk", dependencies=[Depends(verify_tenant_access)])
     async def sendBulk(self, tenant_id: UUID, requestDto: BulkNotificationRequestDTO):
         """Send multiple recipient-specific Email notifications in a single call.
 
@@ -57,7 +58,7 @@ class EmailNotificationController(ControllerBase):
         )
         return result
 
-    @post("/send-direct")
+    @post("/send-direct", dependencies=[Depends(verify_tenant_access)])
     async def sendDirect(self, tenant_id: UUID, requestDto: DirectEmailRequestDTO):
         """Send a single email without a pre-defined template.
 

@@ -94,3 +94,34 @@ def get_tenant_scope(request: Request) -> Optional[str]:
         status_code=status.HTTP_403_FORBIDDEN,
         detail=f"Role '{role}' is not authorized for tenant-scoped operations."
     )
+
+def verify_tenant_access(tenant_id: str, request: Request) -> bool:
+    """
+    FastAPI dependency to verify that the user has access to the specified tenant_id.
+    Super-admins can access any tenant. Tenant-managers can only access their own.
+    """
+    if not hasattr(request.state, "user"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User session not found in request state."
+        )
+    
+    user_data = request.state.user
+    role = user_data.get("role")
+    
+    if role == "super-admin":
+        return True
+        
+    if role == "tenant-manager":
+        user_tenant_id = user_data.get("tenant_id")
+        if not user_tenant_id or str(user_tenant_id) != str(tenant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You cannot access resources belonging to other tenants."
+            )
+        return True
+        
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Role '{role}' is not authorized."
+    )

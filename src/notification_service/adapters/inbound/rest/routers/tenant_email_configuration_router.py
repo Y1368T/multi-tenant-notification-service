@@ -13,6 +13,7 @@ from notification_service.adapters.inbound.dto.tenant_email_configuration_reques
     TenantEmailConfigurationResponseDTO,
     TenantEmailConfigurationFilterDTO,
 )
+from notification_service.adapters.inbound.dependencies import require_role
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class TenantEmailConfigurationController(ControllerBase):
         result = await self.tenantEmailConfigurationService.get(paginated_request)
         return result
 
-    @post("/create", response_model=TenantEmailConfigurationResponseDTO)
+    @post("/create", response_model=TenantEmailConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def create(
         self, requestDto: TenantEmailConfigurationRequestDto
     ) -> TenantEmailConfigurationResponseDTO:
@@ -46,7 +47,7 @@ class TenantEmailConfigurationController(ControllerBase):
         created = await self.tenantEmailConfigurationService.create(entity)
         return TenantEmailConfigurationResponseDTO.fromEntityWithRelations(created)
 
-    @put("/{id}", response_model=TenantEmailConfigurationResponseDTO)
+    @put("/{id}", response_model=TenantEmailConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def update(
         self, id: UUID, requestDto: TenantEmailConfigurationRequestDto
     ) -> TenantEmailConfigurationResponseDTO:
@@ -57,7 +58,7 @@ class TenantEmailConfigurationController(ControllerBase):
         updated = await self.tenantEmailConfigurationService.update(entity)
         return TenantEmailConfigurationResponseDTO.fromEntityWithRelations(updated)
 
-    @patch("/{id}", response_model=TenantEmailConfigurationResponseDTO)
+    @patch("/{id}", response_model=TenantEmailConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def partialUpdate(
         self, id: UUID, updates: dict
     ) -> TenantEmailConfigurationResponseDTO:
@@ -65,7 +66,7 @@ class TenantEmailConfigurationController(ControllerBase):
         updated = await self.tenantEmailConfigurationService.partialUpdate(id, updates)
         return TenantEmailConfigurationResponseDTO.fromEntityWithRelations(updated)
 
-    @delete("/{id}")
+    @delete("/{id}", dependencies=[Depends(require_role(["super-admin"]))])
     async def deleteConfiguration(self, id: UUID):
         """Delete a tenant email configuration."""
         await self.tenantEmailConfigurationService.delete(id)

@@ -11,6 +11,7 @@ from qena_shared_lib.http import ControllerBase, api_controller, get, post, put,
 from fastapi import Depends
 from uuid import UUID
 from typing import Dict, Any, List
+from notification_service.adapters.inbound.dependencies import require_role
 
 @api_controller(prefix="/tenant-sms-configurations", tags=["Tenant SMS Configurations"])
 class TenantSMSConfigurationController(ControllerBase):
@@ -31,7 +32,7 @@ class TenantSMSConfigurationController(ControllerBase):
         result = await self.tenantSmsConfigurationService.get(paginated_request)
         return result
     
-    @post("/create", response_model=TenantSMSConfigurationResponseDTO)
+    @post("/create", response_model=TenantSMSConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def create(
         self, 
         request_dto: TenantSMSConfigurationRequestDto
@@ -55,7 +56,7 @@ class TenantSMSConfigurationController(ControllerBase):
         else:
             return created_entity
     
-    @put("/{id}", response_model=TenantSMSConfigurationResponseDTO)
+    @put("/{id}", response_model=TenantSMSConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def update(
         self, 
         id: UUID, 
@@ -81,7 +82,7 @@ class TenantSMSConfigurationController(ControllerBase):
         else:
             return updated_entity
     
-    @patch("/{id}", response_model=TenantSMSConfigurationResponseDTO)
+    @patch("/{id}", response_model=TenantSMSConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def partialUpdate(
         self, 
         id: UUID, 
@@ -100,7 +101,7 @@ class TenantSMSConfigurationController(ControllerBase):
         else:
             return updated_entity
     
-    @delete("/{id}", response_model=Dict[str, str])
+    @delete("/{id}", response_model=Dict[str, str], dependencies=[Depends(require_role(["super-admin"]))])
     async def delete(
         self, 
         id: UUID

@@ -116,8 +116,7 @@ class TenantEmailConfigurationResponseDTO(BaseModel):
     rateLimitPerMinute: int = Field(alias="rateLimitPerMinute")
     rateLimitPerHour: int = Field(alias="rateLimitPerHour")
     rateLimitPerDay: int = Field(alias="rateLimitPerDay")
-    config: Dict[str, Any]
-    createdAt: datetime = Field(alias="createdAt")
+    createdAt: Optional[datetime] = Field(default=None, alias="createdAt")
     updatedAt: datetime = Field(alias="updatedAt")
 
     # Enriched fields
@@ -147,7 +146,6 @@ class TenantEmailConfigurationResponseDTO(BaseModel):
             rateLimitPerMinute=config.rateLimitPerMinute,
             rateLimitPerHour=config.rateLimitPerHour,
             rateLimitPerDay=config.rateLimitPerDay,
-            config=config.config,
             createdAt=config.createdAt,
             updatedAt=config.updatedAt,
             tenantName=tenant_name,

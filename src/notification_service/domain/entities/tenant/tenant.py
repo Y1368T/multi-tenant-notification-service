@@ -21,5 +21,7 @@ class Tenant:
     # Callback configuration for fire-and-forget mode
     callbackUrl: Optional[str] = None  # Webhook URL for notification status updates
     callbackHeaders: Optional[Dict[str, str]] = None  # Optional auth headers for callback
+    sentCount: int = 0
+    sentCount30d: int = 0
     createdAt: datetime = field(default_factory=datetime.utcnow)
     updatedAt: datetime = field(default_factory=datetime.utcnow)

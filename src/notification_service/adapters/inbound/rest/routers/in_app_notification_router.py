@@ -15,7 +15,8 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
     FilterOp
 )
 from uuid import UUID
-from fastapi import Depends, Query
+from fastapi import Depends, Query, Request
+from notification_service.adapters.inbound.dependencies import verify_tenant_access
 from pydantic import BaseModel
 import logging
 
@@ -170,13 +171,13 @@ class InAppNotificationController(ControllerBase):
    
     
     # Custom endpoints (not standard CRUD)
-    @post("/send")
+    @post("/send", dependencies=[Depends(verify_tenant_access)])
     async def send(self, tenant_id: UUID, requestDto: NotificationRequest):
         """Send in-app notification (custom endpoint)."""
         result = await self.inAppNotificationService.prepareAndSendInApp(tenant_id, requestDto)
         return result
 
-    @post("/send-bulk")
+    @post("/send-bulk", dependencies=[Depends(verify_tenant_access)])
     async def sendBulk(self, tenant_id: UUID, requestDto: BulkNotificationRequestDTO):
         """Send multiple recipient-specific in-app notifications in a single call.
 
@@ -189,7 +190,7 @@ class InAppNotificationController(ControllerBase):
         )
         return result
 
-    @post("/send-direct")
+    @post("/send-direct", dependencies=[Depends(verify_tenant_access)])
     async def sendDirect(self, tenant_id: UUID, requestDto: DirectInAppRequestDTO):
         """Send a single in-app notification without a pre-defined template.
 

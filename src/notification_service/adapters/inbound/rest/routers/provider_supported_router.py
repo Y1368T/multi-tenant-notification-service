@@ -13,6 +13,7 @@ from notification_service.shared.exceptions.application_exceptions import Valida
 from uuid import UUID
 from typing import Dict, Any
 from fastapi import Depends
+from notification_service.adapters.inbound.dependencies import require_role
 
 @api_controller(prefix="/provider-supported", tags=["Provider Supported"])
 class ProviderSupportedController(ControllerBase):
@@ -20,7 +21,7 @@ class ProviderSupportedController(ControllerBase):
     def __init__(self, providerService: ProviderService = Depends()):
         self.providerService = providerService
     
-    @get("/get", response_model=PaginatedResponseDTO[ProviderResponseDTO])
+    @get("/get", response_model=PaginatedResponseDTO[ProviderResponseDTO], dependencies=[Depends(require_role(["super-admin"]))])
     async def get(self, params: ProviderFilterDTO = Depends()) -> PaginatedResponseDTO[ProviderResponseDTO]:
         """Get providers by filters."""
         # Build PaginatedRequest using service method
@@ -32,7 +33,7 @@ class ProviderSupportedController(ControllerBase):
         return result
     
     
-    @post("/create", response_model=ProviderResponseDTO)
+    @post("/create", response_model=ProviderResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def create(self, request_dto: ProviderSupportedDTO) -> ProviderResponseDTO:
         """
         Create a new provider.
@@ -53,7 +54,7 @@ class ProviderSupportedController(ControllerBase):
         else:
             return created_entity
     
-    @put("/{id}", response_model=ProviderResponseDTO)
+    @put("/{id}", response_model=ProviderResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def update(self, id: UUID, request_dto: ProviderSupportedDTO) -> ProviderResponseDTO:
         """
         Full update of a provider.
@@ -75,7 +76,7 @@ class ProviderSupportedController(ControllerBase):
         else:
             return updated_entity
     
-    @patch("/{id}", response_model=ProviderResponseDTO)
+    @patch("/{id}", response_model=ProviderResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def partialUpdate(self, id: UUID, updates: Dict[str, Any]) -> ProviderResponseDTO:
         """
         Partial update of a provider.
@@ -90,7 +91,7 @@ class ProviderSupportedController(ControllerBase):
         else:
             return updated_entity
     
-    @delete("/{id}", response_model=Dict[str, str])
+    @delete("/{id}", response_model=Dict[str, str], dependencies=[Depends(require_role(["super-admin"]))])
     async def delete(self, id: UUID) -> Dict[str, str]:
         """
         Delete a provider.
@@ -100,7 +101,7 @@ class ProviderSupportedController(ControllerBase):
         await self.providerService.delete(id)
         return {"message": "Provider deleted successfully"}
     
-    @post("/test", response_model=ProviderTestResponse)
+    @post("/test", response_model=ProviderTestResponse, dependencies=[Depends(require_role(["super-admin"]))])
     async def testProvider(self, dto: TestRequestDto) -> ProviderTestResponse:
         """Test a provider (custom endpoint)."""
         return await self.providerService.testProvider(dto)

@@ -84,6 +84,7 @@ class FilterOp(str, Enum):
     LIKE = "like"
     ILIKE = "ilike"
     IN = "in"
+    CONTAINS = "contains"
 
 
 class RelatedFilter(BaseModel):

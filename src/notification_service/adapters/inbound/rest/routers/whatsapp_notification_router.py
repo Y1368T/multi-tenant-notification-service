@@ -16,7 +16,8 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
     FilterOp
 )
 from uuid import UUID
-from fastapi import Depends
+from fastapi import Depends, Request
+from notification_service.adapters.inbound.dependencies import verify_tenant_access
 import logging
 
 logger = logging.getLogger(__name__)
@@ -41,13 +42,13 @@ class WhatsAppNotificationController(ControllerBase):
    
     
     # Custom endpoints (not standard CRUD)
-    @post("/send")
+    @post("/send", dependencies=[Depends(verify_tenant_access)])
     async def send(self, tenant_id: UUID, requestDto: NotificationRequest):
         """Send WhatsApp notification (custom endpoint)."""
         result = await self.whatsappNotificationService.prepareAndSendWhatsApp(tenant_id, requestDto)
         return result
 
-    @post("/send-bulk")
+    @post("/send-bulk", dependencies=[Depends(verify_tenant_access)])
     async def sendBulk(self, tenant_id: UUID, requestDto: BulkNotificationRequestDTO):
         """Send multiple recipient-specific WhatsApp notifications in a single call.
 
@@ -60,7 +61,7 @@ class WhatsAppNotificationController(ControllerBase):
         )
         return result
 
-    @post("/send-direct")
+    @post("/send-direct", dependencies=[Depends(verify_tenant_access)])
     async def sendDirect(self, tenant_id: UUID, requestDto: DirectWhatsAppRequestDTO):
         """Send a single WhatsApp without a pre-defined template.
 

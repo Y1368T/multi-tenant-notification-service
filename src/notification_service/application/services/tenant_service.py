@@ -30,13 +30,26 @@ class TenantService(BaseService[Tenant, TenantResponseDTO]):
         filters = {}
         # Check if params has status attribute (TenantFilterDTO extends PaginatedRequestDTO)
         if hasattr(params, 'status') and params.status:
-            filters["status"] = params.status
+            if params.status.lower() == 'active':
+                filters["isActive"] = True
+            elif params.status.lower() == 'inactive':
+                filters["isActive"] = False
+        if hasattr(params, 'preferedCommunicationMethod') and params.preferedCommunicationMethod:
+            filters["preferedCommunicationMethod"] = params.preferedCommunicationMethod
         return filters
     
     def _build_related_filters(self, params: PaginatedRequestDTO) -> List[RelatedFilter]:
         """Build related filters for tenants."""
-        # Tenants don't have related filters by default
-        return []
+        # Tenants don't have related filters by default, but we use it for array containment
+        filters = []
+        if hasattr(params, 'channel') and params.channel:
+            filters.append(RelatedFilter(
+                relationshipPath="",
+                field="supportedChannels",
+                op=FilterOp.CONTAINS,
+                value=params.channel
+            ))
+        return filters
     
     def _get_search_fields(self) -> Optional[List[str]]:
         """Get search fields for tenants."""

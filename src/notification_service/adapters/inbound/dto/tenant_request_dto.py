@@ -111,6 +111,8 @@ class TenantRequestDTO(BaseModel):
 class TenantFilterDTO(PaginatedRequestDTO):
     """Filter DTO for tenant queries with custom filters."""
     status: Optional[str] = Field(None, description="Filter by tenant status")
+    channel: Optional[str] = Field(None, description="Filter by supported channel")
+    preferedCommunicationMethod: Optional[str] = Field(None, description="Filter by preferred communication method")
     
     @field_validator('status')
     @classmethod
@@ -147,8 +149,10 @@ class TenantResponseDTO(BaseModel):
     apiKeys: Optional[str] = Field(default=None, alias="apiKeys", description="API key for tenant authentication")
     callbackUrl: Optional[str] = Field(default=None, alias="callbackUrl", description="Webhook URL for notification status callbacks")
     callbackHeaders: Optional[Dict[str, str]] = Field(default=None, alias="callbackHeaders", description="HTTP headers for callback authentication")
-    createdAt: Optional[datetime] = Field(default=None, alias="createdAt")
-    updatedAt: Optional[datetime] = Field(default=None, alias="updatedAt")
+    created_at: Optional[datetime] = Field(default=None)
+    updated_at: Optional[datetime] = Field(default=None)
+    sent_count: int = Field(default=0)
+    sent_count_30d: int = Field(default=0)
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
    
     @classmethod
@@ -161,8 +165,10 @@ class TenantResponseDTO(BaseModel):
             supportedChannels=getattr(tenant, "supportedChannels", None) or [],
             preferedCommunicationMethod=getattr(tenant, "preferedCommunicationMethod", None),
             apiKeys=getattr(tenant, "apiKeys", None) or "",
-            createdAt=getattr(tenant, "createdAt", None),
-            updatedAt=getattr(tenant, "updatedAt", None),
+            created_at=getattr(tenant, "createdAt", None),
+            updated_at=getattr(tenant, "updatedAt", None),
+            sent_count=getattr(tenant, "sentCount", 0),
+            sent_count_30d=getattr(tenant, "sentCount30d", 0),
             callbackUrl=getattr(tenant, "callbackUrl", None),
             callbackHeaders=getattr(tenant, "callbackHeaders", None)
         )

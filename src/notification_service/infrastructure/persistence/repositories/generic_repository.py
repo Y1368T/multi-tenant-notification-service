@@ -482,6 +482,9 @@ class GenericRepository(IGenericRepository[TEntity], Generic[TEntity, TModel]):
         if op_l == "in":
             seq = value if isinstance(value, (list, tuple, set)) else [value]
             return column.in_(seq)
+        if op_l == "contains":
+            seq = value if isinstance(value, (list, tuple, set)) else [value]
+            return column.contains(seq)
         raise ValueError(f"Unsupported op: {op}")
 
     def _ensure_joins(self, stmt, root_model, rel_path: str, cache: Dict[str, Any]):

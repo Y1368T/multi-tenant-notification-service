@@ -138,7 +138,6 @@ class TenantWhatsAppConfigurationResponseDTO(BaseModel):
     rateLimitPerMinute: int = Field(alias="rateLimitPerMinute")
     rateLimitPerHour: int = Field(alias="rateLimitPerHour")
     rateLimitPerDay: int = Field(alias="rateLimitPerDay")
-    config: Dict[str, Any] = Field(default_factory=dict)
     createdAt: Optional[datetime] = Field(default=None, alias="createdAt")
     updatedAt: Optional[datetime] = Field(default=None, alias="updatedAt")
 
@@ -155,7 +154,6 @@ class TenantWhatsAppConfigurationResponseDTO(BaseModel):
             rateLimitPerMinute=config.rateLimitPerMinute,
             rateLimitPerHour=config.rateLimitPerHour,
             rateLimitPerDay=config.rateLimitPerDay,
-            config=getattr(config, "config", {}) or {},
             createdAt=getattr(config, "createdAt", None),
             updatedAt=getattr(config, "updatedAt", None),
         )

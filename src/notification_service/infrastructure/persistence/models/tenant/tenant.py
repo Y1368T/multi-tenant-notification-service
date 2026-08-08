@@ -19,6 +19,9 @@ class TenantModel(BaseModel):
     callbackUrl = Column(String, name="callbackUrl", nullable=True)  # Webhook URL for notification status
     callbackHeaders = Column(JSON, name="callbackHeaders", nullable=True)  # Optional auth headers
     
+    sentCount = Column(Integer, name="sentCount", default=0)
+    sentCount30d = Column(Integer, name="sentCount30d", default=0)
+    
     emailConfigurations = relationship("TenantEmailConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
     smsConfigurations = relationship("TenantSMSConfigurationModel", back_populates="tenant", cascade="all, delete-orphan")
     smsTemplates = relationship("SmsTemplateModel", back_populates="tenant", cascade="all, delete-orphan")

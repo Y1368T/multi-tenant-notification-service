@@ -11,6 +11,7 @@ from qena_shared_lib.http import ControllerBase, api_controller, get, post, put,
 from fastapi import Depends
 from uuid import UUID
 from typing import Dict, Any, List
+from notification_service.adapters.inbound.dependencies import require_role
 
 @api_controller(prefix="/tenant-inapp-configurations", tags=["Tenant In-App Configurations"])
 class TenantInAppConfigurationController(ControllerBase):
@@ -31,7 +32,7 @@ class TenantInAppConfigurationController(ControllerBase):
         result = await self.tenantInAppConfigurationService.get(paginated_request)
         return result
     
-    @post("/create", response_model=TenantInAppConfigurationResponseDTO)
+    @post("/create", response_model=TenantInAppConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def create(
         self, 
         request_dto: TenantInAppConfigurationRequestDto
@@ -55,7 +56,7 @@ class TenantInAppConfigurationController(ControllerBase):
         else:
             return created_entity
     
-    @put("/{id}", response_model=TenantInAppConfigurationResponseDTO)
+    @put("/{id}", response_model=TenantInAppConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def update(
         self, 
         id: UUID, 
@@ -81,7 +82,7 @@ class TenantInAppConfigurationController(ControllerBase):
         else:
             return updated_entity
     
-    @patch("/{id}", response_model=TenantInAppConfigurationResponseDTO)
+    @patch("/{id}", response_model=TenantInAppConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def partialUpdate(
         self, 
         id: UUID, 
@@ -100,7 +101,7 @@ class TenantInAppConfigurationController(ControllerBase):
         else:
             return updated_entity
     
-    @delete("/{id}", response_model=Dict[str, str])
+    @delete("/{id}", response_model=Dict[str, str], dependencies=[Depends(require_role(["super-admin"]))])
     async def delete(
         self, 
         id: UUID
