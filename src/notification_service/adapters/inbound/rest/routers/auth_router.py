@@ -1,8 +1,8 @@
 from fastapi import Response, Request, HTTPException, status
-from qena_shared_lib.http import ControllerBase, api_controller, post
+from qena_shared_lib.http import ControllerBase, api_controller, post, get
 from qena_shared_lib.dependencies.http import get_service
 
-from notification_service.adapters.inbound.dto.auth_dto import LoginRequestDTO, LoginResponseDTO, UserResponseDTO
+from notification_service.adapters.inbound.dto.auth_dto import LoginRequestDTO, LoginResponseDTO, UserResponseDTO, AuthMeResponseDTO
 from notification_service.config.settings import Settings
 from notification_service.infrastructure.services.redis_session_manager import RedisSessionManager
 from notification_service.infrastructure.persistence.db_session.session import Database
@@ -222,3 +222,54 @@ class AuthController(ControllerBase):
             print(f"Error during logout: {e}")
             
         return {"message": "Logged out successfully"}
+
+    @get("/me", response_model=AuthMeResponseDTO)
+    async def me(self, request: Request) -> AuthMeResponseDTO:
+        """
+        Fetch the currently authenticated user's details.
+        Requires a valid mtns_session cookie verified by AuthMiddleware.
+        """
+        user_data = getattr(request.state, "user", None)
+        if not user_data:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User session not found.")
+            
+        user_id = user_data.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data.")
+
+        db = get_service(request.app, Database)
+
+        async with db.session_factory() as db_session:
+            stmt = select(UserModel).options(
+                joinedload(UserModel.tenantMemberships).joinedload(UserTenantModel.tenant)
+            ).where(UserModel.id == user_id)
+            
+            result = await db_session.execute(stmt)
+            user = result.unique().scalar_one_or_none()
+
+            if not user:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
+            
+            if not user.isActive:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is deactivated.")
+
+            tenant_id = None
+            tenant_name = None
+            
+            if user.role == "tenant-manager":
+                # Find the active tenant manager membership
+                for membership in user.tenantMemberships:
+                    if membership.role == "tenant-manager" and membership.isActive:
+                        if membership.tenant and membership.tenant.isActive:
+                            tenant_id = membership.tenant_id
+                            tenant_name = membership.tenant.name
+                            break
+
+            return AuthMeResponseDTO(
+                user_id=str(user.id),
+                email=user.email,
+                full_name=user.fullName,
+                role=user.role,
+                tenant_id=tenant_id,
+                tenant_name=tenant_name
+            )
