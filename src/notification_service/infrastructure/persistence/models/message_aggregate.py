@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime
+from sqlalchemy import Column, String, Integer, DateTime, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from notification_service.infrastructure.persistence.models.base import BaseModel
 
@@ -11,3 +11,11 @@ class MessageAggregateModel(BaseModel):
     provider = Column(String, nullable=True, index=True)
     status = Column(String, nullable=False, index=True)
     messageCount = Column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint(
+            'timeBucket', 'tenantId', 'channel', 'provider', 'status',
+            name='uq_message_aggregate_rollup',
+            postgresql_nulls_not_distinct=True
+        ),
+    )

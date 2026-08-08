@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select, func, case, literal
 from sqlalchemy.dialects.postgresql import insert
@@ -103,6 +103,7 @@ class MetricsService:
                 if row.bucket is None: continue
                 # We use postgresql insert with on_conflict_do_update
                 insert_stmt = insert(MessageAggregateModel).values(
+                    id=uuid4(),
                     timeBucket=row.bucket,
                     tenantId=row.tenantId,
                     channel=row.channel,
