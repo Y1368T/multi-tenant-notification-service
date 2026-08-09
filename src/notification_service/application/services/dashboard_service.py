@@ -128,43 +128,59 @@ class DashboardService:
             previousSince = since - delta
 
             currentSent, currentDelivered, currentFailed = await self.metrics.get_period_totals(since, None)
-            previousSent, previousDelivered, previousFailed = await self.metrics.get_period_totals(previousSince, since)
+    async def getStats(self, period: str = "24h", tenant_id: Optional[UUID] = None) -> dict:
+        async def compute() -> dict:
+            since = _period_since(period)
 
-            currentRate = _safe_rate(currentDelivered, currentSent)
-            previousRate = _safe_rate(previousDelivered, previousSent)
+            # previous period delta
+            delta = datetime.utcnow() - since
+            prev_since = since - delta
+            
+            # total / active tenants (only calculate if tenant_id is not provided, since a tenant dashboard doesn't need "totalTenants")
+            totalTenants = 0
+            activeTenants = 0
+            if not tenant_id:
+                async with self.uow:
+                    session = self.uow.session  # type: ignore[attr-defined]
+                    totalTenants = (await session.execute(select(func.count()).select_from(TenantModel))).scalar() or 0
+                    
+                    # active tenants in period
+                    uq = self.metrics._unioned_outbox_query()
+                    activeTenantsStmt = select(func.count(uq.c.tenantId.distinct())).where(uq.c.createdAt >= since)
+                    activeTenants = (await session.execute(activeTenantsStmt)).scalar() or 0
 
-            channelBreakdown = await self.metrics.get_channel_breakdown(since, None)
+            # current period totals
+            sent, delivered, failed = await self.metrics.get_period_totals(since, None, tenant_id=tenant_id)
+            # pending retry
+            needsRetry = await self.metrics.get_pending_retry_count(tenant_id=tenant_id)
+            
+            # messages by channel
+            breakdown = await self.metrics.get_channel_breakdown(since, None, tenant_id=tenant_id)
+            byChannel = {channel: (s + d + f) for channel, (s, d, f) in breakdown.items()}
 
-            async with self.uow:
-                session = self.uow.session  # type: ignore[attr-defined]
-                totalTenants = (await session.execute(select(func.count()).select_from(TenantModel))).scalar() or 0
-                activeTenants = (
-                    await session.execute(select(func.count()).select_from(TenantModel).where(TenantModel.isActive.is_(True)))
-                ).scalar() or 0
+            # previous period totals
+            prev_sent, prev_delivered, prev_failed = await self.metrics.get_period_totals(prev_since, since, tenant_id=tenant_id)
 
-            pendingRetry = await self.metrics.get_pending_retry_count()
+            curr_rate = _safe_rate(delivered, sent)
+            prev_rate = _safe_rate(prev_delivered, prev_sent)
 
             return {
                 "totalTenants": totalTenants,
                 "activeTenants": activeTenants,
-                "totalMessages": currentSent,
-                "deliveryRate": currentRate,
-                "failedMessages": currentFailed,
-                "pendingRetry": pendingRetry,
-                "messagesByChannel": {
-                    "sms": channelBreakdown.get("sms", (0, 0, 0))[0],
-                    "email": channelBreakdown.get("email", (0, 0, 0))[0],
-                    "inapp": channelBreakdown.get("inapp", (0, 0, 0))[0],
-                    "whatsapp": channelBreakdown.get("whatsapp", (0, 0, 0))[0],
-                },
+                "totalMessages": sent,
+                "deliveryRate": curr_rate,
+                "failedMessages": failed,
+                "pendingRetry": needsRetry,
+                "messagesByChannel": byChannel,
                 "comparedToPrevious": {
-                    "totalMessages": _format_percent_change(currentSent, previousSent),
-                    "deliveryRate": _format_point_change(currentRate, previousRate),
-                    "failedMessages": _format_absolute_change(currentFailed, previousFailed),
-                },
+                    "totalMessages": _format_percent_change(sent, prev_sent),
+                    "deliveryRate": _format_point_change(curr_rate, prev_rate),
+                    "failedMessages": _format_absolute_change(failed, prev_failed),
+                }
             }
 
-        return await self._cached(f"stats:{period}", ttlSeconds=30, compute=compute)
+        cache_key = f"stats:{period}" if not tenant_id else f"stats:{period}:{tenant_id}"
+        return await self._cached(cache_key, ttlSeconds=30, compute=compute)
 
     # -- 2. GET /admin/dashboard/volume ------------------------------------- 
 
@@ -229,6 +245,14 @@ class DashboardService:
 
         return await self._cached("provider-health", ttlSeconds=30, compute=compute)
 
+    # -- 7. GET /admin/dashboard/activity ------------------------------------
+
+    async def getActivityFeed(self, limit: int = 20) -> dict:
+        async def compute() -> dict:
+            items = await self.metrics.get_activity_feed(limit=limit)
+            return {"items": items}
+
+        return await self._cached(f"activity-feed:{limit}", ttlSeconds=30, compute=compute)
     # -- 7. GET /admin/dashboard/failures ------------------------------------
 
     async def getFailures(self, period: str = "24h") -> dict:
@@ -272,86 +296,100 @@ class DashboardService:
 
         return await self._cached(f"failures:{period}", ttlSeconds=30, compute=compute)
 
-    # -- 8. GET /admin/analytics/sent-messages -------------------------------
+    # -- Analytics Suite -----------------------------------------------------
 
-    async def getSentMessages(
-        self,
-        tenantIds: Optional[List[UUID]] = None,
-        channels: Optional[List[str]] = None,
-        startDate: Optional[datetime] = None,
-        endDate: Optional[datetime] = None,
-        granularity: str = "day",
-    ) -> dict:
+    async def getAnalyticsOverview(self, startDate: datetime, endDate: datetime, channel: Optional[str] = None, tenant_id: Optional[UUID] = None) -> dict:
+        async def compute() -> dict:
+            sent, delivered, failed = await self.metrics.get_period_totals(startDate, endDate, channel=channel, tenant_id=tenant_id)
+            return {
+                "totalSent": sent,
+                "totalDelivered": delivered,
+                "totalFailed": failed,
+                "deliveryRate": _safe_rate(delivered, sent)
+            }
         
-        if granularity not in SENT_MESSAGES_GRANULARITY:
-            raise ValidationError(
-                message=f"Invalid granularity '{granularity}'. Must be one of: {', '.join(SENT_MESSAGES_GRANULARITY)}",
-                code="INVALID_GRANULARITY",
-            )
+        cache_key = f"analytics:overview:{startDate.isoformat()}:{endDate.isoformat()}:{channel}:{tenant_id}"
+        return await self._cached(cache_key, ttlSeconds=60, compute=compute)
 
-        async with self.uow:
-            session = self.uow.session  # type: ignore[attr-defined]
-            uq = self.metrics._unioned_outbox_query(channels)
+    async def getAnalyticsVolume(self, startDate: datetime, endDate: datetime, granularity: str, channel: Optional[str] = None, tenant_id: Optional[UUID] = None) -> dict:
+        async def compute() -> dict:
+            channels = [channel] if channel else None
+            series = await self.metrics.get_volume_series(startDate, granularity, channels=channels, tenant_id=tenant_id)
+            return {"data": series}
+            
+        cache_key = f"analytics:volume:{startDate.isoformat()}:{granularity}:{channel}:{tenant_id}"
+        return await self._cached(cache_key, ttlSeconds=60, compute=compute)
 
-            conditions = []
-            if tenantIds:
-                conditions.append(uq.c.tenantId.in_(tenantIds))
-            if startDate is not None:
-                conditions.append(uq.c.createdAt >= startDate)
-            if endDate is not None:
-                conditions.append(uq.c.createdAt < endDate)
+    async def getAnalyticsFunnel(self, startDate: datetime, endDate: datetime, channel: Optional[str] = None, tenant_id: Optional[UUID] = None) -> dict:
+        async def compute() -> dict:
+            sent, delivered, failed = await self.metrics.get_period_totals(startDate, endDate, channel=channel, tenant_id=tenant_id)
+            return {
+                "sent": sent,
+                "delivered": delivered,
+                "failed": failed
+            }
+            
+        cache_key = f"analytics:funnel:{startDate.isoformat()}:{endDate.isoformat()}:{channel}:{tenant_id}"
+        return await self._cached(cache_key, ttlSeconds=60, compute=compute)
 
-            if granularity == "none":
-                bucketCol = literal("all").label("bucket")
-            else:
-                bucketCol = func.date_trunc(granularity, uq.c.createdAt).label("bucket")
+    async def getAnalyticsTenants(self, startDate: datetime, endDate: datetime, sortBy: str = "volume", limit: int = 50) -> dict:
+        async def compute() -> dict:
+            # We already have `get_top_tenants` which sorts by volume. 
+            items = await self.metrics.get_top_tenants(startDate, limit)
+            for item in items:
+                item["deliveryRate"] = _safe_rate(item["delivered"], item["totalMessages"])
+                
+            if sortBy == "deliveryRate":
+                items.sort(key=lambda x: x["deliveryRate"], reverse=True)
+            elif sortBy == "failedCount":
+                items.sort(key=lambda x: (x["totalMessages"] - x["delivered"]), reverse=True)
+                
+            return {"items": items}
+            
+        cache_key = f"analytics:tenants:{startDate.isoformat()}:{sortBy}:{limit}"
+        return await self._cached(cache_key, ttlSeconds=60, compute=compute)
 
-            stmt = select(
-                uq.c.tenantId,
-                uq.c.channel,
-                bucketCol,
-                func.count().label("sent"),
-                func.sum(case((uq.c.status.in_(DELIVERED_STATUSES), 1), else_=0)).label("delivered"),
-                func.sum(case((uq.c.status.in_(FAILED_STATUSES), 1), else_=0)).label("failed"),
-            ).where(*conditions).group_by(uq.c.tenantId, uq.c.channel, bucketCol).order_by(bucketCol)
-
-            rows = (await session.execute(stmt)).all()
-
-            tenantIdsInResult = {row.tenantId for row in rows if row.tenantId is not None}
-            tenantNames: Dict[UUID, str] = {}
-            if tenantIdsInResult:
-                tRows = (
-                    await session.execute(select(TenantModel.id, TenantModel.name).where(TenantModel.id.in_(tenantIdsInResult)))
-                ).all()
-                tenantNames = {r.id: r.name for r in tRows}
-
-            resultRows = []
-            grandTotal = 0
-            for row in rows:
-                sent = row.sent or 0
-                delivered = int(row.delivered or 0)
-                failed = int(row.failed or 0)
-                grandTotal += sent
-                bucketLabel = row.bucket if granularity == "none" else row.bucket.isoformat()
-                resultRows.append({
-                    "tenantId": row.tenantId,
-                    "tenantName": tenantNames.get(row.tenantId) if row.tenantId else None,
-                    "channel": row.channel,
-                    "period": bucketLabel,
+    async def getAnalyticsChannels(self, startDate: datetime, endDate: datetime) -> dict:
+        async def compute() -> dict:
+            breakdown = await self.metrics.get_channel_breakdown(startDate, endDate)
+            channels = []
+            for channel, (sent, delivered, failed) in breakdown.items():
+                channels.append({
+                    "channel": channel,
                     "sent": sent,
                     "delivered": delivered,
                     "failed": failed,
-                    "deliveryRate": _safe_rate(delivered, sent),
+                    "deliveryRate": _safe_rate(delivered, sent)
                 })
+            return {"channels": channels}
+            
+        cache_key = f"analytics:channels:{startDate.isoformat()}:{endDate.isoformat()}"
+        return await self._cached(cache_key, ttlSeconds=60, compute=compute)
 
-            return {
-                "rows": resultRows,
-                "total": grandTotal,
-                "filtersApplied": {
-                    "tenantIds": ",".join(str(t) for t in tenantIds) if tenantIds else None,
-                    "channels": ",".join(channels) if channels else None,
-                    "startDate": startDate.isoformat() if startDate else None,
-                    "endDate": endDate.isoformat() if endDate else None,
-                    "granularity": granularity,
-                },
-            }
+    async def getAnalyticsProviders(self, startDate: datetime, endDate: datetime) -> dict:
+        async def compute() -> dict:
+            providers = await self.metrics.get_provider_analytics(startDate, endDate)
+            for provider in providers:
+                provider["deliveryRate"] = _safe_rate(provider["delivered"], provider["sent"])
+            return {"providers": providers}
+            
+        cache_key = f"analytics:providers:{startDate.isoformat()}:{endDate.isoformat()}"
+        return await self._cached(cache_key, ttlSeconds=60, compute=compute)
+
+    async def getAnalyticsErrors(self, startDate: datetime, endDate: datetime, channel: Optional[str] = None, tenant_id: Optional[UUID] = None, limit: int = 10) -> dict:
+        async def compute() -> dict:
+            topErrors = await self.metrics.get_top_errors(startDate, limit, channel=channel, tenant_id=tenant_id)
+            return {"errors": topErrors}
+            
+        cache_key = f"analytics:errors:{startDate.isoformat()}:{channel}:{tenant_id}:{limit}"
+        return await self._cached(cache_key, ttlSeconds=60, compute=compute)
+
+    async def getAnalyticsTemplates(self, startDate: datetime, endDate: datetime, channel: Optional[str] = None, tenant_id: Optional[UUID] = None, limit: int = 50) -> dict:
+        async def compute() -> dict:
+            templates = await self.metrics.get_template_analytics(startDate, endDate, channel=channel, tenant_id=tenant_id, limit=limit)
+            for tmpl in templates:
+                tmpl["deliveryRate"] = _safe_rate(tmpl["delivered"], tmpl["sent"])
+            return {"templates": templates}
+            
+        cache_key = f"analytics:templates:{startDate.isoformat()}:{channel}:{tenant_id}:{limit}"
+        return await self._cached(cache_key, ttlSeconds=60, compute=compute)

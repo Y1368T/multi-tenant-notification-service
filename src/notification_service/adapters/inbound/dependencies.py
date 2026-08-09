@@ -1,19 +1,22 @@
-from typing import List, Optional, Callable, Dict, Any
+from typing import List, Optional, Callable, Dict, Any, Union
 from fastapi import Request, HTTPException, status
 
 
-def require_role(allowed_roles: List[str]) -> Callable[[Request], Dict[str, Any]]:
+def require_role(allowed_roles: Union[str, List[str]]) -> Callable[[Request], Dict[str, Any]]:
     """
     FastAPI dependency factory that returns a dependency function
     to enforce role-based access control.
     
     Args:
-        allowed_roles: A list of roles (e.g., ['super-admin', 'tenant-manager'])
+        allowed_roles: A string or list of roles (e.g., ['super-admin', 'tenant-manager'])
                        that are permitted to access the endpoint.
                        
     Returns:
         A callable dependency that checks the user role.
     """
+    if isinstance(allowed_roles, str):
+        allowed_roles = [allowed_roles]
+
     def role_checker(request: Request) -> Dict[str, Any]:
         if not hasattr(request.state, "user"):
             raise HTTPException(

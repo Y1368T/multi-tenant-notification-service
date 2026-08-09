@@ -58,6 +58,8 @@ class MetricsService:
                     outbox_model.lastErrorMessage.label("lastErrorMessage"),
                     outbox_model.providerAttempted.label("providerAttempted"),
                     template_model.tenantId.label("tenantId"),
+                    outbox_model.templateId.label("templateId"),
+                    template_model.name.label("templateName"),
                 ).select_from(outbox_model).outerjoin(
                     template_model, outbox_model.templateId == template_model.id
                 )
@@ -122,13 +124,19 @@ class MetricsService:
 
     # --- Dashboard Data Access Methods (Reading from Rollup) ---
 
-    async def get_period_totals(self, start: datetime, end: Optional[datetime]) -> Tuple[int, int, int]:
+    async def get_period_totals(
+        self, start: datetime, end: Optional[datetime], channel: Optional[str] = None, tenant_id: Optional[UUID] = None
+    ) -> Tuple[int, int, int]:
         """Returns (sent, delivered, failed) for a time period using rollup table."""
         async with self.uow:
             session = self._session()
             conditions = [MessageAggregateModel.timeBucket >= start]
             if end:
                 conditions.append(MessageAggregateModel.timeBucket < end)
+            if channel:
+                conditions.append(MessageAggregateModel.channel == channel)
+            if tenant_id:
+                conditions.append(MessageAggregateModel.tenantId == str(tenant_id))
                 
             stmt = select(
                 func.sum(MessageAggregateModel.messageCount).label("sent"),
@@ -139,13 +147,17 @@ class MetricsService:
             row = (await session.execute(stmt)).one()
             return (int(row.sent or 0), int(row.delivered or 0), int(row.failed or 0))
 
-    async def get_channel_breakdown(self, start: datetime, end: Optional[datetime]) -> Dict[str, Tuple[int, int, int]]:
+    async def get_channel_breakdown(
+        self, start: datetime, end: Optional[datetime], tenant_id: Optional[UUID] = None
+    ) -> Dict[str, Tuple[int, int, int]]:
         """Returns Dict[channel, (sent, delivered, failed)] using rollup table."""
         async with self.uow:
             session = self._session()
             conditions = [MessageAggregateModel.timeBucket >= start]
             if end:
                 conditions.append(MessageAggregateModel.timeBucket < end)
+            if tenant_id:
+                conditions.append(MessageAggregateModel.tenantId == str(tenant_id))
                 
             stmt = select(
                 MessageAggregateModel.channel,
@@ -157,13 +169,17 @@ class MetricsService:
             rows = (await session.execute(stmt)).all()
             return {row.channel: (int(row.sent or 0), int(row.delivered or 0), int(row.failed or 0)) for row in rows}
 
-    async def get_volume_series(self, start: datetime, granularity: str, channels: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    async def get_volume_series(
+        self, start: datetime, granularity: str, channels: Optional[List[str]] = None, tenant_id: Optional[UUID] = None
+    ) -> List[Dict[str, Any]]:
         """Returns volume series using rollup table."""
         async with self.uow:
             session = self._session()
             conditions = [MessageAggregateModel.timeBucket >= start]
             if channels:
                 conditions.append(MessageAggregateModel.channel.in_(channels))
+            if tenant_id:
+                conditions.append(MessageAggregateModel.tenantId == str(tenant_id))
                 
             bucket = func.date_trunc(granularity, MessageAggregateModel.timeBucket).label("bucket")
             stmt = select(
@@ -276,27 +292,174 @@ class MetricsService:
                 })
             return items
 
-    async def get_pending_retry_count(self) -> int:
+    async def get_pending_retry_count(self, tenant_id: Optional[UUID] = None) -> int:
         """This queries raw outbox because 'pending' and 'retryCount > 0' are point-in-time state, not historical."""
         async with self.uow:
             session = self._session()
             uq = self._unioned_outbox_query()
-            stmt = select(func.count()).select_from(uq).where(
-                uq.c.status == "pending", uq.c.retryCount > 0
-            )
+            
+            conditions = [uq.c.status == "pending", uq.c.retryCount > 0]
+            if tenant_id:
+                conditions.append(uq.c.tenantId == str(tenant_id))
+                
+            stmt = select(func.count()).select_from(uq).where(*conditions)
             return (await session.execute(stmt)).scalar() or 0
 
-    async def get_top_errors(self, start: datetime, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_top_errors(
+        self, start: datetime, limit: int = 10, channel: Optional[str] = None, tenant_id: Optional[UUID] = None
+    ) -> List[Dict[str, Any]]:
         """Queries raw outbox because error messages are high cardinality and not in rollup."""
         async with self.uow:
             session = self._session()
             uq = self._unioned_outbox_query()
             errorLabel = func.coalesce(uq.c.lastErrorMessage, literal("Unknown error"))
+            
+            conditions = [uq.c.createdAt >= start, uq.c.status.in_(FAILED_STATUSES)]
+            if channel:
+                conditions.append(uq.c.channel == channel)
+            if tenant_id:
+                conditions.append(uq.c.tenantId == str(tenant_id))
+                
             stmt = select(
                 errorLabel.label("message"), func.count().label("count")
             ).where(
-                uq.c.createdAt >= start, uq.c.status.in_(FAILED_STATUSES)
+                *conditions
             ).group_by(errorLabel).order_by(func.count().desc()).limit(limit)
             
             rows = (await session.execute(stmt)).all()
             return [{"message": row.message, "count": row.count} for row in rows]
+
+    async def get_provider_analytics(
+        self, start: datetime, end: Optional[datetime], channel: Optional[str] = None, tenant_id: Optional[UUID] = None
+    ) -> List[Dict[str, Any]]:
+        """Returns analytics aggregated by provider using the rollup table."""
+        async with self.uow:
+            session = self._session()
+            conditions = [MessageAggregateModel.timeBucket >= start, MessageAggregateModel.provider.isnot(None)]
+            if end:
+                conditions.append(MessageAggregateModel.timeBucket < end)
+            if channel:
+                conditions.append(MessageAggregateModel.channel == channel)
+            if tenant_id:
+                conditions.append(MessageAggregateModel.tenantId == str(tenant_id))
+                
+            stmt = select(
+                MessageAggregateModel.provider.label("providerName"),
+                func.sum(MessageAggregateModel.messageCount).label("sent"),
+                func.sum(case((MessageAggregateModel.status.in_(DELIVERED_STATUSES), MessageAggregateModel.messageCount), else_=0)).label("delivered"),
+                func.sum(case((MessageAggregateModel.status.in_(FAILED_STATUSES), MessageAggregateModel.messageCount), else_=0)).label("failed")
+            ).where(*conditions).group_by(MessageAggregateModel.provider)
+            
+            rows = (await session.execute(stmt)).all()
+            return [
+                {
+                    "providerName": row.providerName,
+                    "sent": int(row.sent or 0),
+                    "delivered": int(row.delivered or 0),
+                    "failed": int(row.failed or 0)
+                } for row in rows
+            ]
+
+    async def get_template_analytics(
+        self, start: datetime, end: Optional[datetime], channel: Optional[str] = None, tenant_id: Optional[UUID] = None, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        async with self.uow:
+            session = self._session()
+            uq = self._unioned_outbox_query()
+            
+            conditions = [uq.c.createdAt >= start, uq.c.templateId.isnot(None)]
+            if end:
+                conditions.append(uq.c.createdAt < end)
+            if channel:
+                conditions.append(uq.c.channel == channel)
+            if tenant_id:
+                conditions.append(uq.c.tenantId == str(tenant_id))
+            
+            stmt = select(
+                uq.c.templateId.label("templateId"),
+                uq.c.templateName.label("templateName"),
+                func.count().label("sent"),
+                func.sum(case((uq.c.status == "delivered", 1), else_=0)).label("delivered"),
+                func.sum(case((uq.c.status == "failed", 1), else_=0)).label("failed"),
+            ).select_from(uq).where(*conditions).group_by(
+                uq.c.templateId, uq.c.templateName
+            ).order_by(
+                desc("sent")
+            ).limit(limit)
+            
+            rows = (await session.execute(stmt)).all()
+            return [
+                {
+                    "templateId": row.templateId,
+                    "templateName": row.templateName,
+                    "sent": int(row.sent or 0),
+                    "delivered": int(row.delivered or 0),
+                    "failed": int(row.failed or 0)
+                }
+                for row in rows
+            ]
+
+    async def get_activity_feed(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Combine recent outbox events, tenant creations, and user creations into a unified feed."""
+        from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
+        from notification_service.infrastructure.persistence.models.user.user import UserModel
+        
+        async with self.uow:
+            session = self._session()
+            
+            # 1. Outbox events
+            uq = self._unioned_outbox_query()
+            outbox_stmt = select(
+                uq.c.id, uq.c.status, uq.c.channel, uq.c.tenantName, uq.c.createdAt
+            ).select_from(uq).order_by(desc(uq.c.createdAt)).limit(limit)
+            outbox_rows = (await session.execute(outbox_stmt)).all()
+            
+            # 2. Tenant creations
+            tenant_stmt = select(
+                TenantModel.id, TenantModel.name, TenantModel.createdAt
+            ).order_by(desc(TenantModel.createdAt)).limit(limit)
+            tenant_rows = (await session.execute(tenant_stmt)).all()
+            
+            # 3. User creations
+            user_stmt = select(
+                UserModel.id, UserModel.email, UserModel.createdAt
+            ).order_by(desc(UserModel.createdAt)).limit(limit)
+            user_rows = (await session.execute(user_stmt)).all()
+            
+        items = []
+        for row in outbox_rows:
+            etype = row.status
+            if etype == "pending":
+                etype = "retry"
+            items.append({
+                "id": row.id,
+                "type": etype,
+                "channel": row.channel,
+                "tenantName": row.tenantName or "Unknown",
+                "message": f"Message {etype} via {row.channel}",
+                "timestamp": row.createdAt
+            })
+            
+        for row in tenant_rows:
+            items.append({
+                "id": row.id,
+                "type": "tenant_created",
+                "channel": None,
+                "tenantName": row.name,
+                "message": f"Tenant '{row.name}' was created.",
+                "timestamp": row.createdAt
+            })
+            
+        for row in user_rows:
+            items.append({
+                "id": row.id,
+                "type": "user_created",
+                "channel": None,
+                "tenantName": "System",
+                "message": f"User '{row.email}' was provisioned.",
+                "timestamp": row.createdAt
+            })
+            
+        # Sort by timestamp desc and take top `limit`
+        items.sort(key=lambda x: x["timestamp"], reverse=True)
+        return items[:limit]

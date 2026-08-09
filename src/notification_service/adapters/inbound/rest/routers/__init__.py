@@ -23,8 +23,8 @@ from notification_service.adapters.inbound.rest.routers.tenant_email_configurati
 
 from notification_service.adapters.inbound.rest.routers.dashboard_router import (
         DashboardController,
-        AnalyticsController,
     )
+from notification_service.adapters.inbound.rest.routers.analytics_router import AnalyticsController
 
 from notification_service.adapters.inbound.rest.routers.auth_router import AuthController
 from notification_service.adapters.inbound.rest.routers.admin_router import AdminAPIController

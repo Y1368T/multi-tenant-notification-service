@@ -58,6 +58,22 @@ class ChannelBreakdownItemDTO(BaseModel):
     deliveryRate: float
 
 
+# ---------------------------------------------------------------------------
+# 4. GET /admin/dashboard/activity
+# ---------------------------------------------------------------------------
+class DashboardActivityItemDTO(BaseModel):
+    id: UUID
+    type: str
+    channel: Optional[str]
+    tenantName: str
+    message: str
+    timestamp: datetime
+
+
+class DashboardActivityResponseDTO(BaseModel):
+    items: List[DashboardActivityItemDTO]
+
+
 class DashboardChannelsResponseDTO(BaseModel):
     channels: List[ChannelBreakdownItemDTO]
 
