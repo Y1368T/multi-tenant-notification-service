@@ -33,6 +33,19 @@ class MetricsRollupProcessor:
         # Give the main app a moment to start up before running the first cycle
         await asyncio.sleep(5)
         
+        # Run a 30-day backfill exactly once on startup
+        try:
+            logger.info("MetricsRollupProcessor: Running startup backfill for the last 30 days...")
+            now = datetime.utcnow()
+            start_time = now - timedelta(days=30)
+            
+            uow = UnitOfWork(self.database)
+            metrics_service = MetricsService(uow)
+            rows_upserted = await metrics_service.populate_rollup_table(start_time, now)
+            logger.info(f"MetricsRollupProcessor: Startup backfill complete. Upserted {rows_upserted} buckets.")
+        except Exception as e:
+            logger.error(f"Error during metrics rollup startup backfill: {str(e)}")
+        
         while self._running:
             try:
                 await self._process_cycle()
@@ -59,7 +72,7 @@ class MetricsRollupProcessor:
         """Execute one aggregation cycle."""
         try:
             # Create a short-lived UOW for this specific cycle
-            uow = UnitOfWork(self.database.session_maker)
+            uow = UnitOfWork(self.database)
             metrics_service = MetricsService(uow)
             
             # We look back over the last 24 hours to ensure any delayed deliveries are caught 
