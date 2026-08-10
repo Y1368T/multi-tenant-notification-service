@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, func, case, literal
+from sqlalchemy import select, func, case, literal, String
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,10 @@ from notification_service.infrastructure.persistence.models.email.email_template
 from notification_service.infrastructure.persistence.models.in_app.in_app_template import InAppTemplateModel
 from notification_service.infrastructure.persistence.models.sms.sms_template import SmsTemplateModel
 from notification_service.infrastructure.persistence.models.whatsapp.whatsapp_template import WhatsAppTemplateModel
+from notification_service.infrastructure.persistence.models.email.email_notification import EmailNotificationModel
+from notification_service.infrastructure.persistence.models.in_app.in_app_notification import InAppNotificationModel
+from notification_service.infrastructure.persistence.models.sms.sms_notification import SMSNotificationModel
+from notification_service.infrastructure.persistence.models.whatsapp.whatsapp_notification import WhatsAppNotificationModel
 from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
 from notification_service.infrastructure.persistence.models.providers_supported import ProviderModel
 from notification_service.shared.exceptions.application_exceptions import ValidationError
@@ -27,10 +31,10 @@ DELIVERED_STATUSES = ("sent", "delivered", "read")
 FAILED_STATUSES = ("failed", "permanently_failed")
 
 CHANNEL_MODELS = {
-    "sms": (SmsOutboxModel, SmsTemplateModel),
-    "email": (EmailOutboxModel, EmailTemplateModel),
-    "inapp": (InAppOutboxModel, InAppTemplateModel),
-    "whatsapp": (WhatsAppOutboxModel, WhatsAppTemplateModel),
+    "sms": (SmsOutboxModel, SmsTemplateModel, SMSNotificationModel),
+    "email": (EmailOutboxModel, EmailTemplateModel, EmailNotificationModel),
+    "inapp": (InAppOutboxModel, InAppTemplateModel, InAppNotificationModel),
+    "whatsapp": (WhatsAppOutboxModel, WhatsAppTemplateModel, WhatsAppNotificationModel),
 }
 
 class MetricsService:
@@ -47,7 +51,9 @@ class MetricsService:
         names = channels or list(CHANNEL_MODELS.keys())
         branches = []
         for name in names:
-            outbox_model, template_model = CHANNEL_MODELS[name]
+            outbox_model, template_model, notification_model = CHANNEL_MODELS[name]
+            
+            # 1. Outbox branch (pending/failed messages)
             branches.append(
                 select(
                     literal(name).label("channel"),
@@ -56,10 +62,26 @@ class MetricsService:
                     outbox_model.status.label("status"),
                     outbox_model.retryCount.label("retryCount"),
                     outbox_model.lastErrorMessage.label("lastErrorMessage"),
-                    outbox_model.providerAttempted.label("providerAttempted"),
+                    outbox_model.providerAttempted.cast(String).label("providerAttempted"),
                     template_model.tenantId.label("tenantId"),
                 ).select_from(outbox_model).outerjoin(
                     template_model, outbox_model.templateId == template_model.id
+                )
+            )
+            
+            # 2. Notifications branch (successfully sent messages)
+            branches.append(
+                select(
+                    literal(name).label("channel"),
+                    notification_model.createdAt.label("createdAt"),
+                    notification_model.updatedAt.label("updatedAt"),
+                    notification_model.status.label("status"),
+                    literal(0).label("retryCount"),
+                    literal(None).cast(String).label("lastErrorMessage"),
+                    literal(None).cast(String).label("providerAttempted"),
+                    template_model.tenantId.label("tenantId"),
+                ).select_from(notification_model).outerjoin(
+                    template_model, notification_model.templateId == template_model.id
                 )
             )
         unioned = branches[0].union_all(*branches[1:]) if len(branches) > 1 else branches[0]
