@@ -14,6 +14,8 @@ class TenantRequestDTO(BaseModel):
     name: str
     prefix: str
     isActive: bool = Field(alias="isActive")
+    createdAt: Optional[datetime] = Field(default=None, alias="createdAt")
+    updatedAt: Optional[datetime] = Field(default=None, alias="updatedAt")
     supportedChannels: list[str] = Field(alias="supportedChannels")
     preferedCommunicationMethod: str = Field(alias="preferedCommunicationMethod")
     # Callback configuration for fire-and-forget mode
@@ -27,6 +29,8 @@ class TenantRequestDTO(BaseModel):
                 "name": "Tenant A",
                 "prefix": "TENANTA",
                 "isActive": True,
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z",
                 "supportedChannels": ["sms", "email"],
                 "preferedCommunicationMethod": "rabbitmq",
                 "callbackUrl": "https://service.internal/webhooks/notification",
@@ -143,6 +147,8 @@ class TenantResponseDTO(BaseModel):
     apiKeys: Optional[str] = Field(default=None, alias="apiKeys", description="API key for tenant authentication")
     callbackUrl: Optional[str] = Field(default=None, alias="callbackUrl", description="Webhook URL for notification status callbacks")
     callbackHeaders: Optional[Dict[str, str]] = Field(default=None, alias="callbackHeaders", description="HTTP headers for callback authentication")
+    createdAt: Optional[datetime] = Field(default=None, alias="createdAt")
+    updatedAt: Optional[datetime] = Field(default=None, alias="updatedAt")
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, serialize_by_alias=False)
    
     @classmethod
@@ -155,6 +161,8 @@ class TenantResponseDTO(BaseModel):
             supportedChannels=getattr(tenant, "supportedChannels", None) or [],
             preferedCommunicationMethod=getattr(tenant, "preferedCommunicationMethod", None),
             apiKeys=getattr(tenant, "apiKeys", None) or "",
+            createdAt=getattr(tenant, "createdAt", None),
+            updatedAt=getattr(tenant, "updatedAt", None),
             callbackUrl=getattr(tenant, "callbackUrl", None),
             callbackHeaders=getattr(tenant, "callbackHeaders", None)
         )

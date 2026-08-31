@@ -10,6 +10,10 @@ from uuid import uuid4
 
 from notification_service.config.settings import Settings
 from notification_service.domain.entities.sms.sms_notification import SMSNotification
+#new
+from notification_service.domain.value_objects.providers import WhatsAppProvider
+from notification_service.domain.entities.whatsapp.whatsapp_notification import WhatsAppNotification
+#new
 from notification_service.domain.entities.email.email_notification import EmailNotification
 from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
 from notification_service.domain.entities.telegram.telegram_notification import TelegramNotification
@@ -34,6 +38,9 @@ class OutboxProcessor:
         self,
         database: Database,
         sms_providers: Dict[str, Any],  # provider_name -> provider instance
+        #new(whatsapp)
+        whatsapp_providers: Dict[str, Any],  # provider_name -> provider instance
+        #new
         email_provider: Any,  # SMTP provider instance
         inapp_provider: Any,  # FCM provider instance
         telegram_provider: Any,  # Telegram provider instance
@@ -46,6 +53,7 @@ class OutboxProcessor:
         Args:
             database: Database instance for creating UnitOfWork
             sms_providers: Dictionary mapping provider names to provider instances
+            whatsapp_providers: Dictionary mapping provider names to provider instances
             email_provider: SMTP email provider instance
             inapp_provider: FCM in-app provider instance
             settings: Application settings
@@ -53,6 +61,9 @@ class OutboxProcessor:
         """
         self.database = database
         self.sms_providers = sms_providers
+        #new
+        self.whatsapp_providers = whatsapp_providers
+        #new
         self.email_provider = email_provider
         self.inapp_provider = inapp_provider
         self.telegram_provider = telegram_provider
@@ -107,13 +118,17 @@ class OutboxProcessor:
             outbox: Outbox entity with callback info
             tenant_id: Tenant ID for fallback callback
             status: Final status (sent, permanently_failed)
-            channel: Notification channel (sms, email, inapp)
+            channel: Notification channel (sms,whatsapp, email, inapp)
             notification_id: Optional notification ID
             error_message: Optional error message for failures
         """
         # Determine recipient based on channel
         if channel == "sms":
             recipient = outbox.recipientNumber
+        #new
+        elif channel == "whatsapp":
+            recipient = outbox.recipientNumber
+        #new
         elif channel == "email":
             recipient = outbox.recipientEmail
         elif channel == "inapp":
@@ -190,6 +205,9 @@ class OutboxProcessor:
         
         # Process each channel
         await self._process_sms_outbox()
+        #new
+        await self._process_whatsapp_outbox()
+        #new
         await self._process_email_outbox()
         await self._process_inapp_outbox()
         await self._process_telegram_outbox()
@@ -307,6 +325,119 @@ class OutboxProcessor:
             logger.error(f"Error moving SMS outbox {outbox.id} to notifications: {e}")
             await uow.rollback()
     
+    #new
+    async def _process_whatsapp_outbox(self) -> None:
+        """Process pending WhatsApp outbox messages."""
+        try:
+            uow = UnitOfWork(self.database)
+            async with uow:
+                # Query eligible messages
+                pending = await uow.whatsAppOutboxes.find(
+                    lambda o: (o.status in [NotificationStatus.PENDING, NotificationStatus.FAILED])
+                    and o.retryCount < self.max_retries
+                    and (o.nextRetryAt is None or o.nextRetryAt <= datetime.utcnow())
+                )
+                
+                if not pending:
+                    return
+                
+                logger.info(f"Found {len(pending)} WhatsApp outbox messages to process")
+                
+                for outbox in pending[:self.batch_size]:
+                    await self._retry_whatsapp_message(uow, outbox)
+                    
+        except Exception as e:
+            logger.error(f"Error processing WhatsApp outbox: {e}", exc_info=True)
+    
+    async def _retry_whatsapp_message(self, uow: UnitOfWork, outbox) -> None:
+        """Retry a single WhatsApp outbox message."""
+        tenant_id = None
+        try:
+            # Load template to get tenant info
+            template = await uow.whatsAppTemplates.getById(outbox.templateId)
+            if not template:
+                logger.error(f"Template not found for WhatsApp outbox {outbox.id}")
+                await self._mark_permanently_failed(uow, outbox, "whatsapp", "Template not found")
+                return
+            
+            tenant_id = template.tenantId
+            
+            # Load tenant config
+            configs = await uow.tenantWhatsAppConfigurations.find(
+                lambda c: c.tenantId == template.tenantId and c.isActive
+            )
+            if not configs:
+                logger.error(f"No active WhatsApp config found for tenant {template.tenantId}")
+                await self._mark_permanently_failed(uow, outbox, "whatsapp", "No active WhatsApp configuration", tenant_id)
+                return
+            
+            # Select provider (priority 1 or lowest priority)
+            config = min(configs, key=lambda c: c.priority)
+            provider_name = (config.providerName or "").lower()
+            
+            # Get provider instance
+            provider = self.whatsapp_providers.get(provider_name)
+            if not provider:
+                logger.error(f"WhatsApp provider '{provider_name}' not found")
+                await self._mark_permanently_failed(uow, outbox, "whatsapp", f"Provider '{provider_name}' not found", tenant_id)
+                return
+            
+            # Attempt to send
+            logger.info(f"Retrying WhatsApp outbox {outbox.id} to {outbox.recipientNumber} via {provider_name}")
+            success, error_msg = await provider.send_raw(
+                recipient=outbox.recipientNumber,
+                message=outbox.messageContent,
+                tenantConfig=config
+            )
+            
+            if success:
+                # Success - move to notifications table
+                await self._move_whatsapp_to_notifications(uow, outbox, template.tenantId)
+            else:
+                # Failure - update retry info
+                await self._update_retry_info(uow, outbox, "whatsapp", error_msg, tenant_id)
+                
+        except Exception as e:
+            logger.error(f"Error retrying WhatsApp outbox {outbox.id}: {e}", exc_info=True)
+            await self._update_retry_info(uow, outbox, "whatsapp", str(e), tenant_id)
+    
+    async def _move_whatsapp_to_notifications(self, uow: UnitOfWork, outbox, tenant_id) -> None:
+        """Move successful WhatsApp from outbox to notifications table."""
+        try:
+            # Create notification record
+            notification = WhatsAppNotification(
+                id=uuid4(),
+                recipientNumber=outbox.recipientNumber,
+                messageContent=outbox.messageContent,
+                templateId=outbox.templateId,
+                status=NotificationStatus.SENT,
+                idempotencyKey=outbox.idempotencyKey,
+                createdAt=datetime.utcnow(),
+                updatedAt=datetime.utcnow()
+            )
+            await uow.whatsAppNotifications.add(notification)
+            
+            # Delete from outbox
+            await uow.whatsAppOutboxes.delete(outbox.id)
+            await uow.commit()
+            
+            logger.info(f"WhatsApp outbox {outbox.id} successfully moved to notifications")
+            
+            # Send callback (per-request and/or tenant-level)
+            await self._send_callback(
+                uow=uow,
+                outbox=outbox,
+                tenant_id=tenant_id,
+                status="sent",
+                channel="whatsapp",
+                notification_id=str(notification.id)
+            )
+            
+        except Exception as e:
+            logger.error(f"Error moving WhatsApp outbox {outbox.id} to notifications: {e}")
+            await uow.rollback()
+    #new
+
     async def _process_email_outbox(self) -> None:
         """Process pending Email outbox messages."""
         try:
@@ -617,6 +748,8 @@ class OutboxProcessor:
                 # Update based on channel first
                 if channel == "sms":
                     await uow.smsOutboxes.update(outbox)
+                elif channel == "whatsapp":
+                    await uow.whatsAppOutboxes.update(outbox)
                 elif channel == "email":
                     await uow.emailOutbox.update(outbox)
                 elif channel == "inapp":
@@ -647,6 +780,8 @@ class OutboxProcessor:
                 # Update based on channel
                 if channel == "sms":
                     await uow.smsOutboxes.update(outbox)
+                elif channel == "whatsapp":
+                    await uow.whatsAppOutboxes.update(outbox)
                 elif channel == "email":
                     await uow.emailOutbox.update(outbox)
                 elif channel == "inapp":
@@ -676,6 +811,8 @@ class OutboxProcessor:
             
             if channel == "sms":
                 await uow.smsOutboxes.update(outbox)
+            elif channel == "whatsapp":
+                await uow.whatsAppOutboxes.update(outbox)
             elif channel == "email":
                 await uow.emailOutbox.update(outbox)
             elif channel == "inapp":

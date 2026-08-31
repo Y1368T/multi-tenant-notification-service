@@ -85,6 +85,26 @@ class IUnitOfWork(ABC):
     def inAppOutboxes(self) -> IGenericRepository:
         """Get in-app outbox repository."""
         pass
+#new(whatsapp)    
+    # WhatsApp repositories
+    @property
+    @abstractmethod
+    def whatsAppNotifications(self) -> IGenericRepository:
+        """Get WhatsApp notifications repository."""
+        pass
+    
+    @property
+    @abstractmethod
+    def whatsAppOutboxes(self) -> IGenericRepository:
+        """Get WhatsApp outbox repository."""
+        pass
+    
+    @property
+    @abstractmethod
+    def whatsAppTemplates(self) -> IGenericRepository:
+        """Get WhatsApp templates repository."""
+        pass
+#new(whatsapp)    
     
     # Tenant repositories
     @property

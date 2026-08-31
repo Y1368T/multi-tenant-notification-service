@@ -10,6 +10,9 @@ from notification_service.domain.value_objects.notification_response import Noti
 from notification_service.domain.entities.tenant import Tenant
 from uuid import UUID
 from notification_service.application.handlers.sms_channel_handler import SMSChannelHandler
+#new
+from notification_service.application.handlers.whatsapp_channel_handler import WhatsAppChannelHandler
+#new
 from notification_service.application.handlers.in_app_channel_handler import InAppChannelHandler
 from notification_service.application.handlers.email_channel_handler import EmailChannelHandler
 from notification_service.application.handlers.telegram_channel_handler import TelegramChannelHandler
@@ -25,15 +28,16 @@ class MessageRouter(IMessageHandler):
         smsHandler: SMSChannelHandler,
         inAppHandler: InAppChannelHandler = None,
         emailHandler: EmailChannelHandler = None,
-        # whatsapp_handler: IChannelHandler
         telegramHandler: TelegramChannelHandler = None,
+        whatsappHandler: WhatsAppChannelHandler = None,
+        
     ):
         self._handlers: Dict[NotificationChannel, IChannelHandler] = {
             NotificationChannel.SMS: smsHandler,
             NotificationChannel.INAPP: inAppHandler,
             NotificationChannel.EMAIL: emailHandler,
-            # NotificationChannel.WHATSAPP: whatsappHandler,
             NotificationChannel.TELEGRAM: telegramHandler,
+            NotificationChannel.WHATSAPP: whatsappHandler
         }
 
     async def doRoute(
