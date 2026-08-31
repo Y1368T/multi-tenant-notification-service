@@ -12,7 +12,7 @@ from notification_service.domain.value_objects.notification_response import Noti
 from notification_service.domain.value_objects.providers import TelegramProvider
 from notification_service.infrastructure.cache.redis_cache import RedisCache
 from notification_service.infrastructure.providers.telegram.telegram_provider import TelegramProvider as TelegramProviderImpl
-from notification_service.domain.entities.tenant.tenant_sms_configuration import TenantSMSConfiguration
+from notification_service.domain.entities.tenant.tenant_telegram_configuration import TenantTelegramConfiguration
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class TelegramChannelHandler(IChannelHandler):
             logger.info(f"Receiving message for tenant {tenant_prefix} for telegram")
             tenantdb: Tenant = None
             async with self.unit_of_work:
-                tenantdb = await self.unit_of_work.tenants.firstOrDefault(lambda t: t.tenant_prefix == tenant_prefix)
+                tenantdb = await self.unit_of_work.tenants.firstOrDefault(lambda t: t.prefix == tenant_prefix)
             
             if not tenantdb:
                 logger.error(f"Tenant not found for tenant_prefix: {tenant_prefix}")
@@ -106,7 +106,7 @@ class TelegramChannelHandler(IChannelHandler):
             logger.info(f"Receiving message for tenant {tenant_prefix} for telegram")
             tenantdb: Tenant = None
             async with self.unit_of_work:
-                tenantdb = await self.unit_of_work.tenants.firstOrDefault(lambda t: t.tenant_prefix == tenant_prefix)
+                tenantdb = await self.unit_of_work.tenants.firstOrDefault(lambda t: t.prefix == tenant_prefix)
             
             if not tenantdb:
                 logger.error(f"Tenant not found for tenant_prefix: {tenant_prefix}")
@@ -164,12 +164,12 @@ class TelegramChannelHandler(IChannelHandler):
             cached = await self.redis.get(cache_key)
             if cached:
                 logger.info(f"Loaded tenant config from cache for tenant {tenantId}")
-                return [TenantSMSConfiguration(**c) for c in cached]
+                return [TenantTelegramConfiguration(**c) for c in cached]
         except Exception as e:
             logger.warning(f"Failed to load tenant config from cache for tenant {tenantId}: {str(e)}")
 
         async with self.unit_of_work:
-            configs = await self.unit_of_work.tenantSMSConfigurations.find(
+            configs = await self.unit_of_work.tenantTelegramConfigurations.find(
                 lambda t: t.tenantId == tenantId and t.isActive == True and t.providerName == TelegramProvider.TELEGRAM.value
             )
         
@@ -189,24 +189,27 @@ class TelegramChannelHandler(IChannelHandler):
                 ]
                 await self.redis.set(cache_key, json.dumps(config_dicts))
                 logger.info(f"Loaded tenant config from DB for tenant {tenantId} and cached it")
-                return [TenantSMSConfiguration(**c) for c in config_dicts]
+                return [TenantTelegramConfiguration(**c) for c in config_dicts]
             except Exception as e:
                 logger.error(f"Failed to cache tenant config for tenant {tenantId}: {str(e)}")
-                return [c for c in configs]
+                return [TenantTelegramConfiguration(**c) for c in configs]
         else:
             logger.warning(f"No tenant config found for tenant {tenantId}")
             return None
 
     async def loadTemplate(self, tenantId: str, templateName: str, language: str) -> dict:
         async with self.unit_of_work:
-            template = await self.unit_of_work.smsTemplates.firstOrDefault(
+            template = await self.unit_of_work.telegramTemplates.firstOrDefault(
                 lambda t: t.tenantId == tenantId and t.templateName == templateName
             )
             if not template:
                 logger.error(f"Template not found for tenant {tenantId} and templateName {templateName}")
                 return None
             
-            template_body = template.contents.get(language, None)
+            template_body = template.content.get(language, None)
+            if not template_body:
+                # fallback to English
+                template_body = template.content.get("en", None)
             if not template_body:
                 logger.error(f"Template body not found for tenant {tenantId} and language {language}")
                 return None

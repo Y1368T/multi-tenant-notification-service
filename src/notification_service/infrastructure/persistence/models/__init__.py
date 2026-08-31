@@ -7,13 +7,11 @@ from .email import *
 from .whatsapp import *
 #new
 from .providers_supported import ProviderModel
-from .message_aggregate import MessageAggregateModel
+from .user import *
 
 __all__ = ["BaseModel", "ProviderModel", "MessageAggregateModel"]
 __all__.extend(tenant.__all__)
 __all__.extend(sms.__all__)
 __all__.extend(in_app.__all__)
 __all__.extend(email.__all__)
-#new
-__all__.extend(whatsapp.__all__)
-#new
+__all__.extend(user.__all__)

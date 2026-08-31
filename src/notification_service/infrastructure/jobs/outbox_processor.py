@@ -16,6 +16,7 @@ from notification_service.domain.entities.whatsapp.whatsapp_notification import 
 #new
 from notification_service.domain.entities.email.email_notification import EmailNotification
 from notification_service.domain.entities.in_app.in_app_notification import InAppNotification
+from notification_service.domain.entities.telegram.telegram_notification import TelegramNotification
 from notification_service.domain.value_objects.notification_status import NotificationStatus
 from notification_service.domain.value_objects.providers import SMSProvider
 from notification_service.infrastructure.persistence.unit_of_work import UnitOfWork
@@ -42,6 +43,7 @@ class OutboxProcessor:
         #new
         email_provider: Any,  # SMTP provider instance
         inapp_provider: Any,  # FCM provider instance
+        telegram_provider: Any,  # Telegram provider instance
         settings: Settings,
         webhook_client: Optional[WebhookClient] = None
     ):
@@ -64,6 +66,7 @@ class OutboxProcessor:
         #new
         self.email_provider = email_provider
         self.inapp_provider = inapp_provider
+        self.telegram_provider = telegram_provider
         self.settings = settings
         self.webhook_client = webhook_client or WebhookClient()
         
@@ -130,6 +133,8 @@ class OutboxProcessor:
             recipient = outbox.recipientEmail
         elif channel == "inapp":
             recipient = outbox.recipientUserId
+        elif channel == "telegram":
+            recipient = outbox.recipientChatId
         else:
             recipient = "unknown"
         
@@ -195,7 +200,7 @@ class OutboxProcessor:
         logger.info("OutboxProcessor stopping...")
     
     async def _process_all_outboxes(self) -> None:
-        """Process all outbox tables (SMS, WhatsApp, Email, In-App)."""
+        """Process all outbox tables (SMS, Email, In-App, Telegram)."""
         logger.debug("Starting outbox processing cycle...")
         
         # Process each channel
@@ -205,6 +210,7 @@ class OutboxProcessor:
         #new
         await self._process_email_outbox()
         await self._process_inapp_outbox()
+        await self._process_telegram_outbox()
         
         logger.debug("Outbox processing cycle completed.")
     
@@ -624,6 +630,98 @@ class OutboxProcessor:
             logger.error(f"Error moving In-App outbox {outbox.id} to notifications: {e}")
             await uow.rollback()
     
+    async def _process_telegram_outbox(self) -> None:
+        """Process pending Telegram outbox messages."""
+        try:
+            uow = UnitOfWork(self.database)
+            async with uow:
+                pending = await uow.telegramOutboxes.find(
+                    lambda o: (o.status in [NotificationStatus.PENDING, NotificationStatus.FAILED])
+                    and o.retryCount < self.max_retries
+                    and (o.nextRetryAt is None or o.nextRetryAt <= datetime.utcnow())
+                )
+                
+                if not pending:
+                    return
+                
+                logger.info(f"Found {len(pending)} Telegram outbox messages to process")
+                
+                for outbox in pending[:self.batch_size]:
+                    await self._retry_telegram_message(uow, outbox)
+                    
+        except Exception as e:
+            logger.error(f"Error processing Telegram outbox: {e}", exc_info=True)
+
+    async def _retry_telegram_message(self, uow: UnitOfWork, outbox) -> None:
+        """Retry a single Telegram outbox message."""
+        try:
+            template = await uow.telegramTemplates.getById(outbox.templateId)
+            if not template:
+                logger.error(f"Template not found for Telegram outbox {outbox.id}")
+                await self._mark_permanently_failed(uow, outbox, "telegram", "Template not found")
+                return
+            
+            tenant_id = template.tenantId
+            
+            configs = await uow.tenantTelegramConfigurations.find(
+                lambda c: c.tenantId == template.tenantId and c.isActive
+            )
+            if not configs:
+                logger.error(f"No active Telegram config found for tenant {template.tenantId}")
+                await self._mark_permanently_failed(uow, outbox, "telegram", "No active Telegram configuration", tenant_id)
+                return
+            
+            config = configs[0]
+            
+            logger.info(f"Retrying Telegram outbox {outbox.id} to {outbox.recipientChatId}")
+            success, error_msg = await self.telegram_provider.send_raw(
+                recipient=outbox.recipientChatId,
+                message=outbox.messageContent,
+                tenantConfig=config
+            )
+            
+            if success:
+                await self._move_telegram_to_notifications(uow, outbox, template.tenantId)
+            else:
+                await self._update_retry_info(uow, outbox, "telegram", error_msg, tenant_id)
+                
+        except Exception as e:
+            logger.error(f"Error retrying Telegram outbox {outbox.id}: {e}", exc_info=True)
+            await self._update_retry_info(uow, outbox, "telegram", str(e), tenant_id)
+    
+    async def _move_telegram_to_notifications(self, uow: UnitOfWork, outbox, tenant_id) -> None:
+        """Move successful Telegram from outbox to notifications table."""
+        try:
+            notification = TelegramNotification(
+                id=uuid4(),
+                recipientChatId=outbox.recipientChatId,
+                messageContent={"text": outbox.messageContent},
+                templateId=outbox.templateId,
+                status=NotificationStatus.SENT,
+                idempotencyKey=outbox.idempotencyKey,
+                createdAt=datetime.utcnow(),
+                updatedAt=datetime.utcnow()
+            )
+            await uow.telegramNotifications.add(notification)
+            await uow.telegramOutboxes.delete(outbox.id)
+            await uow.commit()
+            
+            logger.info(f"Telegram outbox {outbox.id} successfully moved to notifications")
+            
+            # Send callback (per-request and/or tenant-level)
+            await self._send_callback(
+                uow=uow,
+                outbox=outbox,
+                tenant_id=tenant_id,
+                status="sent",
+                channel="telegram",
+                notification_id=str(notification.id)
+            )
+            
+        except Exception as e:
+            logger.error(f"Error moving Telegram outbox {outbox.id} to notifications: {e}")
+            await uow.rollback()
+
     async def _update_retry_info(
         self, 
         uow: UnitOfWork, 
@@ -656,6 +754,8 @@ class OutboxProcessor:
                     await uow.emailOutbox.update(outbox)
                 elif channel == "inapp":
                     await uow.inAppOutboxes.update(outbox)
+                elif channel == "telegram":
+                    await uow.telegramOutboxes.update(outbox)
                 
                 await uow.commit()
                 
@@ -686,6 +786,8 @@ class OutboxProcessor:
                     await uow.emailOutbox.update(outbox)
                 elif channel == "inapp":
                     await uow.inAppOutboxes.update(outbox)
+                elif channel == "telegram":
+                    await uow.telegramOutboxes.update(outbox)
                 
                 await uow.commit()
             
@@ -715,6 +817,8 @@ class OutboxProcessor:
                 await uow.emailOutbox.update(outbox)
             elif channel == "inapp":
                 await uow.inAppOutboxes.update(outbox)
+            elif channel == "telegram":
+                await uow.telegramOutboxes.update(outbox)
             
             await uow.commit()
             logger.warning(f"{channel.upper()} outbox {outbox.id} marked as permanently failed: {reason}")

@@ -40,6 +40,13 @@ from notification_service.infrastructure.persistence.models.tenant.tenant import
 from notification_service.infrastructure.persistence.models.tenant.tenant_email_configuration import TenantEmailConfigurationModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.tenant.tenant_sms_configuration import TenantSMSConfigurationModel  # noqa: F401
 from notification_service.infrastructure.persistence.models.tenant.tenant_inapp_configuration import TenantInAppConfigurationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.tenant.tenant_telegram_configuration import TenantTelegramConfigurationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.user.user import UserModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.user.user_tenant import UserTenantModel  # noqa: F401
+# Telegram channel models — must be imported so Alembic autogenerate detects the tables
+from notification_service.infrastructure.persistence.models.telegram.telegram_template import TelegramTemplateModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.telegram.telegram_notification import TelegramNotificationModel  # noqa: F401
+from notification_service.infrastructure.persistence.models.telegram.telegram_outbox import TelegramOutboxModel  # noqa: F401
 
 # Sync URL for Alembic — never use config.set_main_option: ConfigParser rejects % in URL-encoded passwords.
 sync_db_url = os.getenv("DATABASE_URL_SYNC") or settings.database_url.replace("+asyncpg", "")
