@@ -12,7 +12,7 @@ from typing import Optional, List
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from qena_shared_lib.dependencies.http import get_service
 
 from notification_service.domain.entities.user.user import User
@@ -26,7 +26,7 @@ from notification_service.shared.security.token_service import decode_backend_se
 logger = logging.getLogger(__name__)
 
 # FastAPI will look for "Authorization: Bearer <token>" header
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+http_bearer = HTTPBearer(auto_error=False)
 
 
 @dataclass
@@ -50,7 +50,7 @@ class UserContext:
 
 async def get_user_context(
     request: Request,
-    token: str = Depends(oauth2_scheme),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(http_bearer),
 ) -> UserContext:
     """Extract and resolve the UserContext from Bearer token.
 
@@ -58,6 +58,12 @@ async def get_user_context(
     1. Try to decode as a signed backend session token (fast, no DB hit).
     2. Fallback: verify as a Keycloak access token, then look up the local user.
     """
+    token: Optional[str] = credentials.credentials if credentials else None
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+
     if not token:
         raise UnauthorizedError("Authorization token is required")
 
