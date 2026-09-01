@@ -60,6 +60,7 @@ from notification_service.infrastructure.services.customer_service_client import
 from notification_service.infrastructure.services.webhook_client import WebhookClient
 from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
+from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
 # Telegram services
 from notification_service.application.services.telegram_template_service import TelegramTemplateService
 from notification_service.application.services.telegram_notification_service import TelegramNotificationService
@@ -576,18 +577,20 @@ async def lifespan(app: FastAPI):
         "afromessage": afromessage_provider
     }
     
-    # Get email and in-app providers
+    # Get email, whatsapp, telegram and in-app providers
     email_provider = get_service(app, SMTPProvider)
     inapp_provider = get_service(app, FCMProvider)
     telegram_provider = get_service(app, TelegramProvider)
+    whatsapp_provider = get_service(app, WhatsAppMetaCloudProvider)
+    whatsapp_providers = {
+        "meta_cloud": whatsapp_provider
+    }
     
     # Create OutboxProcessor instance
     outbox_processor = OutboxProcessor(
         database=database,
         sms_providers=sms_providers,
-        #new
         whatsapp_providers=whatsapp_providers,
-        #new
         email_provider=email_provider,
         inapp_provider=inapp_provider,
         telegram_provider=telegram_provider,
