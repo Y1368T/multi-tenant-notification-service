@@ -13,6 +13,8 @@ from notification_service.infrastructure.messaging.rabbitmq.rabbitmq_consumer im
 from notification_service.shared.exceptions.application_exceptions import ValidationError
 from qena_shared_lib.http import ControllerBase, api_controller, get, post, put, patch, delete
 
+from notification_service.adapters.inbound.rest.dependencies.auth_dependency import get_user_context, UserContext, enforce_tenant_access
+
 @api_controller(prefix="/tenants", tags=["Tenants"])
 class TenantController(ControllerBase):
     """Controller for tenant-related endpoints."""
@@ -144,7 +146,8 @@ class TenantController(ControllerBase):
     @post("/{id}/regenerate-api-key", response_model=TenantResponseDTO)
     async def regenerate_api_key(
         self,
-        id: UUID
+        id: UUID,
+        ctx: UserContext = Depends(get_user_context),
     ) -> TenantResponseDTO:
         """
         Regenerate API key for a tenant.
@@ -156,7 +159,7 @@ class TenantController(ControllerBase):
         
         The new API key will overwrite the existing one.
         """
-       
+        enforce_tenant_access(ctx, id)
         
         # Call service to regenerate API key
         updated_tenant = await self.tenantService.regenerate_api_key(id)

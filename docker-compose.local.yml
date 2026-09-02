@@ -4,6 +4,18 @@
 # Usage: docker-compose -f docker-compose.local.yml up -d
 
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: notification_keycloak
+    command: start-dev
+    environment:
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin123
+    ports:
+      - "8080:8080"
+    networks:
+      - notification-network
+
   postgres:
     image: postgres:15-alpine
     container_name: notification-postgres
@@ -18,7 +30,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U notification_svc -d ${POSTGRES_DB:-qena_notification_service_db}"]
+      test: [ "CMD-SHELL", "pg_isready -U notification_svc -d ${POSTGRES_DB:-qena_notification_service_db}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,11 +44,11 @@ services:
     env_file:
       - .env.local
     ports:
-      - "5672:5672"    # AMQP port
-      - "15672:15672"  # Management UI
-      - "1883:1883"    # MQTT port
-      - "8883:8883"    # MQTT/SSL port
-      - "15675:15675"  # MQTT over WebSockets
+      - "5672:5672" # AMQP port
+      - "15672:15672" # Management UI
+      - "1883:1883" # MQTT port
+      - "8883:8883" # MQTT/SSL port
+      - "15675:15675" # MQTT over WebSockets
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 10s
@@ -57,7 +69,7 @@ services:
     ports:
       - "${REDIS_EXTERNAL_PORT:-6380}:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -108,22 +120,20 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-qena_notification_service_db}
       DATABASE_URL: postgresql+asyncpg://notification_svc:wbhg05G332X6rmyfhM2Z@postgres:5432/${POSTGRES_DB:-qena_notification_service_db}
       DATABASE_URL_SYNC: postgresql://notification_svc:wbhg05G332X6rmyfhM2Z@postgres:5432/${POSTGRES_DB:-qena_notification_service_db}
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_CLIENT_ID: admin-cli
     ports:
       - "${PORT:-8000}:8000"
     command: >
-      sh -c "
-      echo 'Waiting for Postgres to become fully available...';
-      until pg_isready -h postgres -p 5432 -U $$POSTGRES_USER; do 
+      sh -c " echo 'Waiting for Postgres to become fully available...'; until pg_isready -h postgres -p 5432 -U $$POSTGRES_USER; do 
         echo 'Postgres is unavailable - waiting 3 seconds...'; 
         sleep 3; 
-      done; 
-      echo 'Postgres is ready. Running migrations...';
-      poetry run alembic upgrade head;
-      echo 'Migrations applied. Starting application...';
-      poetry run uvicorn notification_service.main:main --factory --host 0.0.0.0 --port 8000"
+      done;  echo 'Postgres is ready. Running migrations...'; poetry run alembic upgrade head; echo 'Migrations applied. Starting application...'; poetry run uvicorn notification_service.main:main --factory --host 0.0.0.0 --port 8000"
     depends_on:
       postgres:
         condition: service_healthy
+      keycloak:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
       redis:

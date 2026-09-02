@@ -24,12 +24,20 @@ from notification_service.infrastructure.persistence.repositories.in_app_outbox_
 from notification_service.infrastructure.persistence.repositories.tenant_repository import TenantRepository
 from notification_service.infrastructure.persistence.repositories.tenant_email_configuration_repository import TenantEmailConfigurationRepository
 from notification_service.infrastructure.persistence.repositories.tenant_sms_configuration_repository import TenantSmsConfigurationRepository
+from notification_service.infrastructure.persistence.repositories.telegram_notification_repository import TelegramNotificationRepository
+from notification_service.infrastructure.persistence.repositories.telegram_outbox_repository import TelegramOutboxRepository
+from notification_service.infrastructure.persistence.repositories.telegram_template_repository import TelegramTemplateRepository
+from notification_service.infrastructure.persistence.repositories.tenant_telegram_configuration_repository import TenantTelegramConfigurationRepository
 from notification_service.infrastructure.persistence.mappers.tenant_mapper import TenantMapper
 from notification_service.infrastructure.persistence.db_session.session import  Database
 from notification_service.infrastructure.persistence.repositories.provider_repository import ProviderRepository
 from notification_service.domain.entities.providers_supported import Provider
 from notification_service.infrastructure.persistence.models.providers_supported import ProviderModel
 from notification_service.infrastructure.persistence.mappers.provider_mapper import ProviderMapper
+from notification_service.infrastructure.persistence.repositories.user_repository import UserRepository
+from notification_service.infrastructure.persistence.repositories.user_tenant_repository import UserTenantRepository
+from notification_service.infrastructure.persistence.mappers.user_mapper import UserMapper
+
 logger = logging.getLogger(__name__)
 
 
@@ -115,6 +123,30 @@ class UnitOfWork(IUnitOfWork):
     def tenantInAppConfigurations(self):
         return self._tenantInAppConfigurations
 
+    @property
+    def telegramNotifications(self):
+        return self._telegramNotifications
+
+    @property
+    def telegramOutboxes(self):
+        return self._telegramOutboxes
+
+    @property
+    def telegramTemplates(self):
+        return self._telegramTemplates
+
+    @property
+    def tenantTelegramConfigurations(self):
+        return self._tenantTelegramConfigurations
+
+    @property
+    def users(self):
+        return self._users
+
+    @property
+    def userTenants(self):
+        return self._userTenants
+
     async def __aenter__(self):
         """Enter async context manager.
         
@@ -155,8 +187,15 @@ class UnitOfWork(IUnitOfWork):
         # TODO: Create TenantInAppConfigurationRepository, Model, and Mapper
         # For now, using SMS configuration repository as placeholder - needs to be replaced
         self._tenantInAppConfigurations = TenantInAppConfigurationRepository(self.session)
+        self._telegramNotifications = TelegramNotificationRepository(self.session)
+        self._telegramOutboxes = TelegramOutboxRepository(self.session)
+        self._telegramTemplates = TelegramTemplateRepository(self.session)
+        self._tenantTelegramConfigurations = TenantTelegramConfigurationRepository(self.session)
         self._providers = ProviderRepository(self.session)
+        self._users = UserRepository(self.session, UserMapper())
+        self._userTenants = UserTenantRepository(self.session)
         return self
+
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context manager; rollback on error, close session.

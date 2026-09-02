@@ -12,6 +12,8 @@ from fastapi import Depends
 from uuid import UUID
 from typing import Dict, Any, List
 
+from notification_service.adapters.inbound.rest.dependencies.auth_dependency import require_role, UserContext
+
 @api_controller(prefix="/tenant-sms-configurations", tags=["Tenant SMS Configurations"])
 class TenantSMSConfigurationController(ControllerBase):
     
@@ -22,7 +24,8 @@ class TenantSMSConfigurationController(ControllerBase):
     @get("/get", response_model=PaginatedResponseDTO[TenantSMSConfigurationResponseDTO])
     async def get(
         self, 
-        params: TenantSMSConfigurationFilterDTO = Depends()
+        params: TenantSMSConfigurationFilterDTO = Depends(),
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> PaginatedResponseDTO[TenantSMSConfigurationResponseDTO]:
         """Get tenant SMS configurations by filters."""
         # Build PaginatedRequest using service method
@@ -34,7 +37,8 @@ class TenantSMSConfigurationController(ControllerBase):
     @post("/create", response_model=TenantSMSConfigurationResponseDTO)
     async def create(
         self, 
-        request_dto: TenantSMSConfigurationRequestDto
+        request_dto: TenantSMSConfigurationRequestDto,
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> TenantSMSConfigurationResponseDTO:
         """
         Create a new tenant SMS configuration.
@@ -59,7 +63,8 @@ class TenantSMSConfigurationController(ControllerBase):
     async def update(
         self, 
         id: UUID, 
-        request_dto: TenantSMSConfigurationRequestDto
+        request_dto: TenantSMSConfigurationRequestDto,
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> TenantSMSConfigurationResponseDTO:
         """
         Full update of a tenant SMS configuration.
@@ -85,7 +90,8 @@ class TenantSMSConfigurationController(ControllerBase):
     async def partialUpdate(
         self, 
         id: UUID, 
-        updates: Dict[str, Any]
+        updates: Dict[str, Any],
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> TenantSMSConfigurationResponseDTO:
         """
         Partial update of a tenant SMS configuration.
@@ -103,7 +109,8 @@ class TenantSMSConfigurationController(ControllerBase):
     @delete("/{id}", response_model=Dict[str, str])
     async def delete(
         self, 
-        id: UUID
+        id: UUID,
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> Dict[str, str]:
         """
         Delete a tenant SMS configuration.

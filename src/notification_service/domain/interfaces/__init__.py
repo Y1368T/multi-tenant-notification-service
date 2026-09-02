@@ -6,6 +6,9 @@ from .imessage_handler import IMessageHandler
 from .imessage_consumer import IMessageConsumer
 from .iprovider_service import IProviderService
 from .custom_repositories import *
+from .ikeycloak_client import IKeycloakClient
+from .iuser_repository import IUserRepository
+from .iuser_tenant_repository import IUserTenantRepository
 
 __all__ = [
     "ICachedRepository",
@@ -15,7 +18,9 @@ __all__ = [
     "IMessageHandler",
     "IMessageConsumer",
     "IProviderService",
-    "ITenantRepository"
+    "ITenantRepository",
+    "IKeycloakClient",
+    "IUserRepository",
+    "IUserTenantRepository",
 ]
 __all__.extend(custom_repositories.__all__)
-    

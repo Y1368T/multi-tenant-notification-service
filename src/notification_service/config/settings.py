@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     
     # Security settings
     admin_api_key: Optional[str] = None  # Admin API key for bypassing tenant authentication
+    backend_jwt_secret: str = "kifiya-notification-service-backend-secret-key"
+    backend_jwt_algorithm: str = "HS256"
     
     # Outbox retry settings
     outbox_poll_interval_seconds: int = 60  # Poll every 1 minute
@@ -42,7 +44,15 @@ class Settings(BaseSettings):
     outbox_base_retry_delay_minutes: int = 5  # Base delay for exponential backoff
     outbox_batch_size: int = 50  # Messages to process per poll cycle
     bulk_max_notifications: int = 1000  # Maximum notifications allowed per bulk request
-    
+
+    # Keycloak Configuration
+    keycloak_url: str = "http://localhost:8080"
+    keycloak_realm: str = "master"
+    keycloak_client_id: str = "notification-service"
+    keycloak_client_secret: str = ""
+    keycloak_admin_username: str = "admin"
+    keycloak_admin_password: str = "admin123"
+
 
 @lru_cache()
 def getSettings() -> Settings:
