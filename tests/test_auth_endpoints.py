@@ -19,63 +19,82 @@ We build the app and start the TestClient **once per module** (scope="module")
 to avoid the asyncpg event-loop-closed errors that occur when the full lifespan
 (DB pool, RabbitMQ, OutboxProcessor...) is torn down and restarted between tests.
 
-NullPool fix
+Connection pool fix
 ---------------------------------
-asyncpg's pooled connections raise
-"cannot perform operation: another operation is in progress"
-when concurrent async tasks share a pooled connection during lifespan startup
-(provider seed) and the first request.  Using NullPool gives each session
-its own fresh connection with no pool-level concurrency.
+We replace Database.connect with a version that uses pool_size=1 / max_overflow=0.
+This gives the AsyncSession one persistent connection to hold for its full
+lifetime — including across await points between queries within the same
+session context (e.g. between getByEmail and flush in auth_service.register).
 
-OutboxProcessor fix
+NullPool was tried first but is incompatible with AsyncSession: NullPool
+closes the connection immediately after each checkin, so when the session tries
+to reuse it after an await boundary it finds it gone and raises:
+  InvalidRequestError: This session is provisioning a new connection;
+  concurrent operations are not permitted
+
+Background-task fixes
 ---------------------------------
-The OutboxProcessor background task runs _process_all_outboxes() immediately
-on startup (before its first sleep). That concurrent DB session clashes with
-the request-level session. We patch it to an async no-op so it never
-touches the DB during tests.
+OutboxProcessor._process_all_outboxes and MetricsRollupProcessor.start are
+patched to async no-ops so they never open concurrent DB sessions during the
+TestClient lifespan, eliminating the original "another operation is in
+progress" asyncpg errors that motivated NullPool in the first place.
+
+Singleton / cross-module contamination fix
+---------------------------------
+qena_shared_lib registers AuthController as a global singleton. When a second
+call to main() happens (e.g. test_rbac_endpoints ran first), the controller
+still holds the old KeycloakClient and Database from the first app. The
+real_kc fixture (autouse=True) re-binds both attributes on every AuthController
+instance found in app.routes, and also sets app.dependency_overrides so that
+path-based dependencies (get_user_context) also resolve the correct instances.
 """
 import pytest
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 from fastapi.testclient import TestClient
-from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from notification_service.main import main
 from notification_service.domain.interfaces.ikeycloak_client import IKeycloakClient
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
+from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
 from notification_service.infrastructure.persistence.db_session.session import Database
-from qena_shared_lib.dependencies.http import get_container
+from qena_shared_lib.dependencies.http import get_container, get_service
 
 
 # Patch helpers defined at module level (used inside fixture)
 
-async def _nullpool_connect(self):
+async def _single_conn_connect(self):
     """
-    Replacement for Database.connect that uses NullPool.
+    Replacement for Database.connect that uses a single-connection pool.
 
-    NullPool creates a fresh connection per session with no sharing/reuse,
-    eliminating asyncpg "another operation is in progress" errors when the
-    provider-seed task, OutboxProcessor task, and request handler all run
-    concurrently during TestClient lifespan startup.
+    pool_size=1 / max_overflow=0 gives AsyncSession one persistent connection
+    to hold for its full lifetime, including across await points between
+    queries within the same session context. This avoids the
+    'session is provisioning a new connection; concurrent operations are not
+    permitted' error that NullPool causes (NullPool closes the connection
+    immediately after each checkin, so the session can't reuse it after an
+    await boundary).
+
+    Background tasks (OutboxProcessor, MetricsRollupProcessor) are separately
+    patched to no-ops so they never compete for this single connection slot.
     """
     import logging
     logger = logging.getLogger(__name__)
-    logger.info("Initializing database (NullPool / test mode)...")
+    logger.info("Initializing database (pool_size=1 / test mode)...")
     self.engine = create_async_engine(
         self.database_url,
         echo=False,
         pool_pre_ping=True,
-        poolclass=NullPool,
+        pool_size=1,
+        max_overflow=0,
     )
     self.session_maker = async_sessionmaker(
         bind=self.engine,
         expire_on_commit=False,
         class_=AsyncSession,
     )
-    async with self.engine.begin() as conn:
-        await conn.run_sync(lambda _: None)
-    logger.info("Database connection established successfully (NullPool).")
+    logger.info("Database connection established successfully (pool_size=1).")
 
 
 async def _noop_process_all_outboxes(self):
@@ -83,39 +102,87 @@ async def _noop_process_all_outboxes(self):
     pass
 
 
+async def _noop_start_metrics(self):
+    """No-op replacement: prevents MetricsRollupProcessor from doing DB work in tests."""
+    pass
+
+
 # Module-scoped fixtures  — built & started once for the whole test module
 
-@pytest.fixture(scope="module")
-def app():
+@pytest.fixture(scope="module", autouse=True)
+def _setup(request):
+    """Master module fixture: build app → rebind singletons → start TestClient.
+
+    Runs in a guaranteed order because everything is in one fixture:
+    1. Build the FastAPI app (background tasks patched).
+    2. Resolve IKeycloakClient and Database from the container.
+    3. Set app.dependency_overrides so path-based deps (get_user_context)
+       resolve the correct instances.
+    4. Rebind ctrl.authService.keycloakClient / .uow.database on every
+       AuthController instance in app.routes, overriding the stale
+       singleton references left by any previous call to main().
+    5. Start TestClient (which triggers lifespan / DB connect).
+
+    Both the TestClient and the KeycloakClient instance are stashed on the
+    module so that the thin http_client / real_kc fixtures can expose them.
     """
-    Build the FastAPI app once per module with:
-    - NullPool DB engine  -> no shared asyncpg connections
-    - OutboxProcessor._process_all_outboxes -> no-op
-    """
+    # 1. Build app with background tasks disabled
     with (
-        patch.object(Database, "connect", new=_nullpool_connect),
         patch.object(OutboxProcessor, "_process_all_outboxes", new=_noop_process_all_outboxes),
+        patch.object(MetricsRollupProcessor, "start", new=_noop_start_metrics),
     ):
-        application = main()
+        app = main()
 
-    # The `with` exits (restores originals) but the already-built `application`
-    # object holds the already-replaced engine+session_maker from _nullpool_connect.
-    # The OutboxProcessor instance inside the lifespan also already has the
-    # patched class method for the duration of the running event loop.
-    return application
+    # 2. Resolve the active kc / db for THIS app
+    kc = get_container(app).resolve(IKeycloakClient)
+    db = get_service(app, Database)
+
+    # 3. Override path-based dependencies
+    app.dependency_overrides[IKeycloakClient] = lambda: kc
+    app.dependency_overrides[Database] = lambda: db
+
+    # 4. Rebind every AuthController singleton's authService to use this app's
+    #    kc and db.  This is necessary because qena_shared_lib registers
+    #    AuthController as a punq singleton — a second call to main() reuses
+    #    the controller instance built by the first call, which still references
+    #    the first app's kc and db.
+    for route in app.routes:
+        if hasattr(route, "endpoint") and hasattr(route.endpoint, "__self__"):
+            ctrl = route.endpoint.__self__
+            if hasattr(ctrl, "authService"):
+                ctrl.authService.keycloakClient = kc
+                ctrl.authService.uow.database = db
+
+    # 5. Start TestClient (triggers lifespan — DB pool is created here)
+    with (
+        patch.object(Database, "connect", new=_single_conn_connect),
+        patch.object(OutboxProcessor, "_process_all_outboxes", new=_noop_process_all_outboxes),
+        patch.object(MetricsRollupProcessor, "start", new=_noop_start_metrics),
+    ):
+        with TestClient(app, raise_server_exceptions=False) as client:
+            # Stash on the module so thin fixtures can read them
+            request.module._test_client = client
+            request.module._test_kc = kc
+            yield
+
+    # Cleanup: remove dependency overrides
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="module")
-def http_client(app):
-    """Start the app lifespan once for the whole module."""
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
+def http_client(request):
+    """Thin accessor — returns the TestClient started by _setup."""
+    return request.module._test_client
 
 
 @pytest.fixture(scope="module")
-def real_kc(app):
-    """Resolve the IKeycloakClient singleton from the DI container."""
-    return get_container(app).resolve(IKeycloakClient)
+def real_kc(request):
+    """Thin accessor — returns the KeycloakClient instance used by controllers.
+
+    Tests patch its methods:
+        with patch.object(real_kc, "login", new_callable=AsyncMock) as m: ...
+    """
+    return request.module._test_kc
 
 
 # Tests
@@ -188,7 +255,9 @@ def test_register_endpoint_duplicate_email(http_client, real_kc):
             "role": "tenant-manager",
         })
         assert r2.status_code == 409, r2.text
-        assert "already exists" in r2.json()["message"]
+        err_body = r2.json()
+        msg = (err_body.get("error", {}) if isinstance(err_body.get("error"), dict) else {}).get("message") or err_body.get("message") or str(err_body.get("error", ""))
+        assert "already exists" in msg
 
 
 def test_login_endpoint_success(http_client, real_kc):
@@ -252,7 +321,9 @@ def test_login_endpoint_user_not_in_local_db(http_client, real_kc):
         })
 
         assert response.status_code == 401, response.text
-        assert "not found in local database" in response.json()["message"]
+        err_body = response.json()
+        msg = (err_body.get("error", {}) if isinstance(err_body.get("error"), dict) else {}).get("message") or err_body.get("message") or str(err_body.get("error", ""))
+        assert "not found in local database" in msg
 
 
 def test_logout_endpoint(http_client, real_kc):
