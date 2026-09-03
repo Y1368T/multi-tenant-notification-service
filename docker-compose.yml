@@ -112,6 +112,11 @@ services:
       - AFROMESSAGE_SENDER=AfroMessage
       - AFROMESSAGE_FROM=e80ad9d8-adf3-463f-80f4-7c4b39f7f164
       - ADMIN_API_KEY=admin-secret-key
+
+      # Previously picked up from the .env baked into the image; the image
+      # no longer ships one, so they are set explicitly here.
+      - APP_NAME=notification-service
+      - ENABLE_CUSTOMER_LANGUAGE_RPC=False
       
     # CRITICAL FIX 2: Wait loop + Migrations (alembic upgrade head)
     command: >
