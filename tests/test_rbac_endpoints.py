@@ -6,11 +6,58 @@ from fastapi.testclient import TestClient
 from notification_service.main import main
 from notification_service.shared.security.token_service import create_backend_session_token
 
-@pytest.fixture
+from unittest.mock import patch
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from notification_service.infrastructure.persistence.db_session.session import Database
+from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
+from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
+
+
+async def _single_conn_connect(self):
+    """Replace Database.connect with pool_size=1 for tests.
+
+    Keeps one persistent connection so AsyncSession can hold it across await
+    points within a single session context (NullPool closes connections
+    immediately after checkin, which breaks the session lifecycle).
+    """
+    self.engine = create_async_engine(
+        self.database_url,
+        echo=False,
+        pool_pre_ping=True,
+        pool_size=1,
+        max_overflow=0,
+    )
+    self.session_maker = async_sessionmaker(
+        bind=self.engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+    )
+
+
+async def _noop_process_all_outboxes(self):
+    """Prevent OutboxProcessor from touching the DB during tests."""
+    pass
+
+
+async def _noop_start_metrics(self):
+    """Prevent MetricsRollupProcessor from touching the DB during tests."""
+    pass
+
+
+@pytest.fixture(scope="module")
 def client():
-    app = main()
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
+    with (
+        patch.object(OutboxProcessor, "_process_all_outboxes", new=_noop_process_all_outboxes),
+        patch.object(MetricsRollupProcessor, "start", new=_noop_start_metrics),
+    ):
+        app = main()
+    with (
+        patch.object(Database, "connect", new=_single_conn_connect),
+        patch.object(OutboxProcessor, "_process_all_outboxes", new=_noop_process_all_outboxes),
+        patch.object(MetricsRollupProcessor, "start", new=_noop_start_metrics),
+    ):
+        with TestClient(app, raise_server_exceptions=False) as c:
+            yield c
 
 def test_tenant_email_config_unauthenticated_returns_401(client):
     response = client.get("/tenant-email-configurations/get")

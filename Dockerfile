@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
-RUN pip install --no-cache-dir poetry==1.8.3
+RUN pip install --no-cache-dir poetry==2.2.1
 
 # Copy poetry files
 COPY pyproject.toml poetry.lock* ./
@@ -21,14 +21,14 @@ COPY pyproject.toml poetry.lock* ./
 # Configure poetry to not create virtual environment inside the container
 RUN poetry config virtualenvs.create false
 
-# Install dependencies
-RUN poetry install --no-interaction --no-ansi --no-root
+# Install dependencies (main group only; dev/test deps stay out of the image)
+RUN poetry install --no-interaction --no-ansi --no-root --only main
 
 # Copy application code
 COPY . .
 
-# Install the project
-RUN poetry install --no-interaction --no-ansi
+# Install the project itself, without re-resolving dependencies
+RUN poetry install --no-interaction --no-ansi --only-root
 
 # Expose port
 EXPOSE 8000
