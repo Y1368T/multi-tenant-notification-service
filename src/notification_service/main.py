@@ -61,6 +61,7 @@ from notification_service.infrastructure.services.webhook_client import WebhookC
 from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
 from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
+from notification_service.infrastructure.jobs.periodic_rollup_worker import PeriodicRollupWorker
 # Telegram services
 from notification_service.application.services.telegram_template_service import TelegramTemplateService
 from notification_service.application.services.telegram_notification_service import TelegramNotificationService
@@ -606,6 +607,10 @@ async def lifespan(app: FastAPI):
     metrics_task = asyncio.create_task(metrics_processor.start())
     logger.info("MetricsRollupProcessor background task started")
 
+    periodic_rollup_worker = PeriodicRollupWorker(database=database, cache_or_redis=redis)
+    periodic_rollup_task = asyncio.create_task(periodic_rollup_worker.start())
+    logger.info("PeriodicRollupWorker background task started")
+
     try:
         yield
     finally:
@@ -624,7 +629,11 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down MetricsRollupProcessor...")
         metrics_processor.stop()
         metrics_task.cancel()
-        await asyncio.gather(rabbitmq_task, outbox_task, return_exceptions=True)
+
+        logger.info("Shutting down PeriodicRollupWorker...")
+        periodic_rollup_worker.stop()
+        periodic_rollup_task.cancel()
+        await asyncio.gather(rabbitmq_task, outbox_task, periodic_rollup_task, return_exceptions=True)
         
         if rpc_client:  # Use the variable from outer scope
             try:

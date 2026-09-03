@@ -56,6 +56,7 @@ CACHE_PREFIX = "dashboard"
 
 
 from notification_service.application.services.metrics_service import MetricsService
+from notification_service.application.services.periodic_rollup_service import PeriodicMetricsRollupService
 
 def _period_since(period: str) -> datetime:
     delta = PERIOD_TO_DELTA.get(period)
@@ -100,6 +101,35 @@ class DashboardService:
         self.uow = uow
         self.cache = cache
         self.metrics = MetricsService(uow)
+        self.rollup_service = PeriodicMetricsRollupService(
+            uow_factory=lambda: self.uow,
+            cache_or_redis=cache,
+        ) if cache else None
+
+    async def getPeriodicRollupMetrics(
+        self,
+        start_time: datetime,
+        end_time: datetime,
+        granularity: str = "1m",
+        tenant_id: Optional[Union[str, UUID]] = None,
+        channel: Optional[str] = None,
+    ) -> dict:
+        """
+        Retrieves message metrics aggregated from 1-minute Redis rollups across
+        multiple granularities (1m, 5m, 30m, 1h) without querying PostgreSQL.
+        """
+        if not self.rollup_service:
+            raise ValidationError(
+                message="Redis cache is required for periodic rollup metrics.",
+                code="REDIS_REQUIRED",
+            )
+        return await self.rollup_service.get_periodic_metrics(
+            start_time=start_time,
+            end_time=end_time,
+            granularity=granularity,
+            tenant_id=tenant_id,
+            channel=channel,
+        )
 
     async def _cached(self, key: str, ttlSeconds: int, compute: Callable[[], Coroutine[Any, Any, dict]]) -> dict:
         cacheKey = f"{CACHE_PREFIX}:{key}"
