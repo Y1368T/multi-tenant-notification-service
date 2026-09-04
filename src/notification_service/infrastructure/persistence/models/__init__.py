@@ -6,10 +6,9 @@ from .email import *
 from .whatsapp import *
 from .telegram import *
 from .providers_supported import ProviderModel
-from .message_aggregate import MessageAggregateModel
 from .user import *
 
-__all__ = ["BaseModel", "ProviderModel", "MessageAggregateModel"]
+__all__ = ["BaseModel", "ProviderModel"]
 __all__.extend(tenant.__all__)
 __all__.extend(sms.__all__)
 __all__.extend(in_app.__all__)

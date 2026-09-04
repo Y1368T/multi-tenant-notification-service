@@ -60,7 +60,6 @@ from notification_service.infrastructure.services.customer_service_client import
 from notification_service.infrastructure.services.webhook_client import WebhookClient
 from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
-from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
 from notification_service.infrastructure.jobs.periodic_rollup_worker import PeriodicRollupWorker
 # Telegram services
 from notification_service.application.services.telegram_template_service import TelegramTemplateService
@@ -603,10 +602,6 @@ async def lifespan(app: FastAPI):
     outbox_task = asyncio.create_task(outbox_processor.start())
     logger.info("OutboxProcessor background task started")
 
-    metrics_processor = MetricsRollupProcessor(database=database)
-    metrics_task = asyncio.create_task(metrics_processor.start())
-    logger.info("MetricsRollupProcessor background task started")
-
     periodic_rollup_worker = PeriodicRollupWorker(database=database, cache_or_redis=redis)
     periodic_rollup_task = asyncio.create_task(periodic_rollup_worker.start())
     logger.info("PeriodicRollupWorker background task started")
@@ -626,9 +621,6 @@ async def lifespan(app: FastAPI):
         rabbitmq_task.cancel()
         outbox_task.cancel()
         
-        logger.info("Shutting down MetricsRollupProcessor...")
-        metrics_processor.stop()
-        metrics_task.cancel()
 
         logger.info("Shutting down PeriodicRollupWorker...")
         periodic_rollup_worker.stop()

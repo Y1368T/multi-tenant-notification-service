@@ -1,30 +1,37 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Callable, Coroutine, Dict, List, Optional
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
 from uuid import UUID
 
-from sqlalchemy import case, func, literal, select
+from sqlalchemy import String, case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
 from notification_service.infrastructure.cache.redis_cache import RedisCache
+from notification_service.infrastructure.persistence.models.email.email_notification import EmailNotificationModel
 from notification_service.infrastructure.persistence.models.email.email_outbox import EmailOutboxModel
 from notification_service.infrastructure.persistence.models.email.email_template import EmailTemplateModel
+from notification_service.infrastructure.persistence.models.in_app.in_app_notification import InAppNotificationModel
 from notification_service.infrastructure.persistence.models.in_app.in_app_outbox import InAppOutboxModel
 from notification_service.infrastructure.persistence.models.in_app.in_app_template import InAppTemplateModel
 from notification_service.infrastructure.persistence.models.providers_supported import ProviderModel
+from notification_service.infrastructure.persistence.models.sms.sms_notification import SMSNotificationModel
 from notification_service.infrastructure.persistence.models.sms.sms_outbox import SmsOutboxModel
 from notification_service.infrastructure.persistence.models.sms.sms_template import SmsTemplateModel
+from notification_service.infrastructure.persistence.models.telegram.telegram_notification import TelegramNotificationModel
+from notification_service.infrastructure.persistence.models.telegram.telegram_outbox import TelegramOutboxModel
+from notification_service.infrastructure.persistence.models.telegram.telegram_template import TelegramTemplateModel
 from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
+from notification_service.infrastructure.persistence.models.whatsapp.whatsapp_notification import WhatsAppNotificationModel
 from notification_service.infrastructure.persistence.models.whatsapp.whatsapp_outbox import WhatsAppOutboxModel
 from notification_service.infrastructure.persistence.models.whatsapp.whatsapp_template import WhatsAppTemplateModel
+from notification_service.application.services.periodic_rollup_service import PeriodicMetricsRollupService
 from notification_service.shared.exceptions.application_exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
 DELIVERED_STATUSES = ("sent", "delivered", "read")
 FAILED_STATUSES = ("failed", "permanently_failed")
-
 
 PERIOD_TO_DELTA = {
     "24h": timedelta(hours=24),
@@ -36,27 +43,17 @@ PERIOD_TO_DELTA = {
 VOLUME_GRANULARITY_TO_TRUNC = {"hour": "hour", "day": "day", "week": "week"}
 SENT_MESSAGES_GRANULARITY = ("day", "week", "month", "none")
 
-# channel name -> (OutboxModel, TemplateModel)
+# Channel name -> (OutboxModel, TemplateModel, NotificationModel)
 CHANNEL_MODELS = {
-    "sms": (SmsOutboxModel, SmsTemplateModel),
-    "email": (EmailOutboxModel, EmailTemplateModel),
-    "inapp": (InAppOutboxModel, InAppTemplateModel),
-    "whatsapp": (WhatsAppOutboxModel, WhatsAppTemplateModel),
-    # NOTE: no "telegram" entry - TelegramOutboxModel/TelegramTemplateModel
-    # don't exist yet. Telegram currently has a provider + channel handler
-    # (see infrastructure/providers/telegram/) but no dedicated outbox/
-    # template persistence table, unlike sms/email/inapp/whatsapp. Adding
-    # a channel here requires an actual table with the same shape (status,
-    # retryCount, sentAt, lastRetryAt, lastErrorMessage, providerAttempted,
-    # templateId) to union against - see GUIDE.md "Adding a new channel"
-    # for the checklist once that table exists.
+    "sms": (SmsOutboxModel, SmsTemplateModel, SMSNotificationModel),
+    "email": (EmailOutboxModel, EmailTemplateModel, EmailNotificationModel),
+    "inapp": (InAppOutboxModel, InAppTemplateModel, InAppNotificationModel),
+    "whatsapp": (WhatsAppOutboxModel, WhatsAppTemplateModel, WhatsAppNotificationModel),
+    "telegram": (TelegramOutboxModel, TelegramTemplateModel, TelegramNotificationModel),
 }
 
 CACHE_PREFIX = "dashboard"
 
-
-from notification_service.application.services.metrics_service import MetricsService
-from notification_service.application.services.periodic_rollup_service import PeriodicMetricsRollupService
 
 def _period_since(period: str) -> datetime:
     delta = PERIOD_TO_DELTA.get(period)
@@ -100,11 +97,83 @@ class DashboardService:
     def __init__(self, uow: IUnitOfWork, cache: RedisCache):
         self.uow = uow
         self.cache = cache
-        self.metrics = MetricsService(uow)
         self.rollup_service = PeriodicMetricsRollupService(
             uow_factory=lambda: self.uow,
             cache_or_redis=cache,
         ) if cache else None
+
+    def _session(self) -> AsyncSession:
+        return self.uow.session  # type: ignore[attr-defined]
+
+    async def _cached(self, key: str, ttlSeconds: int, compute: Callable[[], Coroutine[Any, Any, dict]]) -> dict:
+        cacheKey = f"{CACHE_PREFIX}:{key}"
+        if self.cache:
+            try:
+                cached = await self.cache.get(cacheKey)
+                if cached is not None:
+                    return cached
+            except Exception:
+                logger.warning("Dashboard cache read failed for key '%s'; falling back to live query.", cacheKey)
+
+        result = await compute()
+
+        if self.cache:
+            try:
+                await self.cache.set(cacheKey, result, expire=ttlSeconds)
+            except Exception:
+                logger.warning("Dashboard cache write failed for key '%s'.", cacheKey)
+
+        return result
+
+    def _unioned_query(self, channels: Optional[List[str]] = None):
+        """
+        Builds a UNION ALL query across outbox (pending/failed/retrying) and notification
+        (sent/delivered) tables for each supported channel.
+        """
+        names = channels or list(CHANNEL_MODELS.keys())
+        branches = []
+        for name in names:
+            if name not in CHANNEL_MODELS:
+                raise ValidationError(
+                    message=f"Invalid channel '{name}'. Must be one of: {', '.join(CHANNEL_MODELS)}",
+                    code="INVALID_CHANNEL",
+                )
+            outbox_model, template_model, notification_model = CHANNEL_MODELS[name]
+
+            # 1. Outbox branch (pending / failed / retrying)
+            branches.append(
+                select(
+                    literal(name).label("channel"),
+                    outbox_model.createdAt.label("createdAt"),
+                    outbox_model.updatedAt.label("updatedAt"),
+                    outbox_model.status.label("status"),
+                    outbox_model.retryCount.label("retryCount"),
+                    outbox_model.lastErrorMessage.label("lastErrorMessage"),
+                    outbox_model.providerAttempted.cast(String).label("providerAttempted"),
+                    template_model.tenantId.label("tenantId"),
+                ).select_from(outbox_model).outerjoin(
+                    template_model, outbox_model.templateId == template_model.id
+                )
+            )
+
+            # 2. Notifications branch (sent / delivered / read)
+            branches.append(
+                select(
+                    literal(name).label("channel"),
+                    notification_model.createdAt.label("createdAt"),
+                    notification_model.updatedAt.label("updatedAt"),
+                    notification_model.status.label("status"),
+                    literal(0).label("retryCount"),
+                    literal(None).cast(String).label("lastErrorMessage"),
+                    literal(None).cast(String).label("providerAttempted"),
+                    template_model.tenantId.label("tenantId"),
+                ).select_from(notification_model).outerjoin(
+                    template_model, notification_model.templateId == template_model.id
+                )
+            )
+
+        unioned = branches[0].union_all(*branches[1:]) if len(branches) > 1 else branches[0]
+        return unioned.subquery()
 
     async def getPeriodicRollupMetrics(
         self,
@@ -131,24 +200,6 @@ class DashboardService:
             channel=channel,
         )
 
-    async def _cached(self, key: str, ttlSeconds: int, compute: Callable[[], Coroutine[Any, Any, dict]]) -> dict:
-        cacheKey = f"{CACHE_PREFIX}:{key}"
-        try:
-            cached = await self.cache.get(cacheKey)
-            if cached is not None:
-                return cached
-        except Exception:
-            logger.warning("Dashboard cache read failed for key '%s'; falling back to live query.", cacheKey)
-
-        result = await compute()
-
-        try:
-            await self.cache.set(cacheKey, result, expire=ttlSeconds)
-        except Exception:
-            logger.warning("Dashboard cache write failed for key '%s'.", cacheKey)
-
-        return result
-
     # -- 1. GET /admin/dashboard/stats --------------------------------------
 
     async def getStats(self, period: str = "24h") -> dict:
@@ -157,46 +208,72 @@ class DashboardService:
             delta = PERIOD_TO_DELTA[period]
             previousSince = since - delta
 
-            currentSent, currentDelivered, currentFailed = await self.metrics.get_period_totals(since, None)
-            previousSent, previousDelivered, previousFailed = await self.metrics.get_period_totals(previousSince, since)
-
-            currentRate = _safe_rate(currentDelivered, currentSent)
-            previousRate = _safe_rate(previousDelivered, previousSent)
-
-            channelBreakdown = await self.metrics.get_channel_breakdown(since, None)
-
             async with self.uow:
-                session = self.uow.session  # type: ignore[attr-defined]
+                session = self._session()
+                uq = self._unioned_query()
+
+                def periodTotals(start: datetime, end: Optional[datetime]):
+                    conditions = [uq.c.createdAt >= start]
+                    if end is not None:
+                        conditions.append(uq.c.createdAt < end)
+                    return select(
+                        func.count().label("sent"),
+                        func.sum(case((uq.c.status.in_(DELIVERED_STATUSES), 1), else_=0)).label("delivered"),
+                        func.sum(case((uq.c.status.in_(FAILED_STATUSES), 1), else_=0)).label("failed"),
+                    ).where(*conditions)
+
+                currentRow = (await session.execute(periodTotals(since, None))).one()
+                previousRow = (await session.execute(periodTotals(previousSince, since))).one()
+
+                currentSent = currentRow.sent or 0
+                currentDelivered = int(currentRow.delivered or 0)
+                currentFailed = int(currentRow.failed or 0)
+                currentRate = _safe_rate(currentDelivered, currentSent)
+
+                previousSent = previousRow.sent or 0
+                previousDelivered = int(previousRow.delivered or 0)
+                previousFailed = int(previousRow.failed or 0)
+                previousRate = _safe_rate(previousDelivered, previousSent)
+
+                perChannelStmt = select(
+                    uq.c.channel, func.count().label("sent")
+                ).where(uq.c.createdAt >= since).group_by(uq.c.channel)
+                perChannelRows = {row.channel: row.sent for row in (await session.execute(perChannelStmt)).all()}
+
                 totalTenants = (await session.execute(select(func.count()).select_from(TenantModel))).scalar() or 0
                 activeTenants = (
                     await session.execute(select(func.count()).select_from(TenantModel).where(TenantModel.isActive.is_(True)))
                 ).scalar() or 0
 
-            pendingRetry = await self.metrics.get_pending_retry_count()
+                pendingRetryStmt = select(func.count()).select_from(uq).where(
+                    uq.c.status == "pending", uq.c.retryCount > 0
+                )
+                pendingRetry = (await session.execute(pendingRetryStmt)).scalar() or 0
 
-            return {
-                "totalTenants": totalTenants,
-                "activeTenants": activeTenants,
-                "totalMessages": currentSent,
-                "deliveryRate": currentRate,
-                "failedMessages": currentFailed,
-                "pendingRetry": pendingRetry,
-                "messagesByChannel": {
-                    "sms": channelBreakdown.get("sms", (0, 0, 0))[0],
-                    "email": channelBreakdown.get("email", (0, 0, 0))[0],
-                    "inapp": channelBreakdown.get("inapp", (0, 0, 0))[0],
-                    "whatsapp": channelBreakdown.get("whatsapp", (0, 0, 0))[0],
-                },
-                "comparedToPrevious": {
-                    "totalMessages": _format_percent_change(currentSent, previousSent),
-                    "deliveryRate": _format_point_change(currentRate, previousRate),
-                    "failedMessages": _format_absolute_change(currentFailed, previousFailed),
-                },
-            }
+                return {
+                    "totalTenants": totalTenants,
+                    "activeTenants": activeTenants,
+                    "totalMessages": currentSent,
+                    "deliveryRate": currentRate,
+                    "failedMessages": currentFailed,
+                    "pendingRetry": pendingRetry,
+                    "messagesByChannel": {
+                        "sms": perChannelRows.get("sms", 0),
+                        "email": perChannelRows.get("email", 0),
+                        "inapp": perChannelRows.get("inapp", 0),
+                        "whatsapp": perChannelRows.get("whatsapp", 0),
+                        "telegram": perChannelRows.get("telegram", 0),
+                    },
+                    "comparedToPrevious": {
+                        "totalMessages": _format_percent_change(currentSent, previousSent),
+                        "deliveryRate": _format_point_change(currentRate, previousRate),
+                        "failedMessages": _format_absolute_change(currentFailed, previousFailed),
+                    },
+                }
 
         return await self._cached(f"stats:{period}", ttlSeconds=30, compute=compute)
 
-    # -- 2. GET /admin/dashboard/volume ------------------------------------- 
+    # -- 2. GET /admin/dashboard/volume -------------------------------------
 
     async def getVolume(self, period: str = "7d", granularity: str = "day", channel: Optional[str] = None) -> dict:
         async def compute() -> dict:
@@ -206,9 +283,31 @@ class DashboardService:
                     code="INVALID_GRANULARITY",
                 )
             since = _period_since(period)
-            channels_list = [channel] if channel else None
-            data = await self.metrics.get_volume_series(since, granularity, channels_list)
-            return {"data": data}
+            channels = [channel] if channel else None
+
+            async with self.uow:
+                session = self._session()
+                uq = self._unioned_query(channels)
+
+                bucket = func.date_trunc(granularity, uq.c.createdAt).label("bucket")
+                stmt = select(
+                    bucket,
+                    func.count().label("sent"),
+                    func.sum(case((uq.c.status.in_(DELIVERED_STATUSES), 1), else_=0)).label("delivered"),
+                    func.sum(case((uq.c.status.in_(FAILED_STATUSES), 1), else_=0)).label("failed"),
+                ).where(uq.c.createdAt >= since).group_by(bucket).order_by(bucket)
+
+                rows = (await session.execute(stmt)).all()
+                data = [
+                    {
+                        "date": row.bucket.isoformat(),
+                        "sent": row.sent or 0,
+                        "delivered": int(row.delivered or 0),
+                        "failed": int(row.failed or 0),
+                    }
+                    for row in rows
+                ]
+                return {"data": data}
 
         return await self._cached(f"volume:{period}:{granularity}:{channel or 'all'}", ttlSeconds=60, compute=compute)
 
@@ -217,45 +316,131 @@ class DashboardService:
     async def getChannelBreakdown(self, period: str = "24h") -> dict:
         async def compute() -> dict:
             since = _period_since(period)
-            breakdown = await self.metrics.get_channel_breakdown(since, None)
-            channels = []
-            for name in CHANNEL_MODELS:
-                sent, delivered, failed = breakdown.get(name, (0, 0, 0))
-                channels.append({
-                    "channel": name,
-                    "sent": sent,
-                    "delivered": delivered,
-                    "failed": failed,
-                    "deliveryRate": _safe_rate(delivered, sent),
-                })
-            return {"channels": channels}
+            async with self.uow:
+                session = self._session()
+                uq = self._unioned_query()
+                stmt = select(
+                    uq.c.channel,
+                    func.count().label("sent"),
+                    func.sum(case((uq.c.status.in_(DELIVERED_STATUSES), 1), else_=0)).label("delivered"),
+                    func.sum(case((uq.c.status.in_(FAILED_STATUSES), 1), else_=0)).label("failed"),
+                ).where(uq.c.createdAt >= since).group_by(uq.c.channel)
+                rows = {row.channel: row for row in (await session.execute(stmt)).all()}
+
+                channels = []
+                for name in CHANNEL_MODELS:
+                    row = rows.get(name)
+                    sent = row.sent if row else 0
+                    delivered = int(row.delivered or 0) if row else 0
+                    failed = int(row.failed or 0) if row else 0
+                    channels.append({
+                        "channel": name,
+                        "sent": sent,
+                        "delivered": delivered,
+                        "failed": failed,
+                        "deliveryRate": _safe_rate(delivered, sent),
+                    })
+                return {"channels": channels}
 
         return await self._cached(f"channels:{period}", ttlSeconds=30, compute=compute)
-                    
 
     # -- 5. GET /admin/dashboard/top-tenants ----------------------------------
 
     async def getTopTenants(self, limit: int = 5, period: str = "7d") -> dict:
         async def compute() -> dict:
             since = _period_since(period)
-            items = await self.metrics.get_top_tenants(since, limit)
-            for item in items:
-                item["deliveryRate"] = _safe_rate(item["delivered"], item["totalMessages"])
-                del item["delivered"]
-            return {"items": items}
+            async with self.uow:
+                session = self._session()
+                uq = self._unioned_query()
+
+                topTenantsStmt = select(
+                    uq.c.tenantId,
+                    func.count().label("sent")
+                ).where(
+                    uq.c.createdAt >= since,
+                    uq.c.tenantId.isnot(None)
+                ).group_by(uq.c.tenantId).order_by(func.count().desc()).limit(limit)
+
+                topTenantRows = (await session.execute(topTenantsStmt)).all()
+                if not topTenantRows:
+                    return {"items": []}
+
+                tenantIds = [row.tenantId for row in topTenantRows]
+
+                stmt = select(
+                    uq.c.tenantId,
+                    uq.c.channel,
+                    func.count().label("sent"),
+                    func.sum(case((uq.c.status.in_(DELIVERED_STATUSES), 1), else_=0)).label("delivered"),
+                ).where(
+                    uq.c.createdAt >= since,
+                    uq.c.tenantId.in_(tenantIds)
+                ).group_by(uq.c.tenantId, uq.c.channel)
+
+                rows = (await session.execute(stmt)).all()
+
+                perTenant: Dict[UUID, Dict[str, Any]] = {}
+                for row in rows:
+                    entry = perTenant.setdefault(row.tenantId, {"sent": 0, "delivered": 0, "channels": set()})
+                    entry["sent"] += row.sent or 0
+                    entry["delivered"] += int(row.delivered or 0)
+                    if (row.sent or 0) > 0:
+                        entry["channels"].add(row.channel)
+
+                tenantRows = (
+                    await session.execute(select(TenantModel.id, TenantModel.name).where(TenantModel.id.in_(tenantIds)))
+                ).all()
+                tenantNames = {r.id: r.name for r in tenantRows}
+
+                items = []
+                for tid in tenantIds:
+                    if tid not in tenantNames or tid not in perTenant:
+                        continue
+                    agg = perTenant[tid]
+                    items.append({
+                        "tenantId": str(tid),
+                        "tenantName": tenantNames[tid],
+                        "totalMessages": agg["sent"],
+                        "deliveryRate": _safe_rate(agg["delivered"], agg["sent"]),
+                        "channels": sorted(agg["channels"]),
+                    })
+                return {"items": items}
 
         return await self._cached(f"top-tenants:{limit}:{period}", ttlSeconds=60, compute=compute)
-
 
     # -- 6. GET /admin/dashboard/provider-health -----------------------------
 
     async def getProviderHealth(self) -> dict:
         async def compute() -> dict:
-            items = await self.metrics.get_provider_health()
-            for item in items:
-                item["successRate"] = _safe_rate(item["delivered"], item["totalSent"])
-                del item["delivered"]
-            return {"providers": items}
+            async with self.uow:
+                session = self._session()
+                providers = (await session.execute(select(ProviderModel))).scalars().all()
+
+                uq = self._unioned_query()
+                perfStmt = select(
+                    uq.c.channel,
+                    uq.c.providerAttempted,
+                    func.count().label("sent"),
+                    func.sum(case((uq.c.status.in_(DELIVERED_STATUSES), 1), else_=0)).label("delivered"),
+                ).where(uq.c.providerAttempted.isnot(None)).group_by(uq.c.channel, uq.c.providerAttempted)
+                perf = {(row.channel, row.providerAttempted): row for row in (await session.execute(perfStmt)).all()}
+
+                items = []
+                for provider in providers:
+                    row = perf.get((provider.channel, provider.providerName))
+                    sent = row.sent if row else 0
+                    delivered = int(row.delivered or 0) if row else 0
+                    items.append({
+                        "providerName": provider.providerName,
+                        "displayName": provider.displayName,
+                        "channel": provider.channel,
+                        "isActive": provider.isActive,
+                        "successRate": _safe_rate(delivered, sent),
+                        "lastTestAt": getattr(provider, "lastTestedAt", None),
+                        "lastTestSuccess": getattr(provider, "lastTestSuccess", None),
+                        "totalSent": sent,
+                    })
+                return {"providers": items}
 
         return await self._cached("provider-health", ttlSeconds=30, compute=compute)
 
@@ -264,41 +449,48 @@ class DashboardService:
     async def getFailures(self, period: str = "24h") -> dict:
         async def compute() -> dict:
             since = _period_since(period)
-            _, _, total_failed = await self.metrics.get_period_totals(since, None)
-            needsRetry = await self.metrics.get_pending_retry_count()
-            
-            # For failures, we still need raw outbox query for 'byProvider' and 'topErrors' 
-            # as they require granular fields (lastErrorMessage, and provider filtered by failure).
-            # Wait, the rollup table HAS provider and status. So we can use the rollup table for `byChannel` and `byProvider`!
-            breakdown = await self.metrics.get_channel_breakdown(since, None)
-            byChannel = {channel: failed for channel, (_, _, failed) in breakdown.items() if failed > 0}
-            
-            # For byProvider, we need a small custom query or method. Let's just use raw outbox for now 
-            # to match the old logic without modifying MetricsService further, OR add it to MetricsService.
-            # Actually, `get_top_errors` is already in MetricsService.
-            # Let's just run the remaining raw queries using MetricsService `_unioned_outbox_query`? No, DashboardService shouldn't.
-            
-            # Let's add `byProvider` logic to MetricsService? Or just fall back to raw outbox here?
-            # I will just write the raw query here for byProvider for speed since MetricsService is for dashboard main stats.
-            # No, I should use `MetricsService`. Let me modify it slightly here by instantiating raw outbox.
             async with self.uow:
-                session = self.uow.session  # type: ignore[attr-defined]
-                uq = self.metrics._unioned_outbox_query()
-                
+                session = self._session()
+                uq = self._unioned_query()
+
+                totalStmt = select(func.count()).select_from(uq).where(
+                    uq.c.createdAt >= since, uq.c.status.in_(FAILED_STATUSES)
+                )
+                total = (await session.execute(totalStmt)).scalar() or 0
+
+                needsRetryStmt = select(func.count()).select_from(uq).where(
+                    uq.c.status == "pending", uq.c.retryCount > 0
+                )
+                needsRetry = (await session.execute(needsRetryStmt)).scalar() or 0
+
+                byChannelStmt = select(uq.c.channel, func.count()).where(
+                    uq.c.createdAt >= since, uq.c.status.in_(FAILED_STATUSES)
+                ).group_by(uq.c.channel)
+                byChannel = {row[0]: row[1] for row in (await session.execute(byChannelStmt)).all()}
+
                 byProviderStmt = select(uq.c.providerAttempted, func.count()).where(
                     uq.c.createdAt >= since, uq.c.status.in_(FAILED_STATUSES), uq.c.providerAttempted.isnot(None)
                 ).group_by(uq.c.providerAttempted)
                 byProvider = {row[0]: row[1] for row in (await session.execute(byProviderStmt)).all()}
 
-            topErrors = await self.metrics.get_top_errors(since, 10)
+                errorLabel = func.coalesce(uq.c.lastErrorMessage, literal("Unknown error"))
+                topErrorsStmt = select(
+                    errorLabel.label("message"), func.count().label("count")
+                ).where(
+                    uq.c.createdAt >= since, uq.c.status.in_(FAILED_STATUSES)
+                ).group_by(errorLabel).order_by(func.count().desc()).limit(10)
+                topErrors = [
+                    {"message": row.message, "count": row.count}
+                    for row in (await session.execute(topErrorsStmt)).all()
+                ]
 
-            return {
-                "total": total_failed,
-                "needsRetry": needsRetry,
-                "byChannel": byChannel,
-                "byProvider": byProvider,
-                "topErrors": topErrors,
-            }
+                return {
+                    "total": total,
+                    "needsRetry": needsRetry,
+                    "byChannel": byChannel,
+                    "byProvider": byProvider,
+                    "topErrors": topErrors,
+                }
 
         return await self._cached(f"failures:{period}", ttlSeconds=30, compute=compute)
 
@@ -312,7 +504,6 @@ class DashboardService:
         endDate: Optional[datetime] = None,
         granularity: str = "day",
     ) -> dict:
-        
         if granularity not in SENT_MESSAGES_GRANULARITY:
             raise ValidationError(
                 message=f"Invalid granularity '{granularity}'. Must be one of: {', '.join(SENT_MESSAGES_GRANULARITY)}",
@@ -320,8 +511,8 @@ class DashboardService:
             )
 
         async with self.uow:
-            session = self.uow.session  # type: ignore[attr-defined]
-            uq = self.metrics._unioned_outbox_query(channels)
+            session = self._session()
+            uq = self._unioned_query(channels)
 
             conditions = []
             if tenantIds:
