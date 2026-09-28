@@ -13,7 +13,8 @@ from notification_service.adapters.inbound.dto.tenant_email_configuration_reques
     TenantEmailConfigurationResponseDTO,
     TenantEmailConfigurationFilterDTO,
 )
-from notification_service.adapters.inbound.dependencies import require_role
+
+from notification_service.adapters.inbound.rest.dependencies.auth_dependency import require_role, UserContext
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,9 @@ class TenantEmailConfigurationController(ControllerBase):
 
     @get("/get", response_model=PaginatedResponseDTO[TenantEmailConfigurationResponseDTO])
     async def get(
-        self, params: TenantEmailConfigurationFilterDTO = Depends()
+        self,
+        params: TenantEmailConfigurationFilterDTO = Depends(),
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> PaginatedResponseDTO[TenantEmailConfigurationResponseDTO]:
         """Get tenant email configurations by filters."""
         paginated_request = self.tenantEmailConfigurationService._build_paginated_request(
@@ -38,18 +41,23 @@ class TenantEmailConfigurationController(ControllerBase):
         result = await self.tenantEmailConfigurationService.get(paginated_request)
         return result
 
-    @post("/create", response_model=TenantEmailConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
+    @post("/create", response_model=TenantEmailConfigurationResponseDTO)
     async def create(
-        self, requestDto: TenantEmailConfigurationRequestDto
+        self,
+        requestDto: TenantEmailConfigurationRequestDto,
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> TenantEmailConfigurationResponseDTO:
         """Create a new tenant email configuration."""
         entity = requestDto.toEntity()
         created = await self.tenantEmailConfigurationService.create(entity)
         return TenantEmailConfigurationResponseDTO.fromEntityWithRelations(created)
 
-    @put("/{id}", response_model=TenantEmailConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
+    @put("/{id}", response_model=TenantEmailConfigurationResponseDTO)
     async def update(
-        self, id: UUID, requestDto: TenantEmailConfigurationRequestDto
+        self,
+        id: UUID,
+        requestDto: TenantEmailConfigurationRequestDto,
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> TenantEmailConfigurationResponseDTO:
         """Full update of a tenant email configuration."""
         entity = requestDto.toEntity()
@@ -58,16 +66,23 @@ class TenantEmailConfigurationController(ControllerBase):
         updated = await self.tenantEmailConfigurationService.update(entity)
         return TenantEmailConfigurationResponseDTO.fromEntityWithRelations(updated)
 
-    @patch("/{id}", response_model=TenantEmailConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
+    @patch("/{id}", response_model=TenantEmailConfigurationResponseDTO)
     async def partialUpdate(
-        self, id: UUID, updates: dict
+        self,
+        id: UUID,
+        updates: dict,
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
     ) -> TenantEmailConfigurationResponseDTO:
         """Partial update of a tenant email configuration."""
         updated = await self.tenantEmailConfigurationService.partialUpdate(id, updates)
         return TenantEmailConfigurationResponseDTO.fromEntityWithRelations(updated)
 
-    @delete("/{id}", dependencies=[Depends(require_role(["super-admin"]))])
-    async def deleteConfiguration(self, id: UUID):
+    @delete("/{id}")
+    async def deleteConfiguration(
+        self,
+        id: UUID,
+        _ctx: UserContext = Depends(require_role(["super-admin"])),
+    ):
         """Delete a tenant email configuration."""
         await self.tenantEmailConfigurationService.delete(id)
         return {"message": "Tenant email configuration deleted successfully"}

@@ -1,0 +1,45 @@
+# Version control
+.git
+.gitignore
+
+# Secrets. Runtime config comes from the compose `environment:`/`env_file:`
+# block or the ECS task definition, never from a copy baked into the image.
+.env
+.env.*
+
+# Host virtualenv (built on Windows, wrong paths inside the container)
+.venv
+
+# Python caches and build output
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Not needed at runtime. README.md is kept: pyproject's `readme` points at it,
+# so the root install fails without it.
+tests/
+docs/
+*.md
+!README.md
+
+# Build and CI definitions
+Dockerfile
+.dockerignore
+docker-compose*.yml
+Jenkinsfile
+azure-pipelines.yml
+sonar-project.properties
+.docker/
+
+# IDE and OS noise
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

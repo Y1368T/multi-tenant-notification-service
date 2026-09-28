@@ -79,7 +79,7 @@ class TenantRequestDTO(BaseModel):
     @classmethod
     def validateChannels(cls, v: list[str]) -> list[str]:
         """Validate supported channels."""
-        allowedChannels = ["sms", "email", "inapp", "whatsapp"]
+        allowedChannels = ["sms", "email", "inapp", "whatsapp", "telegram"]
         if not v:
             raise ValueError("At least one supported channel is required")
         

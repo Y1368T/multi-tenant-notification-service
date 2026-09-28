@@ -1,186 +1,265 @@
+"""Authentication application service.
+
+Orchestrates all auth flows:
+- register: Create user in Keycloak + local DB
+- login: Authenticate via Keycloak, return tokens + profile
+- logout: Revoke tokens in Keycloak
+- refresh: Get new token pair
+- getCurrentUser: Look up user by keycloakId, return profile
+"""
 import logging
-from typing import Optional, Dict, Any, Tuple
-import httpx
-from datetime import datetime, timedelta, timezone
-from jose import jwt
+from typing import Dict, Any, List, Optional
+from uuid import UUID, uuid4
+from datetime import datetime
 
-from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
-
-from notification_service.config.settings import settings
-from notification_service.infrastructure.persistence.models.user.user import UserModel
-from notification_service.infrastructure.persistence.models.user.user_tenant import UserTenantModel
-from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
 from notification_service.domain.interfaces.iunit_of_work import IUnitOfWork
-from notification_service.shared.exceptions.application_exceptions import UnauthorizedError
+from notification_service.domain.interfaces.ikeycloak_client import IKeycloakClient
+from notification_service.domain.entities.user.user import User
+from notification_service.domain.entities.user.user_tenant import UserTenant
+from notification_service.shared.exceptions.application_exceptions import (
+    EntityNotFoundError,
+    ConflictError,
+    UnauthorizedError,
+)
+from notification_service.adapters.inbound.dto.auth_dto import (
+    AuthResponseDTO,
+    TokenResponseDTO,
+    UserProfileDTO,
+    TenantMembershipDTO,
+)
+
+from notification_service.shared.security.token_service import create_backend_session_token
 
 logger = logging.getLogger(__name__)
 
+
 class AuthService:
-    def __init__(self, uow: IUnitOfWork):
+    """Application service for user authentication and management."""
+
+    def __init__(self, uow: IUnitOfWork, keycloakClient: IKeycloakClient):
         self.uow = uow
+        self.keycloakClient = keycloakClient
 
-    async def _keycloak_login(self, email: str, password: str) -> Dict[str, Any]:
-        """Authenticate user against Keycloak using ROPC."""
-        if settings.mock_keycloak:
-            logger.info("Mocking Keycloak authentication for development.")
-            return {
-                "access_token": "mocked_access_token",
-                "refresh_token": "mocked_refresh_token",
-                "expires_in": 300,
-                "token_type": "Bearer"
-            }
-
-        url = f"{settings.keycloak_server_url}/realms/{settings.keycloak_realm}/protocol/openid-connect/token"
-        payload = {
-            "client_id": settings.keycloak_client_id,
-            "client_secret": settings.keycloak_client_secret,
-            "grant_type": "password",
-            "username": email,
-            "password": password,
-        }
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, data=payload, headers=headers)
-                if response.status_code != 200:
-                    logger.error(f"Keycloak login failed: {response.text}")
-                    raise UnauthorizedError("Invalid email or password.")
-                return response.json()
-            except httpx.RequestError as e:
-                logger.error(f"Error connecting to Keycloak: {e}")
-                raise UnauthorizedError("Authentication service unavailable.")
-
-    def _generate_mtns_session(self, user: UserModel, tenant_membership: Optional[UserTenantModel]) -> str:
-        """Generate a signed JWT session token."""
-        now = datetime.now(timezone.utc)
-        expire = now + timedelta(seconds=settings.session_ttl_seconds)
-
-        # Determine effective role and tenant
-        # If user is super-admin at global level, keep it. Otherwise check tenant role.
-        effective_role = user.role
-        tenant_id = None
-        tenant_name = None
-
-        if effective_role != "super-admin" and tenant_membership:
-            effective_role = tenant_membership.role
-            tenant_id = str(tenant_membership.tenant_id)
-            tenant_name = tenant_membership.tenant.name if tenant_membership.tenant else None
-
-        payload = {
-            "sub": str(user.id),
-            "email": user.email,
-            "role": effective_role,
-            "tenant_id": tenant_id,
-            "tenant_name": tenant_name,
-            "exp": expire.timestamp(),
-            "iat": now.timestamp()
-        }
-
-        # Create JWT using jose
-        token = jwt.encode(payload, settings.session_signing_key, algorithm="HS256")
-        return token
-
-    async def authenticate_user(self, email: str, password: str) -> Tuple[str, Dict[str, Any]]:
+    # REGISTER
+    async def register(
+        self,
+        email: str,
+        password: str,
+        fullName: str,
+        tenantId: Optional[UUID] = None,
+        role: str = "tenant-manager",
+    ) -> AuthResponseDTO:
+        """Register a new user:
+        1. Create user in Keycloak (Admin API)
+        2. Create local User row
+        3. Create UserTenant membership if tenantId given
+        4. Login via Keycloak to get tokens
+        5. Return tokens + profile
         """
-        Authenticate user and return the session JWT and user profile.
+        async with self.uow:
+            # Check local DB for duplicate email first (fast check)
+            existing = await self.uow.users.getByEmail(email)
+            if existing:
+                raise ConflictError(f"A user with email '{email}' already exists")
+
+            # Split fullName for Keycloak which requires first + last
+            name_parts = fullName.strip().split(" ", 1)
+            kc_first = name_parts[0]
+            kc_last = name_parts[1] if len(name_parts) > 1 else ""
+
+            # Create user in Keycloak — raises ConflictError if duplicate
+            keycloakId = await self.keycloakClient.register(
+                email=email,
+                password=password,
+                firstName=kc_first,
+                lastName=kc_last,
+            )
+            logger.info(f"User created in Keycloak: keycloakId={keycloakId}")
+
+            # Persist local user
+            newUser = User(
+                id=uuid4(),
+                keycloakId=keycloakId,
+                email=email,
+                fullName=fullName.strip(),
+                role="super-admin" if role == "super-admin" else "user",
+                isActive=True,
+                createdAt=datetime.utcnow(),
+                updatedAt=datetime.utcnow(),
+            )
+            createdUser = await self.uow.users.add(newUser)
+            logger.info(f"Local user created: id={createdUser.id}")
+
+            # Link to tenant if provided
+            memberships: List[UserTenant] = []
+            if tenantId is not None:
+                membership = UserTenant(
+                    userId=createdUser.id,
+                    tenantId=tenantId,
+                    role=role,
+                    isActive=True,
+                    joinedAt=datetime.utcnow(),
+                )
+                createdMembership = await self.uow.userTenants.add(membership)
+                memberships.append(createdMembership)
+
+            await self.uow.commit()
+
+        # Login to get tokens from Keycloak
+        tokens = await self.keycloakClient.login(email=email, password=password)
+
+        eff_role = "super-admin" if createdUser.role == "super-admin" else "tenant-manager"
+        eff_tenant_id = None if eff_role == "super-admin" else (memberships[0].tenantId if memberships else None)
+        session_token = create_backend_session_token(
+            user_id=createdUser.id,
+            email=createdUser.email,
+            full_name=createdUser.fullName or fullName,
+            role=eff_role,
+            tenant_id=eff_tenant_id,
+        )
+
+        return AuthResponseDTO(
+            accessToken=tokens["access_token"],
+            refreshToken=tokens["refresh_token"],
+            sessionToken=session_token,
+            tokenType=tokens.get("token_type", "Bearer"),
+            expiresIn=tokens["expires_in"],
+            user=await self._buildUserProfile(createdUser, memberships),
+        )
+
+    # LOGIN
+    async def login(self, email: str, password: str) -> AuthResponseDTO:
+        """Authenticate user and return tokens + profile.
         
-        Returns:
-            Tuple[str, Dict[str, Any]]: (mtns_session_jwt, user_profile)
+        Keycloak validates credentials. We look up (or lazily create)
+        the local user record by keycloakId.
         """
-        # 1. Validate credentials with Keycloak
-        token_response = await self._keycloak_login(email, password)
+        # Keycloak validates credentials and returns tokens
+        tokens = await self.keycloakClient.login(email=email, password=password)
+
+        # Decode access token to get keycloakId (sub claim)
+        payload = await self.keycloakClient.verifyToken(tokens["access_token"])
+        keycloakId: Optional[str] = payload.get("sub")
+
+        async with self.uow:
+            user = None
+            if keycloakId:
+                user = await self.uow.users.getByKeycloakId(keycloakId)
+            if user is None:
+                user = await self.uow.users.getByEmail(email)
+            if user is None:
+                raise UnauthorizedError(
+                    "User authenticated with Keycloak but not found in local database. "
+                    "Please contact support."
+                )
+            if not user.isActive:
+                raise UnauthorizedError("User account is deactivated")
+
+            memberships = await self.uow.userTenants.getByUserId(user.id)
+
+        eff_role = "super-admin" if user.role == "super-admin" else "tenant-manager"
+        eff_tenant_id = None if eff_role == "super-admin" else (memberships[0].tenantId if memberships else None)
+        session_token = create_backend_session_token(
+            user_id=user.id,
+            email=user.email,
+            full_name=user.fullName or "",
+            role=eff_role,
+            tenant_id=eff_tenant_id,
+        )
+
+        return AuthResponseDTO(
+            accessToken=tokens["access_token"],
+            refreshToken=tokens["refresh_token"],
+            sessionToken=session_token,
+            tokenType=tokens.get("token_type", "Bearer"),
+            expiresIn=tokens["expires_in"],
+            user=await self._buildUserProfile(user, memberships),
+        )
+
+    # LOGOUT
+    async def logout(self, refreshToken: str) -> None:
+        """Revoke the refresh token in Keycloak.
         
-        # 2. Lookup user in local database
+        This invalidates both the refresh token and any derived access tokens
+        on the Keycloak side.
+        """
+        await self.keycloakClient.logout(refreshToken)
+        logger.info("User logged out — refresh token revoked in Keycloak")
+
+    # REFRESH TOKEN
+    async def refresh(self, refreshToken: str) -> TokenResponseDTO:
+        """Exchange a refresh token for new tokens."""
+        tokens = await self.keycloakClient.refreshToken(refreshToken)
+
+        session_token = None
+        try:
+            payload = await self.keycloakClient.verifyToken(tokens["access_token"])
+            keycloakId: str = payload.get("sub", "")
+            if keycloakId:
+                async with self.uow:
+                    user = await self.uow.users.getByKeycloakId(keycloakId)
+                    if user and user.isActive:
+                        memberships = await self.uow.userTenants.getByUserId(user.id)
+                        eff_role = "super-admin" if user.role == "super-admin" else "tenant-manager"
+                        eff_tenant_id = None if eff_role == "super-admin" else (memberships[0].tenantId if memberships else None)
+                        session_token = create_backend_session_token(
+                            user_id=user.id,
+                            email=user.email,
+                            full_name=user.fullName or "",
+                            role=eff_role,
+                            tenant_id=eff_tenant_id,
+                        )
+        except Exception as e:
+            logger.warning(f"Could not mint backend session token on refresh: {e}")
+
+        return TokenResponseDTO(
+            accessToken=tokens["access_token"],
+            refreshToken=tokens["refresh_token"],
+            sessionToken=session_token,
+            tokenType=tokens.get("token_type", "Bearer"),
+            expiresIn=tokens["expires_in"],
+        )
+
+    # GET CURRENT USER (/me)
+    async def getCurrentUser(self, keycloakId: str) -> UserProfileDTO:
+        """Return the full profile for an already-authenticated user.
+        
+        The keycloakId comes from the verified JWT 'sub' claim,
+        which is extracted by the auth dependency before this is called.
+        """
         async with self.uow:
-            # We access the raw session since user repository isn't exposed in IUnitOfWork
-            session = self.uow.session
-            
-            # Fetch user with their tenant memberships and tenant details
-            stmt = select(UserModel).options(
-                selectinload(UserModel.tenantMemberships).selectinload(UserTenantModel.tenant)
-            ).where(UserModel.email == email)
-            
-            result = await session.execute(stmt)
-            user = result.scalar_one_or_none()
+            user = await self.uow.users.getByKeycloakId(keycloakId)
+            if user is None:
+                raise EntityNotFoundError("User", keycloakId)
+            if not user.isActive:
+                raise UnauthorizedError("User account is deactivated")
 
-            if not user or not user.isActive:
-                raise UnauthorizedError("User is deactivated or not found locally.")
+            memberships = await self.uow.userTenants.getByUserId(user.id)
 
-            # Identify primary tenant membership if not super-admin
-            tenant_membership = None
-            if user.role != "super-admin" and user.tenantMemberships:
-                # For this implementation, pick the first active membership
-                for membership in user.tenantMemberships:
-                    if membership.isActive:
-                        tenant_membership = membership
-                        break
-                
-                if not tenant_membership:
-                    raise UnauthorizedError("User has no active tenant memberships.")
+        return await self._buildUserProfile(user, memberships)
 
-            # 3. Generate internal JWT session
-            mtns_session = self._generate_mtns_session(user, tenant_membership)
-
-            # 4. Prepare user profile response
-            effective_role = user.role
-            tenant_id = None
-            tenant_name = None
-
-            if effective_role != "super-admin" and tenant_membership:
-                effective_role = tenant_membership.role
-                tenant_id = str(tenant_membership.tenant_id)
-                tenant_name = tenant_membership.tenant.name if tenant_membership.tenant else None
-
-            user_profile = {
-                "user": {
-                    "email": user.email,
-                    "full_name": user.fullName,
-                    "role": effective_role,
-                    "tenant_id": tenant_id,
-                    "tenant_name": tenant_name
-                }
-            }
-
-            return mtns_session, user_profile
-
-    async def get_current_user_profile(self, user_id: str) -> Dict[str, Any]:
-        """Fetch current user profile by ID."""
-        async with self.uow:
-            session = self.uow.session
-            stmt = select(UserModel).options(
-                selectinload(UserModel.tenantMemberships).selectinload(UserTenantModel.tenant)
-            ).where(UserModel.id == user_id)
-            
-            result = await session.execute(stmt)
-            user = result.scalar_one_or_none()
-
-            if not user:
-                raise UnauthorizedError("User not found.")
-
-            tenant_membership = None
-            if user.role != "super-admin" and user.tenantMemberships:
-                for membership in user.tenantMemberships:
-                    if membership.isActive:
-                        tenant_membership = membership
-                        break
-
-            effective_role = user.role
-            tenant_id = None
-            tenant_name = None
-
-            if effective_role != "super-admin" and tenant_membership:
-                effective_role = tenant_membership.role
-                tenant_id = str(tenant_membership.tenant_id)
-                tenant_name = tenant_membership.tenant.name if tenant_membership.tenant else None
-
-            return {
-                "user": {
-                    "email": user.email,
-                    "full_name": user.fullName,
-                    "role": effective_role,
-                    "tenant_id": tenant_id,
-                    "tenant_name": tenant_name
-                }
-            }
+    # PRIVATE HELPERS
+    async def _buildUserProfile(
+        self,
+        user: User,
+        memberships: List[UserTenant],
+    ) -> UserProfileDTO:
+        """Assemble a UserProfileDTO from a User entity and its memberships."""
+        tenantList = [
+            TenantMembershipDTO(
+                tenantId=m.tenantId,
+                tenantName=m.tenantName,
+                tenantPrefix=m.tenantPrefix,
+                role=m.role,
+                isActive=m.isActive,
+            )
+            for m in memberships
+        ]
+        return UserProfileDTO(
+            userId=user.id,
+            email=user.email,
+            fullName=user.fullName or "",
+            isActive=user.isActive,
+            tenants=tenantList,
+            createdAt=user.createdAt,
+        )

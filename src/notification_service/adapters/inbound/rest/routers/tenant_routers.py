@@ -13,6 +13,8 @@ from notification_service.infrastructure.messaging.rabbitmq.rabbitmq_consumer im
 from notification_service.shared.exceptions.application_exceptions import ValidationError
 from qena_shared_lib.http import ControllerBase, api_controller, get, post, put, patch, delete
 
+from notification_service.adapters.inbound.rest.dependencies.auth_dependency import get_user_context, UserContext, enforce_tenant_access, require_admin
+
 @api_controller(prefix="/tenants", tags=["Tenants"])
 class TenantController(ControllerBase):
     """Controller for tenant-related endpoints."""
@@ -40,7 +42,8 @@ class TenantController(ControllerBase):
     @post("/create", response_model=TenantResponseDTO)
     async def create(
         self, 
-        request_dto: TenantRequestDTO
+        request_dto: TenantRequestDTO,
+        _ctx: UserContext = Depends(require_admin),
     ) -> TenantResponseDTO:
         """
         Create a new tenant with validation.
@@ -78,7 +81,8 @@ class TenantController(ControllerBase):
     async def update(
         self, 
         id: UUID, 
-        request_dto: TenantRequestDTO
+        request_dto: TenantRequestDTO,
+        _ctx: UserContext = Depends(require_admin),
     ) -> TenantResponseDTO:
         """
         Full update of a tenant.
@@ -106,7 +110,8 @@ class TenantController(ControllerBase):
     async def partialUpdate(
         self, 
         id: UUID, 
-        updates: Dict[str, Any]
+        updates: Dict[str, Any],
+        _ctx: UserContext = Depends(require_admin),
     ) -> TenantResponseDTO:
         """
         Partial update of a tenant.
@@ -131,7 +136,8 @@ class TenantController(ControllerBase):
     @delete("/{id}", response_model=Dict[str, str])
     async def delete(
         self, 
-        id: UUID
+        id: UUID,
+        _ctx: UserContext = Depends(require_admin),
     ) -> Dict[str, str]:
         """
         Delete a tenant.
@@ -144,7 +150,8 @@ class TenantController(ControllerBase):
     @post("/{id}/regenerate-api-key", response_model=TenantResponseDTO)
     async def regenerate_api_key(
         self,
-        id: UUID
+        id: UUID,
+        ctx: UserContext = Depends(get_user_context),
     ) -> TenantResponseDTO:
         """
         Regenerate API key for a tenant.
@@ -156,7 +163,7 @@ class TenantController(ControllerBase):
         
         The new API key will overwrite the existing one.
         """
-       
+        enforce_tenant_access(ctx, id)
         
         # Call service to regenerate API key
         updated_tenant = await self.tenantService.regenerate_api_key(id)

@@ -60,9 +60,17 @@ from notification_service.infrastructure.services.customer_service_client import
 from notification_service.infrastructure.services.webhook_client import WebhookClient
 from notification_service.infrastructure.persistence.seeds.provider_seed import seed_providers
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
-from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
 from notification_service.infrastructure.services.redis_session_manager import RedisSessionManager
 from notification_service.infrastructure.services.keycloak_admin_service import KeycloakAdminService
+from notification_service.infrastructure.jobs.periodic_rollup_worker import PeriodicRollupWorker
+# Telegram services
+from notification_service.application.services.telegram_template_service import TelegramTemplateService
+from notification_service.application.services.telegram_notification_service import TelegramNotificationService
+from notification_service.application.services.telegram_outbox_service import TelegramOutboxService
+from notification_service.application.services.tenant_telegram_configuration_service import TenantTelegramConfigurationService
+from notification_service.application.services.auth_service import AuthService
+from notification_service.infrastructure.services.keycloak_client import KeycloakClient
+from notification_service.domain.interfaces.ikeycloak_client import IKeycloakClient
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -483,6 +491,15 @@ def main()->FastAPI:
     builder.with_transient(TenantEmailConfigurationService)
     # Provider Service
     builder.with_transient(ProviderService)
+    # Telegram Services
+    builder.with_transient(TelegramTemplateService)
+    builder.with_transient(TelegramNotificationService)
+    builder.with_transient(TelegramOutboxService)
+    builder.with_transient(TenantTelegramConfigurationService)
+    # Auth Services
+    builder.with_singleton(IKeycloakClient, KeycloakClient)
+    builder.with_transient(AuthService)
+
     
     logging.basicConfig(
     level=logging.INFO,  # Set to INFO to see info logs
@@ -536,6 +553,7 @@ async def lifespan(app: FastAPI):
 
     settings=get_service(app,Settings)
 
+    rpc_client = None
     if settings.enable_customer_language_rpc:
         rpc_client = get_service(app, RabbitMQRPCClient)
         await rpc_client.connect()
@@ -564,27 +582,23 @@ async def lifespan(app: FastAPI):
         "afromessage": afromessage_provider
     }
     
-    # Get email and in-app providers
+    # Get email, whatsapp, telegram and in-app providers
     email_provider = get_service(app, SMTPProvider)
     inapp_provider = get_service(app, FCMProvider)
-
-    #new
-    # Build WhatsApp providers dictionary (provider_name -> provider instance)
-    meta_cloud_provider = get_service(app, WhatsAppMetaCloudProvider)
+    telegram_provider = get_service(app, TelegramProvider)
+    whatsapp_provider = get_service(app, WhatsAppMetaCloudProvider)
     whatsapp_providers = {
-        "meta_cloud": meta_cloud_provider
+        "meta_cloud": whatsapp_provider
     }
-    #new
-
+    
     # Create OutboxProcessor instance
     outbox_processor = OutboxProcessor(
         database=database,
         sms_providers=sms_providers,
-        #new
         whatsapp_providers=whatsapp_providers,
-        #new
         email_provider=email_provider,
         inapp_provider=inapp_provider,
+        telegram_provider=telegram_provider,
         settings=settings,
         webhook_client=webhook_client
     )
@@ -593,9 +607,9 @@ async def lifespan(app: FastAPI):
     outbox_task = asyncio.create_task(outbox_processor.start())
     logger.info("OutboxProcessor background task started")
 
-    metrics_processor = MetricsRollupProcessor(database=database)
-    metrics_task = asyncio.create_task(metrics_processor.start())
-    logger.info("MetricsRollupProcessor background task started")
+    periodic_rollup_worker = PeriodicRollupWorker(database=database, cache_or_redis=redis)
+    periodic_rollup_task = asyncio.create_task(periodic_rollup_worker.start())
+    logger.info("PeriodicRollupWorker background task started")
 
     try:
         yield
@@ -612,10 +626,11 @@ async def lifespan(app: FastAPI):
         rabbitmq_task.cancel()
         outbox_task.cancel()
         
-        logger.info("Shutting down MetricsRollupProcessor...")
-        metrics_processor.stop()
-        metrics_task.cancel()
-        await asyncio.gather(rabbitmq_task, outbox_task, return_exceptions=True)
+
+        logger.info("Shutting down PeriodicRollupWorker...")
+        periodic_rollup_worker.stop()
+        periodic_rollup_task.cancel()
+        await asyncio.gather(rabbitmq_task, outbox_task, periodic_rollup_task, return_exceptions=True)
         
         if rpc_client:  # Use the variable from outer scope
             try:

@@ -7,6 +7,9 @@ from typing import Optional
 
 from notification_service.domain.interfaces.igeneric_repository import IGenericRepository
 from notification_service.domain.interfaces.custom_repositories.itenant_repository import ITenantRepository
+from notification_service.domain.interfaces.iuser_repository import IUserRepository
+from notification_service.domain.interfaces.iuser_tenant_repository import IUserTenantRepository
+
 
 class IUnitOfWork(ABC):
     """
@@ -127,13 +130,46 @@ class IUnitOfWork(ABC):
     def tenantInAppConfigurations(self) -> IGenericRepository:
         """Get tenant in-app configurations repository."""
         pass
-#new(whatsapp)    
+    
+    # Telegram repositories
     @property
     @abstractmethod
-    def tenantWhatsAppConfigurations(self) -> IGenericRepository:
-        """Get tenant WhatsApp configurations repository."""
+    def telegramNotifications(self) -> IGenericRepository:
+        """Get Telegram notifications repository."""
         pass
-#new(whatsapp)    
+    
+    @property
+    @abstractmethod
+    def telegramOutboxes(self) -> IGenericRepository:
+        """Get Telegram outbox repository."""
+        pass
+    
+    @property
+    @abstractmethod
+    def telegramTemplates(self) -> IGenericRepository:
+        """Get Telegram templates repository."""
+        pass
+    
+    @property
+    @abstractmethod
+    def tenantTelegramConfigurations(self) -> IGenericRepository:
+        """Get tenant Telegram configurations repository."""
+        pass
+
+    # User repositories
+    @property
+    @abstractmethod
+    def users(self) -> IUserRepository:
+        """Get users repository."""
+        pass
+
+    @property
+    @abstractmethod
+    def userTenants(self) -> IUserTenantRepository:
+        """Get user-tenant memberships repository."""
+        pass
+
+    
     @abstractmethod
     async def __aenter__(self):
         """Enter async context manager."""

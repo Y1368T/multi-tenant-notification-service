@@ -13,6 +13,8 @@ from uuid import UUID
 from typing import Dict, Any, List
 from notification_service.adapters.inbound.dependencies import require_role
 
+from notification_service.adapters.inbound.rest.dependencies.auth_dependency import require_role, UserContext, enforce_tenant_access
+
 @api_controller(prefix="/tenant-sms-configurations", tags=["Tenant SMS Configurations"])
 class TenantSMSConfigurationController(ControllerBase):
     
@@ -23,11 +25,14 @@ class TenantSMSConfigurationController(ControllerBase):
     @get("/get", response_model=PaginatedResponseDTO[TenantSMSConfigurationResponseDTO])
     async def get(
         self, 
-        params: TenantSMSConfigurationFilterDTO = Depends()
+        params: TenantSMSConfigurationFilterDTO = Depends(),
+        _ctx: UserContext = Depends(require_role(["super-admin", "tenant-manager"])),
     ) -> PaginatedResponseDTO[TenantSMSConfigurationResponseDTO]:
         """Get tenant SMS configurations by filters."""
-        # Build PaginatedRequest using service method
-        # Exceptions will be handled by global exception handlers
+        if params.tenant_id:
+            enforce_tenant_access(_ctx, params.tenant_id)
+        elif _ctx.is_tenant_manager:
+            enforce_tenant_access(_ctx, _ctx.tenant_id)
         paginated_request = self.tenantSmsConfigurationService._build_paginated_request(params)
         result = await self.tenantSmsConfigurationService.get(paginated_request)
         return result
@@ -35,12 +40,14 @@ class TenantSMSConfigurationController(ControllerBase):
     @post("/create", response_model=TenantSMSConfigurationResponseDTO, dependencies=[Depends(require_role(["super-admin"]))])
     async def create(
         self, 
-        request_dto: TenantSMSConfigurationRequestDto
+        request_dto: TenantSMSConfigurationRequestDto,
+        _ctx: UserContext = Depends(require_role(["super-admin", "tenant-manager"])),
     ) -> TenantSMSConfigurationResponseDTO:
         """
         Create a new tenant SMS configuration.
         POST /tenant-sms-configurations/create
         """
+        enforce_tenant_access(_ctx, request_dto.tenantId)
         # Convert DTO to entity
         if hasattr(request_dto, 'toEntity'):
             entity = request_dto.toEntity()
@@ -60,12 +67,14 @@ class TenantSMSConfigurationController(ControllerBase):
     async def update(
         self, 
         id: UUID, 
-        request_dto: TenantSMSConfigurationRequestDto
+        request_dto: TenantSMSConfigurationRequestDto,
+        _ctx: UserContext = Depends(require_role(["super-admin", "tenant-manager"])),
     ) -> TenantSMSConfigurationResponseDTO:
         """
         Full update of a tenant SMS configuration.
         PUT /tenant-sms-configurations/{id}
         """
+        enforce_tenant_access(_ctx, request_dto.tenantId)
         # Convert DTO to entity
         if hasattr(request_dto, 'toEntity'):
             entity = request_dto.toEntity()
@@ -86,7 +95,8 @@ class TenantSMSConfigurationController(ControllerBase):
     async def partialUpdate(
         self, 
         id: UUID, 
-        updates: Dict[str, Any]
+        updates: Dict[str, Any],
+        _ctx: UserContext = Depends(require_role(["super-admin", "tenant-manager"])),
     ) -> TenantSMSConfigurationResponseDTO:
         """
         Partial update of a tenant SMS configuration.
@@ -104,7 +114,8 @@ class TenantSMSConfigurationController(ControllerBase):
     @delete("/{id}", response_model=Dict[str, str], dependencies=[Depends(require_role(["super-admin"]))])
     async def delete(
         self, 
-        id: UUID
+        id: UUID,
+        _ctx: UserContext = Depends(require_role(["super-admin", "tenant-manager"])),
     ) -> Dict[str, str]:
         """
         Delete a tenant SMS configuration.

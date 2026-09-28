@@ -16,13 +16,14 @@ from notification_service.adapters.inbound.dto.paginated_request_dto import (
     FilterOp
 )
 from uuid import UUID
-from fastapi import Depends, Request
-from notification_service.adapters.inbound.dependencies import verify_tenant_access
+from fastapi import Depends
 import logging
 
 logger = logging.getLogger(__name__)
 # we have stoped using basecrudrouter because we have SMSNotification is can't be updated and created using a rest request
 # so we are using controllerbase instead of basecrudrouter and we this controller will only have get and send endpoints 
+
+from notification_service.adapters.inbound.rest.dependencies.auth_dependency import get_user_context, UserContext, enforce_tenant_access
 
 @api_controller(prefix="/sms-notifications", tags=["SMS Notifications"])
 class SMSNotificationController(ControllerBase):
@@ -31,43 +32,63 @@ class SMSNotificationController(ControllerBase):
         self.smsNotificationService = smsNotificationService
        
     @get("/get", response_model=PaginatedResponseDTO[SMSNotificationResponseDTO])
-    async def get(self, params: SMSNotificationFilterDTO = Depends()) -> PaginatedResponseDTO[SMSNotificationResponseDTO]:
+    async def get(
+        self, 
+        params: SMSNotificationFilterDTO = Depends(),
+        ctx: UserContext = Depends(get_user_context),
+    ) -> PaginatedResponseDTO[SMSNotificationResponseDTO]:
         """Get SMS notifications by filters."""
         # Build PaginatedRequest using service method
         # Exceptions will be handled by global exception handlers
+        if params.tenant_id:
+            enforce_tenant_access(ctx, params.tenant_id)
+        elif ctx.is_tenant_manager:
+            enforce_tenant_access(ctx, ctx.tenant_id)
         paginated_request = self.smsNotificationService._build_paginated_request(params)
         result = await self.smsNotificationService.get(paginated_request)
         return result
     
-   
-    
     # Custom endpoints (not standard CRUD)
-    @post("/send", dependencies=[Depends(verify_tenant_access)])
-    async def send(self, tenant_id: UUID, requestDto: NotificationRequest):
+    @post("/send")
+    async def send(
+        self, 
+        tenant_id: UUID, 
+        requestDto: NotificationRequest,
+        ctx: UserContext = Depends(get_user_context),
+    ):
         """Send SMS notification (custom endpoint)."""
+        enforce_tenant_access(ctx, tenant_id)
         result = await self.smsNotificationService.prepareAndSendSms(tenant_id, requestDto)
         return result
 
-    @post("/send-bulk", dependencies=[Depends(verify_tenant_access)])
-    async def sendBulk(self, tenant_id: UUID, requestDto: BulkNotificationRequestDTO):
+    @post("/send-bulk")
+    async def sendBulk(
+        self, 
+        tenant_id: UUID, 
+        requestDto: BulkNotificationRequestDTO,
+        ctx: UserContext = Depends(get_user_context),
+    ):
         """Send multiple recipient-specific SMS notifications in a single call.
 
         Each item in ``notifications`` is an independent notification with its
         own recipient, payload, and idempotency key. Valid items are processed
         even when others fail (partial success).
         """
+        enforce_tenant_access(ctx, tenant_id)
         result = await self.smsNotificationService.sendBulkSms(
             tenant_id, requestDto.notifications
         )
         return result
 
-    @post("/send-direct", dependencies=[Depends(verify_tenant_access)])
-    async def sendDirect(self, tenant_id: UUID, requestDto: DirectSMSRequestDTO):
-        """Send a single SMS without a pre-defined template.
-
-        The caller supplies the final message content directly — no template
-        lookup or variable rendering is performed.
-        """
+    @post("/send-direct")
+    async def sendDirect(
+        self, 
+        tenant_id: UUID, 
+        requestDto: DirectSMSRequestDTO,
+        ctx: UserContext = Depends(get_user_context),
+    ):
+        """Send a single SMS without a pre-defined template."""
+        enforce_tenant_access(ctx, tenant_id)
         direct_request = DirectNotificationRequest(
             recipient=Recipient(address=requestDto.recipient.address, externalId=requestDto.recipient.externalId),
             message=requestDto.message,
