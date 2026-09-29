@@ -57,7 +57,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from notification_service.main import main
 from notification_service.domain.interfaces.ikeycloak_client import IKeycloakClient
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
-from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
+from notification_service.infrastructure.jobs.periodic_rollup_worker import PeriodicRollupWorker
+from notification_service.infrastructure.cache.redis_cache import RedisCache
 from notification_service.infrastructure.persistence.db_session.session import Database
 from qena_shared_lib.dependencies.http import get_container, get_service
 
@@ -76,25 +77,29 @@ async def _single_conn_connect(self):
     immediately after each checkin, so the session can't reuse it after an
     await boundary).
 
-    Background tasks (OutboxProcessor, MetricsRollupProcessor) are separately
+    Background tasks (OutboxProcessor, PeriodicRollupWorker) are separately
     patched to no-ops so they never compete for this single connection slot.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info("Initializing database (pool_size=1 / test mode)...")
+    from sqlalchemy.pool import StaticPool
+    from notification_service.infrastructure.persistence.models.user.user import UserModel
+    from notification_service.infrastructure.persistence.models.user.user_tenant import UserTenantModel
+
     self.engine = create_async_engine(
-        self.database_url,
+        "sqlite+aiosqlite:///:memory:",
         echo=False,
-        pool_pre_ping=True,
-        pool_size=1,
-        max_overflow=0,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     self.session_maker = async_sessionmaker(
         bind=self.engine,
         expire_on_commit=False,
         class_=AsyncSession,
     )
-    logger.info("Database connection established successfully (pool_size=1).")
+    async with self.engine.begin() as conn:
+        await conn.run_sync(
+            UserModel.metadata.create_all,
+            tables=[UserModel.__table__, UserTenantModel.__table__],
+        )
 
 
 async def _noop_process_all_outboxes(self):
@@ -103,7 +108,7 @@ async def _noop_process_all_outboxes(self):
 
 
 async def _noop_start_metrics(self):
-    """No-op replacement: prevents MetricsRollupProcessor from doing DB work in tests."""
+    """No-op replacement: prevents PeriodicRollupWorker from doing DB/Redis work in tests."""
     pass
 
 
@@ -129,7 +134,9 @@ def _setup(request):
     # 1. Build app with background tasks disabled
     with (
         patch.object(OutboxProcessor, "_process_all_outboxes", new=_noop_process_all_outboxes),
-        patch.object(MetricsRollupProcessor, "start", new=_noop_start_metrics),
+        patch.object(PeriodicRollupWorker, "start", new=_noop_start_metrics),
+        patch.object(RedisCache, "connect", new=AsyncMock()),
+        patch.object(RedisCache, "disconnect", new=AsyncMock()),
     ):
         app = main()
 
@@ -153,11 +160,21 @@ def _setup(request):
                 ctrl.authService.keycloakClient = kc
                 ctrl.authService.uow.database = db
 
+    from notification_service.infrastructure.messaging.rabbitmq import RabbitMQRPCClient
+    from notification_service.adapters.inbound.rabbitmq.rabbitmq_consumer import NotificationRabbitMQConsumer
+
     # 5. Start TestClient (triggers lifespan — DB pool is created here)
     with (
         patch.object(Database, "connect", new=_single_conn_connect),
+        patch("notification_service.main.seed_providers", new=AsyncMock()),
+        patch.object(RabbitMQRPCClient, "connect", new=AsyncMock()),
+        patch.object(RabbitMQRPCClient, "disconnect", new=AsyncMock()),
+        patch.object(NotificationRabbitMQConsumer, "startConsuming", new=AsyncMock()),
+        patch.object(NotificationRabbitMQConsumer, "stopConsuming", new=AsyncMock()),
         patch.object(OutboxProcessor, "_process_all_outboxes", new=_noop_process_all_outboxes),
-        patch.object(MetricsRollupProcessor, "start", new=_noop_start_metrics),
+        patch.object(PeriodicRollupWorker, "start", new=_noop_start_metrics),
+        patch.object(RedisCache, "connect", new=AsyncMock()),
+        patch.object(RedisCache, "disconnect", new=AsyncMock()),
     ):
         with TestClient(app, raise_server_exceptions=False) as client:
             # Stash on the module so thin fixtures can read them

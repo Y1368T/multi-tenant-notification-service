@@ -6,11 +6,14 @@ from fastapi.testclient import TestClient
 from notification_service.main import main
 from notification_service.shared.security.token_service import create_backend_session_token
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from notification_service.infrastructure.persistence.db_session.session import Database
+from notification_service.infrastructure.cache.redis_cache import RedisCache
 from notification_service.infrastructure.jobs.outbox_processor import OutboxProcessor
-from notification_service.infrastructure.jobs.metrics_rollup_processor import MetricsRollupProcessor
+from notification_service.infrastructure.jobs.periodic_rollup_worker import PeriodicRollupWorker
+from notification_service.infrastructure.messaging.rabbitmq import RabbitMQRPCClient
+from notification_service.adapters.inbound.rabbitmq.rabbitmq_consumer import NotificationRabbitMQConsumer
 
 
 async def _single_conn_connect(self):
@@ -20,8 +23,9 @@ async def _single_conn_connect(self):
     points within a single session context (NullPool closes connections
     immediately after checkin, which breaks the session lifecycle).
     """
+    db_url = self.database_url.replace("postgres:5439", "localhost:5437")
     self.engine = create_async_engine(
-        self.database_url,
+        db_url,
         echo=False,
         pool_pre_ping=True,
         pool_size=1,
@@ -40,7 +44,7 @@ async def _noop_process_all_outboxes(self):
 
 
 async def _noop_start_metrics(self):
-    """Prevent MetricsRollupProcessor from touching the DB during tests."""
+    """Prevent PeriodicRollupWorker from touching the DB during tests."""
     pass
 
 
@@ -48,13 +52,23 @@ async def _noop_start_metrics(self):
 def client():
     with (
         patch.object(OutboxProcessor, "_process_all_outboxes", new=_noop_process_all_outboxes),
-        patch.object(MetricsRollupProcessor, "start", new=_noop_start_metrics),
+        patch.object(PeriodicRollupWorker, "start", new=_noop_start_metrics),
+        patch.object(RedisCache, "connect", new=AsyncMock()),
+        patch.object(RedisCache, "disconnect", new=AsyncMock()),
     ):
         app = main()
     with (
-        patch.object(Database, "connect", new=_single_conn_connect),
+        patch.object(Database, "connect", new=AsyncMock()),
+        patch.object(Database, "disconnect", new=AsyncMock()),
+        patch("notification_service.main.seed_providers", new=AsyncMock()),
+        patch.object(RabbitMQRPCClient, "connect", new=AsyncMock()),
+        patch.object(RabbitMQRPCClient, "disconnect", new=AsyncMock()),
+        patch.object(NotificationRabbitMQConsumer, "startConsuming", new=AsyncMock()),
+        patch.object(NotificationRabbitMQConsumer, "stopConsuming", new=AsyncMock()),
         patch.object(OutboxProcessor, "_process_all_outboxes", new=_noop_process_all_outboxes),
-        patch.object(MetricsRollupProcessor, "start", new=_noop_start_metrics),
+        patch.object(PeriodicRollupWorker, "start", new=_noop_start_metrics),
+        patch.object(RedisCache, "connect", new=AsyncMock()),
+        patch.object(RedisCache, "disconnect", new=AsyncMock()),
     ):
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c

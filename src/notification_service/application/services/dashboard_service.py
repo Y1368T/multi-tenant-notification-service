@@ -95,7 +95,7 @@ def _format_absolute_change(current: int, previous: int) -> str:
 class DashboardService:
     """Read-only aggregation service for the admin dashboard."""
 
-    def __init__(self, uow: IUnitOfWork, cache: Optional[RedisCache] = None):
+    def __init__(self, uow: IUnitOfWork, cache: RedisCache):
         self.uow = uow
         self.cache = cache
         self.rollup_service = PeriodicMetricsRollupService(

@@ -13,7 +13,7 @@ from notification_service.infrastructure.persistence.models.user.user import Use
 from notification_service.infrastructure.persistence.models.user.user_tenant import UserTenantModel
 from notification_service.infrastructure.persistence.models.tenant.tenant import TenantModel
 from notification_service.adapters.inbound.dto.paginated_response_dto import PaginatedResponseDTO
-from notification_service.adapters.inbound.dto.admin_user_dto import AdminUserResponseDTO, AdminCreateUserRequestDTO
+from notification_service.adapters.inbound.dto.admin_user_dto import AdminUserResponseDTO, AdminCreateUserRequestDTO, AdminUpdateUserRequestDTO
 from notification_service.infrastructure.services.keycloak_admin_service import KeycloakAdminService
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
